@@ -1,0 +1,14 @@
+{
+  "name": "cagri-tools",
+  "description": "TDD-driven feature workflow plus standalone helper skills for Claude Code.",
+  "owner": {
+    "name": "Cagri Yucel"
+  },
+  "plugins": [
+    {
+      "name": "dev-skills",
+      "source": "./",
+      "description": "TDD-driven feature workflow: design, plan, and implement features end-to-end."
+    }
+  ]
+}

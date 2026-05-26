@@ -102,14 +102,16 @@ This is a Claude Code plugin and is installed via the plugin system. Inside Clau
 
 ```
 /plugin marketplace add cagriy/dev-skills
-/plugin install dev-skills@cagriy/dev-skills
+/plugin install dev-skills@cagri-tools
 ```
+
+The first command adds this repo as a marketplace (named `cagri-tools` inside its `marketplace.json`); the second installs the `dev-skills` plugin from it.
 
 Or use `/plugin` interactively and pick `dev-skills` from the list.
 
 Once installed, the user-facing slash commands listed above are available in any project. The skills write artefacts into the **target project's** cwd under `features/feature-v<N>-<desc>/`, and the per-skill lessons log lives under `~/.claude/dev-skills/lessons/`.
 
-To update later, re-run `/plugin install dev-skills@cagriy/dev-skills`. To remove, use `/plugin uninstall dev-skills`.
+To update later, re-run `/plugin install dev-skills@cagri-tools`. To remove, use `/plugin uninstall dev-skills`.
 
 ## Typical session
 
@@ -140,10 +142,11 @@ Each step can also be run standalone with an explicit version, e.g. `/feature-de
 ## Layout of this repo
 
 ```
-.claude-plugin/plugin.json   plugin manifest
-skills/<slug>/SKILL.md       the product — one directory per skill
-templates/feature-tracker.html  HTML template the feature-* skills substitute into
-CLAUDE.md                    contributor notes for working inside this repo
+.claude-plugin/plugin.json       plugin manifest
+.claude-plugin/marketplace.json  marketplace catalog (lets users add this repo via /plugin marketplace add)
+skills/<slug>/SKILL.md           the product — one directory per skill
+templates/feature-tracker.html   HTML template the feature-* skills substitute into
+CLAUDE.md                        contributor notes for working inside this repo
 ```
 
 There is no build step. Changes ship as edits to the markdown skill definitions plus the template.
