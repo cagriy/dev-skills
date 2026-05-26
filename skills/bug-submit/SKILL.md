@@ -1,12 +1,12 @@
 ---
 name: bug-submit
-description: Submit a bug report as a GitHub issue from the current repo, optionally with image attachments, and post a triage comment summarising the initial understanding of the problem. Use when the user wants to file a bug, open an issue for unexpected behaviour, log a defect they've just encountered, or report something broken. Accepts the bug description from $ARGUMENTS (or prompts when missing or thin), accepts images already attached to the conversation as well as paths passed in arguments or via a follow-up question, uploads any images to a secret gist for embedding, then creates the issue via `gh` and posts a triage comment grounded in a quick read of the relevant code paths. Step 0 confirms with the user via AskUserQuestion before doing any work when invoked proactively; the confirmation is skipped when the user explicitly typed /bug-submit. Because this skill posts to GitHub, the proactive-invocation confirmation is non-negotiable.
+description: Submit a bug report as a GitHub issue from the current repo, optionally with image attachments, and post a triage comment summarising the initial understanding of the problem. Use when the user wants to file a bug, open an issue for unexpected behaviour, log a defect they've just encountered, or report something broken. Accepts the bug description from $ARGUMENTS (or prompts in chat when missing or thin), accepts images already pasted into the conversation (via `[Image: source: <path>]`) as well as paths passed in arguments, uploads any images to a secret gist for embedding, then creates the issue via `gh` and posts a triage comment grounded in a quick read of the relevant code paths. Step 0 confirms with the user in chat before doing any work when invoked proactively; the confirmation is skipped when the user explicitly typed /bug-submit. Because this skill posts to GitHub, the proactive-invocation confirmation is non-negotiable.
 model: opus
 effort: high
 user-invocable: true
 disable-model-invocation: false
 argument-hint: <bug description (optionally with image paths), or omit to be asked>
-allowed-tools: Read, Grep, Glob, AskUserQuestion, Skill, Bash(gh *), Bash(git *), Bash(ls *), Bash(find *), Bash(file *), Bash(date *), Bash(pwd), Bash(test *), Bash(cat *), Bash(mktemp *), Bash(rm *), Bash(basename *)
+allowed-tools: Read, Grep, Glob, Skill, Bash(gh *), Bash(git *), Bash(ls *), Bash(find *), Bash(file *), Bash(date *), Bash(pwd), Bash(test *), Bash(cat *), Bash(mktemp *), Bash(rm *), Bash(basename *)
 ---
 
 # bug-submit — File a triaged bug report on GitHub
@@ -21,15 +21,16 @@ This skill posts public content to GitHub — proactive invocation without a cle
 
 Check the most recent user message in the conversation for the literal tag `<command-name>/bug-submit</command-name>` (or, equivalently, a leading `/bug-submit` typed by the user). If present, the user has explicitly opted in — skip this step and continue with Step 1.
 
-Otherwise (you arrived here because the model decided to invoke this skill proactively from natural-language intent), call `AskUserQuestion` exactly once before any other work:
+Otherwise (you arrived here because the model decided to invoke this skill proactively from natural-language intent), output exactly one chat message and stop your turn:
 
-- **question**: `"Launch /bug-submit to file a GitHub issue for <your one-line restatement of the bug>? This will create an issue and post a triage comment on the current repo."`
-- **header**: `"Run /bug-submit?"`
-- **options**:
-  - `{ "label": "Yes, proceed", "description": "Create the issue, attach any images, and post the triage comment." }` (mark this as Recommended)
-  - `{ "label": "No", "description": "Don't run; I'll redirect." }`
+> About to run `/bug-submit` to file a GitHub issue for **<one-line restatement of the bug>**. This will create an issue and post a triage comment on the current repo. Reply **yes** to proceed, or anything else to cancel.
 
-If the user picks "No" or "Other", stop immediately. Do not create any issue or comment, and do not upload any images.
+When the user replies in their next turn:
+
+- If the reply is an unambiguous affirmative (e.g. `yes`, `y`, `go`, `ok`, `do it`), continue with Step 1.
+- Anything else — including silence, a redirect, "no", or a new instruction — counts as cancellation. Stop immediately. Do not create any issue or comment, and do not upload any images.
+
+Do not call `AskUserQuestion` here or anywhere else in this skill — all clarification happens via plain chat prompts, because images attached to `AskUserQuestion` answers are not surfaced with a filesystem path and would be silently dropped.
 
 ## Step 1 — Parse arguments and detect images
 
@@ -38,14 +39,16 @@ Parse `$ARGUMENTS` into two buckets:
 - **Bug description text** — everything that isn't a path token.
 - **Image path tokens** — anything that looks like a file path ending in `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, or `.bmp` (case-insensitive). Validate each exists with `test -f`; drop tokens that don't resolve to a real file (note the misses but don't error yet).
 
-Also scan the **recent conversation context** for any image file paths surfaced by Claude Code — e.g. screenshots the user pasted or dragged in, which are saved to temp paths and become referenceable. Include any such paths in the candidate list, deduplicating against the argument paths.
+Also scan the **recent conversation messages** for image paths Claude Code surfaced via the `[Image: source: <path>]` annotation — that's the only mechanism by which a pasted/dragged-in screenshot becomes a referenceable filesystem path. Add each unique path to the candidate list and validate with `test -f`.
+
+Note: an image attached via an `AskUserQuestion` answer is **not** surfaced with a path — only the literal answer text is. If you see something like `(Image attached)` in an answer with no `[Image: source: ...]` line, treat it as no image and ask the user in Step 3 to paste the image directly into chat.
 
 You now have:
 
 - `description_text` — may be empty or trivially short.
 - `image_paths` — may be empty.
 
-Do not ask anything yet — Step 3 handles the clarification round in one shot.
+Do not ask anything yet — Step 3 handles the clarification in one shot.
 
 ## Step 2 — Repo readiness
 
@@ -61,28 +64,41 @@ Do not attempt to authenticate on the user's behalf and do not prompt them for c
 
 **This step is mandatory even in auto / non-interactive mode.** If the user or the harness has told you to "work without stopping" or "skip clarifying questions", that instruction does not apply here — a vague bug report wastes everyone's time downstream. Close material ambiguity before filing.
 
-Decide whether you need to ask anything:
+Decide whether you need to ask anything. You need to ask if **either** of the following is true:
 
-- If `description_text` is empty or under ~10 meaningful words, you need to ask for the description.
-- If `description_text` is substantive but is missing one of: **what happened**, **what was expected**, **steps to reproduce**, ask to close those gaps.
-- If `image_paths` is empty and the description suggests visual context would help (UI bugs, layout issues, error dialogs), ask whether any screenshots or image paths should be attached.
+- `description_text` is empty or under ~10 meaningful words.
+- `image_paths` is empty *and* the description suggests visual context would help (UI bugs, layout issues, error dialogs, "looks wrong", "broken on screen", etc.).
 
-Make **one** `AskUserQuestion` call combining 1–4 questions to cover the gaps. Always present options with a recommendation rather than open-ended prompts — the user can still pick "Other" to supply free text. Sample questions when applicable:
+If you don't need to ask, skip straight to Step 4.
 
-- *"What's the bug?"* — only if no description.
-- *"What did you expect to happen?"* — if expectation is unclear.
-- *"How can this be reproduced?"* — if repro is unclear.
-- *"Any screenshots or image paths to attach?"* — only if no images detected and visual context would help.
+Otherwise, output exactly one chat message and stop your turn. Keep it to a single ask — do not run a multi-round Q&A. Use this template, adapting only the lead line to acknowledge what (if anything) was already supplied:
 
-If the user supplies image paths in their answers (or in "Other" free text), append them to `image_paths` and re-validate with `test -f`. Note any that don't resolve and ask the user to fix the path **once** — never twice.
+> To file this clearly I need a bit more. Please reply with:
+>
+> 1. **A short description of the bug** — what happened, what you expected, and (if you can) how to reproduce it.
+> 2. **Any screenshots** — paste them directly into your next message. (Attaching via the question/answer UI is **not** sufficient — the path won't reach the skill.)
+>
+> Reply with both in one message; I'll take whatever you give me and file from there.
 
-If after this round the description is still essentially empty (the user declined to elaborate), stop the skill cleanly with no issue created.
+When the user replies in their next turn:
+
+- Treat the reply text as the new `description_text` (concatenated with any prior `description_text` you already had).
+- Re-scan that reply for `[Image: source: <path>]` annotations and add the paths to `image_paths`. Validate with `test -f`.
+- If any quoted path string the user typed by hand fails `test -f`, surface that single miss in chat once (with the path), then continue — do not loop on it.
+
+If after this round `description_text` is still essentially empty (the user declined to elaborate or replied with something like "nevermind"), stop the skill cleanly with no issue created.
 
 ## Step 4 — Upload images (if any)
 
 Skip this step entirely if `image_paths` is empty.
 
-Otherwise, upload the images as a single **secret gist** so they get raw URLs the issue body can embed. Secret gists are not listed publicly but are accessible to anyone with the URL — surface that caveat to the user once via `AskUserQuestion` if any image filename or path looks like it may contain sensitive content (e.g. paths under `secrets/`, `.env`-adjacent dirs, or filenames suggesting credentials). If the user declines, set `image_paths` to empty and continue without images.
+Otherwise, upload the images as a single **secret gist** so they get raw URLs the issue body can embed. Secret gists are not listed publicly but are accessible to anyone with the URL.
+
+If any image filename or path looks like it may contain sensitive content (e.g. paths under `secrets/`, `.env`-adjacent dirs, or filenames suggesting credentials), output exactly one chat message and stop your turn:
+
+> One or more attachments look potentially sensitive (`<list filenames>`). Secret gists aren't listed publicly but anyone with the URL can read them. Reply **proceed** to upload anyway, or **skip** to drop image attachments and continue text-only.
+
+If the next user reply is `skip` (or anything other than an unambiguous `proceed`), set `image_paths` to empty and continue without images. If `proceed`, carry on with the upload.
 
 Run via the `Bash` tool:
 
@@ -219,7 +235,7 @@ Keep the chat output under ~20 lines. The issue and its triage comment are the a
 ## Constraints (non-negotiable)
 
 - **No issue or comment created without a substantive description.** If Step 3 fails to elicit one, stop with no GitHub-side state created.
-- **Mandatory clarification step.** Step 3 runs even when the harness instructs autonomous operation. Closing material ambiguity is the whole point.
+- **Mandatory clarification step.** Step 3 runs even when the harness instructs autonomous operation. Closing material ambiguity is the whole point. The clarification is a single plain-chat prompt — never `AskUserQuestion`, because images attached to its answers are not surfaced with a filesystem path.
 - **Never post secrets.** If the description, an image filename, or anything pulled from the conversation looks like it contains a credential (API keys, tokens, passwords, private connection strings), redact it in the issue body and the triage comment, and warn the user once before posting. Never include redacted values themselves — the redaction must be irrecoverable.
 - **Image upload via secret gist only.** Do not upload to public gists, do not push to branches, do not commit images into the repo. If gist upload fails, fall back to a text-only issue.
 - **Triage is grounded, not invented.** Step 6 must read real files in the repo before hypothesising. If nothing in the codebase looks relevant after a short search, say so in the comment — do not fabricate a hypothesis.
