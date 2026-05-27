@@ -1,34 +1,36 @@
 ---
 name: bug-submit
-description: Submit a bug report as a GitHub issue from the current repo, optionally with image attachments, and post a triage comment summarising the initial understanding of the problem. Use when the user wants to file a bug, open an issue for unexpected behaviour, log a defect they've just encountered, or report something broken. Accepts the bug description from $ARGUMENTS (or prompts in chat when missing or thin), accepts images already pasted into the conversation (via `[Image: source: <path>]`) as well as paths passed in arguments, uploads any images to a secret gist for embedding, then creates the issue via `gh` and posts a triage comment grounded in a quick read of the relevant code paths. Step 0 confirms with the user in chat before doing any work when invoked proactively; the confirmation is skipped when the user explicitly typed /bug-submit. Because this skill posts to GitHub, the proactive-invocation confirmation is non-negotiable.
+description: Submit a bug report as a local entry under bugs/ in the current repo, optionally with image attachments saved alongside the report. Use when the user wants to file a bug, log a defect they've just encountered, or report something broken. Accepts the bug description from $ARGUMENTS (or prompts in chat when missing or thin), accepts images already pasted into the conversation (via `[Image: source: <path>]`) as well as paths passed in arguments, allocates the next bug number by scanning both bugs/ and bugs/archive/, creates a bugs/bug-N-<description>/ folder, copies the images into it, and writes a bug-N-<description>.md report whose triage section is grounded in a quick read of the relevant code paths. Step 0 confirms with the user in chat before doing any work when invoked proactively; the confirmation is skipped when the user explicitly typed /bug-submit.
 model: opus
 effort: high
 user-invocable: true
 disable-model-invocation: false
 argument-hint: <bug description (optionally with image paths), or omit to be asked>
-allowed-tools: Read, Grep, Glob, Skill, Bash(gh *), Bash(git *), Bash(ls *), Bash(find *), Bash(file *), Bash(date *), Bash(pwd), Bash(test *), Bash(cat *), Bash(mktemp *), Bash(rm *), Bash(basename *)
+allowed-tools: Read, Write, Grep, Glob, Skill, Bash(git *), Bash(ls *), Bash(find *), Bash(date *), Bash(pwd), Bash(test *), Bash(mkdir *), Bash(cp *), Bash(basename *)
 ---
 
-# bug-submit — File a triaged bug report on GitHub
+# bug-submit — File a triaged bug report under bugs/
 
-You are running the `bug-submit` skill. The user may have arrived here by typing `/bug-submit` (with an optional description and/or image paths in `$ARGUMENTS`) or because the model proactively invoked the skill. Your job is to file a clean GitHub issue against the current repo and post a follow-up triage comment that captures your initial understanding of the problem — grounded in a quick read of the relevant code.
+You are running the `bug-submit` skill. The user may have arrived here by typing `/bug-submit` (with an optional description and/or image paths in `$ARGUMENTS`) or because the model proactively invoked the skill. Your job is to record a clean bug report as a local folder under `bugs/` in the current repo and write a markdown report whose triage section captures your initial understanding of the problem — grounded in a quick read of the relevant code.
 
-This skill has nine steps (Steps 0–8). Execute them in order. Do not skip Step 0 (proactive-invocation confirmation), Step 2 (repo readiness), Step 3 (clarification), Step 5 (issue creation), Step 6 (triage comment), or Step 7 (lessons capture).
+This skill writes only to the local filesystem; it does **not** create GitHub issues, push, commit, or upload anything to a remote.
+
+This skill has ten steps (Steps 0–9). Execute them in order. Do not skip Step 0 (proactive-invocation confirmation), Step 2 (bugs root), Step 3 (clarification), Step 4 (folder allocation), Step 7 (write the report), or Step 8 (lessons capture).
 
 ## Step 0 — Confirm before proceeding (when invoked proactively)
 
-This skill posts public content to GitHub — proactive invocation without a clear opt-in is higher cost than for read-only skills. The Step 0 check is strictly enforced.
+This skill creates files inside the user's repo — proactive invocation without a clear opt-in is higher cost than for read-only skills. The Step 0 check is strictly enforced.
 
 Check the most recent user message in the conversation for the literal tag `<command-name>/bug-submit</command-name>` (or, equivalently, a leading `/bug-submit` typed by the user). If present, the user has explicitly opted in — skip this step and continue with Step 1.
 
 Otherwise (you arrived here because the model decided to invoke this skill proactively from natural-language intent), output exactly one chat message and stop your turn:
 
-> About to run `/bug-submit` to file a GitHub issue for **<one-line restatement of the bug>**. This will create an issue and post a triage comment on the current repo. Reply **yes** to proceed, or anything else to cancel.
+> About to run `/bug-submit` to file a bug report for **<one-line restatement of the bug>**. This will create a `bugs/bug-N-<description>/` folder in the current repo with a markdown report and any attached images. Reply **yes** to proceed, or anything else to cancel.
 
 When the user replies in their next turn:
 
 - If the reply is an unambiguous affirmative (e.g. `yes`, `y`, `go`, `ok`, `do it`), continue with Step 1.
-- Anything else — including silence, a redirect, "no", or a new instruction — counts as cancellation. Stop immediately. Do not create any issue or comment, and do not upload any images.
+- Anything else — including silence, a redirect, "no", or a new instruction — counts as cancellation. Stop immediately. Do not create any folder, file, or copy any images.
 
 Do not call `AskUserQuestion` here or anywhere else in this skill — all clarification happens via plain chat prompts, because images attached to `AskUserQuestion` answers are not surfaced with a filesystem path and would be silently dropped.
 
@@ -50,15 +52,14 @@ You now have:
 
 Do not ask anything yet — Step 3 handles the clarification in one shot.
 
-## Step 2 — Repo readiness
+## Step 2 — Locate the bugs root
 
-Confirm the working directory is a GitHub-backed repo and `gh` is authenticated:
+Determine where `bugs/` lives:
 
-- `git rev-parse --is-inside-work-tree` — must print `true`. If not, stop and tell the user to `cd` into a GitHub-backed repo first.
-- `gh repo view --json nameWithOwner,hasIssuesEnabled -q '[.nameWithOwner, (.hasIssuesEnabled|tostring)] | @tsv'` — must succeed. Record the slug as `repo_slug`. If `hasIssuesEnabled` is `false`, stop with: `"Issues are disabled on <repo_slug>. Enable issues in the repo settings before filing."`
-- `gh auth status` — must show an authenticated host matching the repo's host. If not, stop with: `"gh is not authenticated for <host>. Run 'gh auth login' and re-run /bug-submit."`
+- `git rev-parse --show-toplevel` — if it succeeds, record the result as `repo_root`. All bug paths are anchored at `<repo_root>/bugs/`.
+- If it fails (not inside a git work tree), stop and tell the user to `cd` into the target repo first. Do not fall back to an arbitrary cwd — the bug tracker needs a stable, canonical location so numbering stays consistent.
 
-Do not attempt to authenticate on the user's behalf and do not prompt them for credentials.
+You do **not** need `gh`, network access, or any authentication for this skill.
 
 ## Step 3 — Clarify the bug
 
@@ -86,79 +87,60 @@ When the user replies in their next turn:
 - Re-scan that reply for `[Image: source: <path>]` annotations and add the paths to `image_paths`. Validate with `test -f`.
 - If any quoted path string the user typed by hand fails `test -f`, surface that single miss in chat once (with the path), then continue — do not loop on it.
 
-If after this round `description_text` is still essentially empty (the user declined to elaborate or replied with something like "nevermind"), stop the skill cleanly with no issue created.
+If after this round `description_text` is still essentially empty (the user declined to elaborate or replied with something like "nevermind"), stop the skill cleanly with no folder created.
 
-## Step 4 — Upload images (if any)
+## Step 4 — Allocate the bug number and create the folder
+
+Compute the next bug number by scanning **both** the active and archived bug folders, so a number is never reused after a bug is resolved and moved to `archive/`:
+
+```bash
+find "<repo_root>/bugs" "<repo_root>/bugs/archive" -maxdepth 1 -type d -name 'bug-*' 2>/dev/null
+```
+
+Each match is a folder named `bug-<N>-<slug>`. Extract the integer `<N>` from each (the digits between the first `bug-` and the next `-`). Take the **numeric** maximum across all matches (so `bug-10` outranks `bug-9`) and add 1. If there are no matches (or `bugs/` doesn't exist yet), start at `1`. Use integer numbers only — `bug-1`, `bug-2`, `bug-10`; never `bug-1.0` or `bug-1a`.
+
+Record the result as `bug_number`.
+
+Build the slug from the bug description:
+
+- Lowercase, words separated by single hyphens, ASCII letters/digits only (drop punctuation).
+- **At most 10 words.** Lead with the symptom so the folder name is scannable (e.g. `login-button-does-nothing-on-safari`).
+- Avoid generic slugs like `bug` or `issue`.
+
+Record the result as `slug`. The folder and report file share the same stem:
+
+- `bug_folder` = `<repo_root>/bugs/bug-<bug_number>-<slug>/`
+- `report_file` = `<bug_folder>/bug-<bug_number>-<slug>.md`
+
+Create the folder (parents included):
+
+```bash
+mkdir -p "<bug_folder>"
+```
+
+## Step 5 — Save images into the bug folder
 
 Skip this step entirely if `image_paths` is empty.
 
-Otherwise, upload the images as a single **secret gist** so they get raw URLs the issue body can embed. Secret gists are not listed publicly but are accessible to anyone with the URL.
-
 If any image filename or path looks like it may contain sensitive content (e.g. paths under `secrets/`, `.env`-adjacent dirs, or filenames suggesting credentials), output exactly one chat message and stop your turn:
 
-> One or more attachments look potentially sensitive (`<list filenames>`). Secret gists aren't listed publicly but anyone with the URL can read them. Reply **proceed** to upload anyway, or **skip** to drop image attachments and continue text-only.
+> One or more attachments look potentially sensitive (`<list filenames>`). They'll be copied into your repo under `bugs/` and could be committed later. Reply **proceed** to copy them in anyway, or **skip** to file the bug text-only.
 
-If the next user reply is `skip` (or anything other than an unambiguous `proceed`), set `image_paths` to empty and continue without images. If `proceed`, carry on with the upload.
+If the next user reply is `skip` (or anything other than an unambiguous `proceed`), set `image_paths` to empty and continue without images. If `proceed`, carry on with the copy.
 
-Run via the `Bash` tool:
-
-```bash
-gh gist create --secret --desc "bug-submit attachments for <repo_slug>" <path1> <path2> ...
-```
-
-Capture the gist URL from stdout (the last line is the gist URL). Then fetch the gist's raw URLs:
+Copy each image into `bug_folder`, preserving its base filename:
 
 ```bash
-gh api "gists/$(basename <gist_url>)" --jq '.files | to_entries[] | "\(.key)\t\(.value.raw_url)"'
+cp "<image_path>" "<bug_folder>/<basename>"
 ```
 
-Parse the tab-separated `filename<TAB>raw_url` lines into `image_urls` (a list of `{filename, raw_url}` records). Map back to the original `image_paths` by filename, not positional order.
+Collision handling: if two images share a base filename, or a base filename would collide with the report `.md`, append `-2`, `-3`, … before the extension. Build `saved_images` as the list of base filenames actually written into the folder (these are what the report links to, as relative paths).
 
-If `gh gist create` fails (e.g. gists are disabled for the account, or the auth scope lacks `gist`), surface the error verbatim, set `image_paths` to empty, and continue creating the issue with text only — note in the issue body that images were intended but could not be uploaded. Do not abort the whole skill on a gist failure.
+The images live next to the markdown, so the report references them relatively (`![name](name.png)`) — never absolute paths and never remote URLs.
 
-## Step 5 — Create the issue
+## Step 6 — Triage the bug
 
-Build the issue title and body.
-
-**Title:** a short, scannable summary derived from the bug description. Aim for 6–12 words, lead with the symptom (e.g. `"Login button does nothing on Safari 17"`). Avoid generic titles like `"Bug"` or `"Issue"`. Do not include `[Bug]` prefixes — the `bug` label (or its absence) carries that signal.
-
-**Body** — use this template verbatim, sections in the order shown. If a section has nothing to say, write the italic placeholder; do not omit the heading.
-
-```markdown
-## Description
-<the user's bug description, lightly cleaned up — preserve their wording where it's specific; do not invent details>
-
-## Expected behaviour
-<one or two lines if known; otherwise: `_Not specified._`>
-
-## Steps to reproduce
-<numbered list if known; otherwise: `_Not specified._`>
-
-## Screenshots
-<for each entry in image_urls: `![<filename>](<raw_url>)` on its own line. If image_paths is empty, write: `_None provided._`. If upload was attempted but failed, write: `_Upload failed — see triage comment._`>
-
----
-Submitted via `/bug-submit` on <YYYY-MM-DD>.
-```
-
-Compute `<YYYY-MM-DD>` from `date -u +%Y-%m-%d`.
-
-Write the body to a `mktemp` file so you don't have to shell-escape multi-line content, then create the issue:
-
-```bash
-gh issue create \
-  --title "<title>" \
-  --body-file <tmpfile> \
-  --label bug
-```
-
-If `--label bug` fails because the label does not exist in the repo, retry the command **once** without `--label bug`. Do not invent labels and do not create labels on the repo.
-
-Capture the issue URL from stdout (it's the only line of output on success). Derive the issue number as the trailing path segment. Record `issue_url` and `issue_number`. Remove the `mktemp` file once the command returns.
-
-## Step 6 — Triage the issue and add a comment
-
-Spend a focused effort understanding the bug before commenting — but **cap the investigation** so this step doesn't sprawl into a full debug session:
+Spend a focused effort understanding the bug before writing the report — but **cap the investigation** so this step doesn't sprawl into a full debug session:
 
 1. Skim the repo structure (`ls` of project root, plus any obvious entry-point folders such as `src/`, `app/`, `lib/`).
 2. Grep for keywords from the bug description (component names, error messages, function names, route paths, visible UI strings). Limit to ~3 focused searches.
@@ -173,74 +155,88 @@ Form a working understanding covering, in order:
 - **Missing information that would help reproduce** — anything the report doesn't cover that a developer would need. Omit the section entirely if everything needed is already in the report.
 - **Suggested next steps** — 1–3 concrete actions (e.g. "confirm repro on latest main", "check `path/to/file.ext` for null handling around line N", "add server logs around `<function>`").
 
-Write the comment to a `mktemp` file and post:
+## Step 7 — Write the bug report
 
-```bash
-gh issue comment <issue_number> --body-file <tmpfile>
-```
+Build the report title: a short, scannable summary derived from the bug description. Aim for 6–12 words, lead with the symptom (e.g. `Login button does nothing on Safari 17`). Avoid generic titles like `Bug` or `Issue`.
 
-Comment template (omit sub-sections with no content rather than writing an empty placeholder):
+Write `report_file` with the `Write` tool using this template verbatim, sections in the order shown. If a section has nothing to say, write the italic placeholder; do not omit the heading.
 
 ```markdown
-## Initial triage
+# Bug <bug_number>: <title>
+
+- **Severity:** <level> — <one-line justification>
+- **Filed:** <YYYY-MM-DD>
+
+## Description
+<the user's bug description, lightly cleaned up — preserve their wording where it's specific; do not invent details>
+
+## Expected behaviour
+<one or two lines if known; otherwise: `_Not specified._`>
+
+## Steps to reproduce
+<numbered list if known; otherwise: `_Not specified._`>
+
+## Screenshots
+<for each entry in saved_images: `![<filename>](<filename>)` on its own line. If saved_images is empty, write: `_None provided._`>
+
+## Triage
 
 **Summary of understanding:** <…>
 
 **Probable affected area:** <…>
 
-**Severity (rough estimate):** <level> — <one-line justification>
-
 **Initial hypothesis:** <… or "Nothing obvious from a quick read of the repo.">
 
 **Missing information that would help reproduce:**
-- <…>
+- <… — omit this whole sub-section if nothing is missing>
 
 **Suggested next steps:**
 - <…>
 
 ---
-Posted by `/bug-submit` triage on <YYYY-MM-DD>.
+Filed via `/bug-submit` on <YYYY-MM-DD>. To resolve, move this folder into `bugs/archive/`.
 ```
 
-Keep the comment under ~25 lines. The point is a useful starting point for whoever picks the issue up, not a full investigation. Remove the `mktemp` file once the command returns.
+Compute `<YYYY-MM-DD>` from `date -u +%Y-%m-%d`. Keep the report focused — the triage is a useful starting point for whoever picks the bug up, not a full investigation.
 
-## Step 7 — Capture lessons
+## Step 8 — Capture lessons
 
-Invoke the `lessons-capture` skill in this plugin via the `Skill` tool with the single argument `bug-submit`. It runs the reflection protocol, appends a dated entry to `~/.claude/dev-skills/lessons/bug-submit.md`, and returns the entry body for you to paste under the *Skill-improvement recommendations* heading in Step 8.
+Invoke the `lessons-capture` skill in this plugin via the `Skill` tool with the single argument `bug-submit`. It runs the reflection protocol, appends a dated entry to `~/.claude/dev-skills/lessons/bug-submit.md`, and returns the entry body for you to paste under the *Skill-improvement recommendations* heading in Step 9.
 
 Do not run the reflection inline — `lessons-capture` is the single source of the protocol for all skills in this plugin.
 
-## Step 8 — Present highlights
+## Step 9 — Present highlights
 
 In chat, output a short, scannable summary so the user has the pointers they need without re-reading the whole conversation:
 
 ```
-Issue created: <issue_url>
+Bug filed: bugs/bug-<bug_number>-<slug>/bug-<bug_number>-<slug>.md
 
-**Title:** <issue title>
+**Title:** <title>
 
 **Triage**
 - Probable area: <…>
 - Severity: <level>
 - Hypothesis: <one line>
 
-**Attachments:** <count> image(s)<, gist: <gist_url> if any>
+**Attachments:** <count> image(s) saved in the bug folder
 
 **Skill-improvement recommendations**
-- <single item from Step 7, or the line "No skill-improvement recommendations from this run.">
+- <single item from Step 8, or the line "No skill-improvement recommendations from this run.">
 ```
 
-Keep the chat output under ~20 lines. The issue and its triage comment are the artefacts; the chat is the pointer.
+Keep the chat output under ~20 lines. The bug folder and its report are the artefacts; the chat is the pointer.
 
 ## Constraints (non-negotiable)
 
-- **No issue or comment created without a substantive description.** If Step 3 fails to elicit one, stop with no GitHub-side state created.
+- **No bug folder created without a substantive description.** If Step 3 fails to elicit one, stop with no filesystem state created.
 - **Mandatory clarification step.** Step 3 runs even when the harness instructs autonomous operation. Closing material ambiguity is the whole point. The clarification is a single plain-chat prompt — never `AskUserQuestion`, because images attached to its answers are not surfaced with a filesystem path.
-- **Never post secrets.** If the description, an image filename, or anything pulled from the conversation looks like it contains a credential (API keys, tokens, passwords, private connection strings), redact it in the issue body and the triage comment, and warn the user once before posting. Never include redacted values themselves — the redaction must be irrecoverable.
-- **Image upload via secret gist only.** Do not upload to public gists, do not push to branches, do not commit images into the repo. If gist upload fails, fall back to a text-only issue.
-- **Triage is grounded, not invented.** Step 6 must read real files in the repo before hypothesising. If nothing in the codebase looks relevant after a short search, say so in the comment — do not fabricate a hypothesis.
-- **Severity is best-effort.** Never claim certainty about severity from a bug report alone; the comment is a starting point, not a verdict.
-- **One issue per invocation.** Do not split a bug into multiple issues automatically — if the description covers two separate bugs, surface that in the triage comment and let the user split them deliberately.
-- **No symlinks. No leftover temp files.** Clean up any `mktemp` files used for issue/comment bodies once posted.
+- **Bug numbers are allocated across `bugs/` AND `bugs/archive/`.** Always scan both so a number is never reused after a resolved bug is archived. Integer numbers only, numeric compare (`bug-10` > `bug-9`).
+- **Everything stays local.** This skill writes only under `<repo_root>/bugs/`. It never creates GitHub issues, never pushes, never commits, and never uploads images to a gist or any remote. Images are copied into the bug folder and referenced by relative path.
+- **Never write secrets to disk.** If the description or anything pulled from the conversation looks like it contains a credential (API keys, tokens, passwords, private connection strings), redact it in the report — irrecoverably — and warn the user once before writing. For image attachments that look sensitive, get explicit `proceed` confirmation (Step 5) before copying them into the repo, since they may later be committed.
+- **Triage is grounded, not invented.** Step 6 must read real files in the repo before hypothesising. If nothing in the codebase looks relevant after a short search, say so in the report — do not fabricate a hypothesis.
+- **Severity is best-effort.** Never claim certainty about severity from a bug report alone; the report is a starting point, not a verdict.
+- **One bug per invocation.** Do not split a report into multiple bug folders automatically — if the description covers two separate bugs, note it in the Triage section and let the user split them deliberately.
+- **No symlinks.** Copy image files into the bug folder; never symlink them.
 - **Language-agnostic.** Do not bake in tooling specific to one ecosystem when reading the repo for triage. Adapt to whatever stack the repo is on.
-- **Lessons capture runs every time.** Step 7 always invokes `lessons-capture`; whether it produces a recommendation or "none this run" is decided by that skill.
+- **Lessons capture runs every time.** Step 8 always invokes `lessons-capture`; whether it produces a recommendation or "none this run" is decided by that skill.

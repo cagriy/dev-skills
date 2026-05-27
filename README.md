@@ -8,7 +8,7 @@ There is no application code, no build step, no test suite. The artifact **is** 
 
 - A single, opinionated workflow for taking a feature from idea → design → plan → implementation, with **clarification gates at every step** so the skill refuses to drift past unclear requirements.
 - A **per-feature output folder** (`features/feature-v<N>-<description>/`) in the target project that collects the brainstorm, design, plan, and a live HTML tracker.
-- A **standalone bug-submit** skill that files a triaged GitHub issue (with optional image attachments) and adds an initial triage comment grounded in a quick read of the codebase.
+- A **standalone bug-submit** skill that files a triaged bug report as a local folder under `bugs/` (with optional image attachments copied in) and a triage section grounded in a quick read of the codebase.
 - A lightweight **lessons-learned loop**: every skill appends improvement observations to a per-skill log; you periodically apply them with one command.
 
 ## The skill chain
@@ -75,12 +75,12 @@ Executes the plan stage-by-stage on the **current branch**. Never creates branch
 - **Step 0 confirmation is non-negotiable** because this skill writes code and creates commits.
 
 ### `/bug-submit`  *(standalone — not part of the feature chain)*
-Files a GitHub issue against the current repo for a bug, then posts a triage comment with the initial understanding of the problem, grounded in a quick read of the relevant code paths.
+Files a bug report as a local folder under `bugs/` in the current repo, with a triage section in the report grounded in a quick read of the relevant code paths.
 
-- **Use when:** you've just hit a bug and want a clean, triaged issue without leaving the terminal.
+- **Use when:** you've just hit a bug and want a clean, triaged report tracked in the repo without leaving the terminal.
 - **Accepts:** a bug description in `$ARGUMENTS` (or asked for if missing) and image attachments (paths in args, or screenshots already pasted into the conversation).
-- **Outputs:** one GitHub issue + one triage comment. Images, if any, are uploaded as a single secret gist and embedded.
-- **Step 0 confirmation is non-negotiable** because this skill posts public content to GitHub.
+- **Outputs:** a `bugs/bug-N-<description>/` folder containing `bug-N-<description>.md` and any attached images copied in. The next bug number is allocated by scanning both `bugs/` and `bugs/archive/`. Nothing is sent to GitHub or pushed; resolve a bug by moving its folder into `bugs/archive/`.
+- **Step 0 confirmation is non-negotiable** because this skill writes files into your repo.
 
 ### `/lessons-learn <skill-name>`  *(maintenance, user-only)*
 Consolidates the lessons log accumulated by a given skill, presents filtered improvements via a picker, edits the target `SKILL.md`, then archives the active log as a UTC-stamped snapshot.
