@@ -13,6 +13,8 @@ allowed-tools: Read, Grep, Glob, Write, Edit, AskUserQuestion, Skill, Bash(ls *)
 
 You are running the `feature-storm` skill. The user may have arrived here by typing `/feature-storm` (with optional free-form requirements in `$ARGUMENTS`) or because the model proactively invoked the skill. Your job is to brainstorm a feature at the **product/requirements layer** — goals, users, scope, rough technical direction — and persist the result as a brainstorm document plus an updated per-feature tracker. Deep technical design is **out of scope** for this skill; that is what `/feature-design` is for.
 
+**Terminology (plugin-wide).** Two words are overloaded; keep them apart. A **step** is a numbered step of *this skill's own procedure* — the `## Step …` headings below (e.g. *Step 4*); the only other "steps" are the **TDD steps** inside a plan stage (write test → confirm fail → implement → confirm pass). A **stage** has two senses: a **chain stage** is one of `storm → design → plan → implement` (it shows up as `stage=…`, `stage_file`, and the tracker's `data-stage`), while a **plan stage** is a committable unit of work *inside* the implementation plan (e.g. `Stage 1`) — `/feature-plan` creates these and `/feature-implement` builds one per commit. A procedure step is never a plan stage, and a plan stage is never a procedure step.
+
 This skill has ten steps (Steps 0–9). Execute them in order. Do not skip Step 0 (proactive-invocation confirmation), Step 3 (clarification loop), Step 4 (approval gate), Step 6 (tracker update), or Step 7 (lessons capture) — they are the load-bearing steps.
 
 ## Step 0 — Confirm before proceeding (when invoked proactively)

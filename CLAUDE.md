@@ -12,6 +12,15 @@ The skills divide into these groups:
 - **Bug workflow** — `bug-submit` (file a triaged bug under `bugs/`) and `bug-fix` (diagnose, TDD-fix, and close one open bug), plus the internal `bug-tracker-render` they both delegate to for (re)generating `bugs/bugs-tracker.html`. These do not use `feature-resolve` and do not write under `features/`.
 - **Reflection / improvement** — `lessons-capture` (internal, called as the final step of the feature-* skills and `bug-fix`; `bug-submit` deliberately does not call it) and `lessons-learn` (user-only, periodic).
 
+## Terminology — "stage" vs "step"
+
+Two words are overloaded across the skill files; the four feature-* `SKILL.md`s carry a mirrored "Terminology (plugin-wide)" note near their top, and this is its canonical source.
+
+- **Step** — a numbered step of a *skill's own procedure* (the `## Step …` headings, e.g. *Step 4*). The only other legitimate use of "step" is the **TDD steps** inside a plan stage (write test → confirm fail → implement → confirm pass). In `feature-implement`, *Step 5*'s lettered sub-steps (`5a`–`5i`) are procedure steps that iterate over plan stages — don't conflate the two.
+- **Stage** — two distinct senses. A **chain stage** is one of `storm → design → plan → implement`: it appears as `stage=<slug>` in the `feature-resolve` call, as `stage_file` (a skill's output `.md`), as `present_stages` in the resolver, and as the tracker's `data-stage`. A **plan stage** is a committable unit of work *inside* the implementation plan (`Stage 1`, `Stage 2`, …) — `/feature-plan` creates them and `/feature-implement` builds one per commit. The commit message `<type>(plan v<N>): Stage <M> —` uses both senses at once (`plan` = chain stage, `Stage <M>` = plan stage).
+
+A procedure step is never a plan stage, and a plan stage is never a procedure step. When editing, keep the four mirrored skill-level notes aligned with this section.
+
 ## The skill chain (architecture)
 
 ```

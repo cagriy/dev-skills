@@ -13,6 +13,8 @@ allowed-tools: Read, Grep, Glob, Write, Edit, AskUserQuestion, Skill, WebFetch, 
 
 You are running the `feature-design` skill. The user may have arrived here by typing `/feature-design` (with optional free-form requirements in `$ARGUMENTS`), by chaining in from `/feature-storm`, or because the model proactively invoked the skill. Your job is to produce a single, complete, decision-closed feature design document at the path returned by `/feature-resolve`, then present highlights to the user.
 
+**Terminology (plugin-wide).** Two words are overloaded; keep them apart. A **step** is a numbered step of *this skill's own procedure* — the `## Step …` headings below (e.g. *Step 4*); the only other "steps" are the **TDD steps** inside a plan stage (write test → confirm fail → implement → confirm pass). A **stage** has two senses: a **chain stage** is one of `storm → design → plan → implement` (it shows up as `stage=…`, `stage_file`, and the tracker's `data-stage`), while a **plan stage** is a committable unit of work *inside* the implementation plan (e.g. `Stage 1`) — `/feature-plan` creates these and `/feature-implement` builds one per commit. A procedure step is never a plan stage, and a plan stage is never a procedure step.
+
 This skill has eleven steps (Steps 0–10). Execute them in order. Do not skip Step 0 (proactive-invocation confirmation), Step 4 (clarification loop), Step 6 (self-review), Step 7 (tracker update), or Step 8 (lessons capture) — they are the load-bearing steps.
 
 ## Step 0 — Confirm before proceeding (when invoked proactively)
