@@ -79,7 +79,7 @@ Files a bug report as a local folder under `bugs/` in the current repo, with a t
 
 - **Use when:** you've just hit a bug and want a clean, triaged report tracked in the repo without leaving the terminal.
 - **Accepts:** a bug description in `$ARGUMENTS` (or asked for if missing) and image attachments (paths in args, or screenshots already pasted into the conversation).
-- **Outputs:** a `bugs/bug-N-<description>/` folder containing `bug-N-<description>.md` and any attached images copied in. The next bug number is allocated by scanning both `bugs/` and `bugs/archive/`. Nothing is sent to GitHub or pushed; resolve a bug by moving its folder into `bugs/archive/`.
+- **Outputs:** a `bugs/bug-N-<description>/` folder containing `bug-N-<description>.md` and any attached images copied in, plus a regenerated `bugs/bugs-tracker.html` — an HTML "Issues" view (built from the shared tracker template) listing open and closed bugs, each expandable to its full report and screenshots. The next bug number is allocated by scanning both `bugs/` and `bugs/archive/`. Nothing is sent to GitHub or pushed; resolve a bug by moving its folder into `bugs/archive/` (the tracker reflects it on the next run).
 - **Step 0 confirmation is non-negotiable** because this skill writes files into your repo.
 
 ### `/lessons-learn <skill-name>`  *(maintenance, user-only)*
