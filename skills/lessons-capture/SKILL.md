@@ -1,6 +1,6 @@
 ---
 name: lessons-capture
-description: Internal helper invoked only by other skills in this plugin (e.g. feature-storm, feature-design, feature-plan, feature-implement, bug-submit) as their final step. Captures one skill-improvement recommendation (or "none this run") and appends a dated entry to a per-skill log under ~/.claude/dev-skills/lessons/<skill-name>.md. Takes the calling skill's slug as its only argument. Never edits any SKILL.md — the log is reviewed and applied later, either by the user or by a dedicated improver skill. Not user-facing — users should not invoke this directly.
+description: Internal helper invoked only by other skills in this plugin (e.g. feature-storm, feature-design, feature-plan, feature-implement, bug-submit, bug-fix) as their final step. Captures one skill-improvement recommendation (or "none this run") and appends a dated entry to a per-skill log under ~/.claude/dev-skills/lessons/<skill-name>.md. Takes the calling skill's slug as its only argument. Never edits any SKILL.md — the log is reviewed and applied later, either by the user or by a dedicated improver skill. Not user-facing — users should not invoke this directly.
 user-invocable: false
 ---
 

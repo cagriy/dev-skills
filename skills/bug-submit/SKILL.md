@@ -6,7 +6,7 @@ effort: high
 user-invocable: true
 disable-model-invocation: false
 argument-hint: <bug description (optionally with image paths), or omit to be asked>
-allowed-tools: Read, Write, Edit, Grep, Glob, Skill, Bash(git *), Bash(ls *), Bash(find *), Bash(date *), Bash(pwd), Bash(test *), Bash(mkdir *), Bash(cp *), Bash(basename *)
+allowed-tools: Read, Write, Grep, Glob, Skill, Bash(git *), Bash(ls *), Bash(find *), Bash(date *), Bash(pwd), Bash(test *), Bash(mkdir *), Bash(cp *), Bash(basename *)
 ---
 
 # bug-submit — File a triaged bug report under bugs/
@@ -201,79 +201,9 @@ Compute `<YYYY-MM-DD>` from `date -u +%Y-%m-%d`. Keep the report focused — the
 
 ## Step 8 — Update the bug tracker
 
-Regenerate the repo-wide bug tracker so it reflects every bug currently on disk. The tracker is a **generated artefact** — rebuild it from the plugin template + the filesystem on every run. This both *creates* it the first time and *updates* it thereafter, so there is no create-vs-update branching to reason about.
+Invoke the `bug-tracker-render` skill in this plugin via the `Skill` tool (no arguments). It (re)generates `bugs/bugs-tracker.html` from the plugin template + the current filesystem — the bug you just wrote appears under **Open**. If it returns a `skipped — …` status (e.g. the template wasn't found), surface that one-line note and continue to Step 9; the bug folder you just wrote is the durable record regardless.
 
-`tracker_file` = `<repo_root>/bugs/bugs-tracker.html`.
-
-**8a — Locate the plugin template.** Mirror how `feature-resolve` finds it:
-
-```bash
-find ~ -path "*/dev-skills/templates/feature-tracker.html" 2>/dev/null
-```
-
-- Exactly one match → use it.
-- Multiple matches → prefer the one under `~/.claude/plugins/` (the installed plugin).
-- Zero matches → do **not** fail the skill. Skip the tracker, note in chat that it couldn't be (re)generated because the template wasn't found, and continue to Step 9. The bug folder you just wrote is the durable record regardless.
-
-**8b — Copy the template into place.** `cp "<template>" "<tracker_file>"` — overwrite if it already exists. The tracker holds no state of its own; everything is re-derived from the filesystem each run.
-
-**8c — Set the one-time chrome** (these tokens are literal in the fresh copy). Use `Edit`, and for any token that occurs more than once (e.g. `{{FEATURE_TITLE}}` appears in both `<title>` and the header) replace **all** occurrences:
-
-- `<body>` → `<body data-tracker-kind="bugs">` (switches the template to the bug-tracker view: only the Issues tab, no stepper, no feature tabs). There is exactly one `<body>` tag in the file.
-- `{{FEATURE_TITLE}}` → `Bug Tracker`.
-- `{{FEATURE_VERSION}}` → empty string, and `{{FEATURE_SLUG}}` → empty string (both hidden on the bug view).
-- `{{GENERATED_AT}}` → `date -u +%Y-%m-%d`.
-- Each of the twelve feature-panel tokens → empty string (those panels are hidden, but don't leave literal `{{...}}` in the file): `{{BRAINSTORMING_AT}}`, `{{BRAINSTORMING_BULLETS}}`, `{{BRAINSTORMING_DETAILS}}`, `{{DESIGN_AT}}`, `{{DESIGN_BULLETS}}`, `{{DESIGN_DETAILS}}`, `{{PLAN_AT}}`, `{{PLAN_BULLETS}}`, `{{PLAN_DETAILS}}`, `{{IMPLEMENTATION_AT}}`, `{{IMPLEMENTATION_BULLETS}}`, `{{IMPLEMENTATION_DETAILS}}`.
-
-**8d — Gather the bugs.** Scan both locations (maxdepth 1, directories named `bug-*`):
-
-```bash
-find "<repo_root>/bugs" -maxdepth 1 -type d -name 'bug-*' 2>/dev/null         # open
-find "<repo_root>/bugs/archive" -maxdepth 1 -type d -name 'bug-*' 2>/dev/null  # closed
-```
-
-For each bug folder, read its `bug-<N>-<slug>.md` and extract: the number `N`, the title (from the `# Bug <N>: <title>` heading), the severity word (first token of the **Severity** line, lowercased — one of `low|medium|high|critical`), the filed date, and the report body. List the image files in the folder (anything ending `.png/.jpg/.jpeg/.gif/.webp/.bmp`). Sort each list by `N` **descending** (newest first).
-
-**8e — Render one card per bug** using this shape. `data-status` is `open` or `closed`, and the image `src` prefix differs between the two (see below):
-
-```html
-<details class="issue" data-status="open">
-  <summary class="issue-summary">
-    <span class="issue-number">#<N></span>
-    <span class="issue-title"><title></span>
-    <span class="issue-sev sev-<level>"><level></span>
-    <span class="issue-date"><filed date></span>
-  </summary>
-  <div class="issue-body prose">
-    <h3>Description</h3>
-    <p><description></p>
-    <!-- Expected behaviour / Steps to reproduce: add an <h3> + content only when the report has real content (skip "Not specified"). -->
-    <!-- Screenshots: one <img> per image, omit the block entirely if none. -->
-    <h3>Screenshots</h3>
-    <img src="<img-src>" alt="<filename>" />
-    <h3>Triage</h3>
-    <p><strong>Summary:</strong> <…></p>
-    <p><strong>Probable area:</strong> <…></p>
-    <p><strong>Hypothesis:</strong> <…></p>
-    <p><strong>Next steps:</strong> <…></p>
-  </div>
-</details>
-```
-
-Image `src` is **relative to the tracker** (which lives at `bugs/`):
-
-- open bug → `bug-<N>-<slug>/<filename>`
-- closed bug → `archive/bug-<N>-<slug>/<filename>`
-
-Keep the body faithful but light — it mirrors the report, it is not a re-triage. Escape any literal `<`, `>`, `&` in the bug text so they render as text, not markup.
-
-**8f — Write the three regions** with `Edit`, replacing the placeholder content the fresh template ships between each marker pair (leave the marker comments themselves in place):
-
-- `Awaiting /bug-submit` (between `<!-- ISSUES_AT:START -->` / `:END`) → `Updated <UTC timestamp>` from `date -u +"%Y-%m-%d %H:%M UTC"`.
-- `<p class="empty">No open issues.</p>` (between `<!-- ISSUES_OPEN:START -->` / `:END`) → the concatenated **open** cards. Leave the placeholder if there are no open bugs.
-- `<p class="empty">No closed issues.</p>` (between `<!-- ISSUES_CLOSED:START -->` / `:END`) → the concatenated **closed** cards. Leave the placeholder if there are no closed bugs.
-
-Do not touch any other part of the file. The Open/Closed counts render automatically from the cards at load time — you never write them.
+Do **not** inline the tracker rendering — `bug-tracker-render` is the single source of that logic for every skill in this plugin (the same reason `feature-resolve` and `lessons-capture` are factored out). Adding the render steps back here would re-introduce the drift the extraction exists to prevent.
 
 ## Step 9 — Capture lessons
 
@@ -310,7 +240,7 @@ Keep the chat output under ~20 lines. The bug folder, its report, and the tracke
 - **Mandatory clarification step.** Step 3 runs even when the harness instructs autonomous operation. Closing material ambiguity is the whole point. The clarification is a single plain-chat prompt — never `AskUserQuestion`, because images attached to its answers are not surfaced with a filesystem path.
 - **Bug numbers are allocated across `bugs/` AND `bugs/archive/`.** Always scan both so a number is never reused after a resolved bug is archived. Integer numbers only, numeric compare (`bug-10` > `bug-9`).
 - **Everything stays local.** This skill writes only under `<repo_root>/bugs/` (bug folders plus `bugs/bugs-tracker.html`). It never creates GitHub issues, never pushes, never commits, and never uploads images to a gist or any remote. Images are copied into the bug folder and referenced by relative path.
-- **The tracker is a generated artefact.** `bugs/bugs-tracker.html` is rebuilt wholesale from the plugin template + the filesystem on every run (Step 8); never hand-maintain it or treat hand edits as durable. Open vs. closed is derived purely from folder location (`bugs/` vs. `bugs/archive/`), so moving a bug folder is the single source of truth for its status — the tracker catches up on the next run. If the template can't be found, skip the tracker rather than failing the skill.
+- **The tracker is a generated artefact, rendered by `bug-tracker-render`.** Step 8 delegates to that internal skill — never inline the rendering here. `bugs/bugs-tracker.html` is rebuilt wholesale from the plugin template + the filesystem on every run; never hand-maintain it or treat hand edits as durable. Open vs. closed is derived purely from folder location (`bugs/` vs. `bugs/archive/`), so moving a bug folder is the single source of truth for its status — the tracker catches up on the next render. If the template can't be found, `bug-tracker-render` skips rather than failing the skill.
 - **Never write secrets to disk.** If the description or anything pulled from the conversation looks like it contains a credential (API keys, tokens, passwords, private connection strings), redact it in the report — irrecoverably — and warn the user once before writing. For image attachments that look sensitive, get explicit `proceed` confirmation (Step 5) before copying them into the repo, since they may later be committed.
 - **Triage is grounded, not invented.** Step 6 must read real files in the repo before hypothesising. If nothing in the codebase looks relevant after a short search, say so in the report — do not fabricate a hypothesis.
 - **Severity is best-effort.** Never claim certainty about severity from a bug report alone; the report is a starting point, not a verdict.
