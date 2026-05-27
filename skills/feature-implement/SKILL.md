@@ -1,12 +1,12 @@
 ---
 name: feature-implement
-description: Execute a feature plan from features/feature-v<N>-<description>/ stage-by-stage on the current branch, following the plan's TDD cycle. Use when the user asks to implement, build, execute, or roll out a plan that already exists — typically as a follow-up to /feature-plan. Refuses to start without both the design and plan files on disk (delegated to feature-resolve). Syncs the repo's current branch with remote first, never creates a new branch, never pushes. After each stage: checks coverage against the stage plan, self-reviews the code for bloat / functional issues / inefficiency / security, runs tests, and commits. At the end, updates the per-feature tracker and surfaces any improvements to this skill itself. Step 0 confirms with the user via AskUserQuestion before doing any work when invoked proactively; the confirmation is skipped when the user explicitly typed /feature-implement. Because this skill writes code and commits, the proactive-invocation confirmation is non-negotiable.
+description: Execute a feature plan from features/feature-v<N>-<description>/ stage-by-stage on the current branch, following the plan's TDD cycle. Use when the user asks to implement, build, execute, or roll out a plan that already exists — typically as a follow-up to /feature-plan. Refuses to start without both the design and plan files on disk (delegated to feature-resolve). Syncs the repo's current branch with remote first, never creates a new branch, never pushes. Before the stage loop, asks the user to pick an execution strategy — direct in the main agent, one subagent per stage, or one subagent per three-stage chunk (all sequential, all committing one-per-stage). After each stage: checks coverage against the stage plan, self-reviews the code for bloat / functional issues / inefficiency / security, runs tests, and commits. At the end, updates the per-feature tracker and surfaces any improvements to this skill itself. Step 0 confirms with the user via AskUserQuestion before doing any work when invoked proactively; the confirmation is skipped when the user explicitly typed /feature-implement. Because this skill writes code and commits, the proactive-invocation confirmation is non-negotiable.
 model: opus
 effort: xhigh
 user-invocable: true
 disable-model-invocation: false
 argument-hint: <optional v<N> to target a specific feature, or omit to use the latest with a plan>
-allowed-tools: Read, Grep, Glob, Write, Edit, AskUserQuestion, Skill, Bash
+allowed-tools: Read, Grep, Glob, Write, Edit, AskUserQuestion, Skill, Agent, Bash
 ---
 
 # feature-implement — Stage-By-Stage TDD Implementation Of A Plan
@@ -15,7 +15,7 @@ You are running the `feature-implement` skill. The user may have arrived here by
 
 **Terminology (plugin-wide).** Two words are overloaded; keep them apart. A **step** is a numbered step of *this skill's own procedure* — the `## Step …` headings below (e.g. *Step 4*); the only other "steps" are the **TDD steps** inside a plan stage (write test → confirm fail → implement → confirm pass). A **stage** has two senses: a **chain stage** is one of `storm → design → plan → implement` (it shows up as `stage=…`, `stage_file`, and the tracker's `data-stage`), while a **plan stage** is a committable unit of work *inside* the implementation plan (e.g. `Stage 1`) — `/feature-plan` creates these and `/feature-implement` builds one per commit. A procedure step is never a plan stage, and a plan stage is never a procedure step.
 
-This skill has eleven steps (Steps 0–10). Execute them in order. Do not skip Step 0 (proactive-invocation confirmation), Step 2 (file readiness), Step 3 (repo readiness), Step 5 (TDD loop), Step 7 (final coverage check), Step 8 (tracker update), or Step 9 (lessons capture) — they are the load-bearing steps.
+This skill has eleven steps (Steps 0–10). Execute them in order. Do not skip Step 0 (proactive-invocation confirmation), Step 2 (file readiness), Step 3 (repo readiness), Step 5 (strategy choice + TDD loop), Step 7 (final coverage check), Step 8 (tracker update), or Step 9 (lessons capture) — they are the load-bearing steps.
 
 ## Step 0 — Confirm before proceeding (when invoked proactively)
 
@@ -138,11 +138,52 @@ Resolve the starting stage:
 - If prior stage commits exist → identify the highest completed stage `K`. Default to resuming at **Stage K+1**. Briefly tell the user ("Detected Stage 1–K already committed; resuming at Stage K+1.") and proceed without asking, unless the detection is ambiguous (e.g. non-contiguous stage numbers, mixed commit-message formats), in which case ask via `AskUserQuestion`.
 - If all stages appear already committed → tell the user the plan looks fully implemented; do not re-run stages. Skip to Step 7 (final coverage check) and then to Steps 8–10, but make no new commits.
 
-## Step 5 — Implement each stage (TDD loop)
+## Step 5 — Choose a strategy, then implement each stage (TDD loop)
 
-For each stage from the starting stage to the last, in order, do the following. Treat each stage as atomic: either it completes green and gets committed, or it gets rolled back and the user is consulted.
+The remaining stages (from the starting stage determined in Step 4 to the last) are implemented **in order, never in parallel** — commits are the resume contract, and concurrent writers would race the working tree and the index. Treat each stage as atomic: it either completes green and gets committed, or it is left uncommitted and the user is consulted.
 
-For every stage:
+### Choosing the execution strategy
+
+Before implementing anything, decide *who* drives the per-stage TDD cycle (the `5a`–`5i` cycle below). Let `R` = the number of stages still to implement (last − starting + 1).
+
+- If `R ≤ 1`, or you are in auto / non-interactive mode, skip the question and use **Direct**; say so in one line.
+- Otherwise call `AskUserQuestion` exactly once:
+  - **question**: `"How should I execute the <R> remaining stages? All three run the same TDD cycle and commit one-per-stage on the current branch, in order — the only difference is who drives each stage."`
+  - **header**: `"Execution strategy"`
+  - **options**:
+    - `{ "label": "Direct", "description": "Implement every stage in this conversation. Simplest, full visibility, uses the most context." }` (mark this as Recommended)
+    - `{ "label": "Subagent per stage", "description": "Launch one general-purpose subagent per stage, in order. Keeps this conversation's context lean; each stage is isolated." }`
+    - `{ "label": "Subagent per 3-stage chunk", "description": "Launch one subagent per consecutive group of three stages, in order. Fewer launches than per-stage, still context-isolated." }`
+
+  If the user picks "Other", interpret their intent or fall back to **Direct**. Record the choice as `STRATEGY ∈ {direct, per-stage, per-chunk}`.
+
+**Direct** — run the `5a`–`5i` cycle yourself for each stage in order, exactly as written below. (This is the historical behaviour of the skill.)
+
+**Subagent modes (`per-stage`, `per-chunk`)** — partition the remaining stages into units: one stage per unit for `per-stage`, or consecutive groups of three for `per-chunk` (the last group may be shorter). Then, **for each unit in order**:
+
+1. Launch a subagent with the `Agent` tool (called `Task` in some Claude Code versions) — `subagent_type: general-purpose`, **default isolation, not a worktree** (it must commit on the *current* branch in the shared working tree). Brief it with the **subagent contract** below. Launch one unit at a time and wait — never launch the next unit before this one returns.
+2. When it returns, verify in the main agent: run `git log --grep="(plan v<version>):" --oneline` and confirm a commit exists for every stage the unit was meant to deliver, and `git status` shows a clean tree.
+3. If any expected stage commit is missing, or the subagent reported a Step 6 stop condition or a deviation, **do not launch the next unit** — surface the subagent's report to the user and decide together (same handling as Step 6). Step 4's resume logic lets you continue later from the last committed stage.
+4. Otherwise continue to the next unit.
+
+Whoever executes, the `5a`–`5i` cycle is identical — nothing about TDD, self-review, coverage, commit format, or the git constraints changes; only the executor does. The final coverage check (Step 7), tracker update (Step 8), lessons capture (Step 9), and summary (Step 10) **always run in the main agent** after every unit completes, never inside a subagent.
+
+#### Subagent contract (per-stage and per-chunk modes)
+
+A subagent starts with a fresh context and cannot see this conversation, so its briefing must be self-contained. Pass, as the prompt:
+
+- **Scope** — "Implement **only** stage `<N>` [through `<M>`] of the plan, test-first; do not touch any other stage."
+- **Files** — absolute paths to the plan file (`prereq_file`) and the design file; tell it to `Read` both and re-read the target stage block before coding.
+- **Tooling** — the resolved `TEST` / `LINT` / `FORMAT_CHECK` / `TYPE_CHECK` / `BUILD` commands from Step 3 verbatim (or "none" where unset).
+- **Baseline** — the Step 3 lists of pre-existing test and lint/type failures, so it gates regressions against the baseline, not against zero.
+- **Discipline** — the full `5a`–`5i` cycle: the pre-flight scans, write test → confirm fail → implement → confirm pass, coverage check against the stage plan, self-review (bloat / functional / inefficiency / security / style), final `TEST`, and **one commit per stage** with the exact message `<type>(plan v<version>): Stage <N> — <stage title>`. It must `git add` only the files the stage touched.
+- **Git constraints** — current branch only; never create or switch branches, never push, never `--amend` / `--no-verify` / force. Commit each stage before starting the next.
+- **Stop conditions** — the Step 6 conditions: on an undiagnosable failure, a decision not covered by the plan/design, an externally-dirtied tree, or an unplanned large security issue, it must **stop**, leave completed stages committed and partial work uncommitted, and report rather than invent.
+- **Return format** — a compact report: per stage, the title, commit short-sha, and test result; plus any deviations (and whether it updated the plan's *Deviations from plan*), any stop condition hit, and the final clean/dirty tree state.
+
+Treat a unit as atomic the way a single stage is: it either lands all its stage commits green, or it stops and the user is consulted.
+
+For every stage (whoever is executing it):
 
 ### 5a. Re-read the stage details
 Re-read the stage block in the plan file (do not rely on memory). Note: goal, design references, files to touch, the four TDD steps, definition of done, stage-specific risks.
@@ -318,6 +359,7 @@ Keep the chat output under ~40 lines. Do not paste diffs or full file contents.
 - **Both files must exist on disk.** No implementation begins without the design and plan files confirmed present under the resolver-returned feature folder (Step 1 + Step 2). Never bypass the resolver.
 - **TDD as written in the plan is mandatory.** Behavior-changing stages: write test → confirm fail → implement → confirm pass. Scaffolding-only stages may skip the test cycle; the plan must mark them.
 - **One commit per stage.** No batch commits across stages. No commits mid-stage. The commit-message format is the resume contract for Step 4 — do not deviate from `<type>(plan v<version>): Stage <N> — <title>`.
+- **Execution strategy changes only the executor.** Per-stage / per-chunk subagent modes run the identical `5a`–`5i` cycle and obey every constraint here — current branch only, no new branches, no pushes, one commit per stage with the exact message format. Units run strictly in order, never in parallel. The strategy question is skipped (defaulting to Direct) in auto / non-interactive mode and when ≤1 stage remains. Steps 7–10 always run in the main agent, never in a subagent.
 - **Integer versions only.** `v<N>` in commit messages, file references, and tracker tokens — never `v<N>.<M>`.
 - **No silent design or plan drift.** If reality forces a change, update the plan file and record it under *Deviations*. Stop and surface big drifts to the user.
 - **Self-review every stage before commit.** Bloat, functional issues, inefficiencies, security — fix in the stage, not later.
