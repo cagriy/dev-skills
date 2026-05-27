@@ -144,9 +144,10 @@ The remaining stages (from the starting stage determined in Step 4 to the last) 
 
 ### Choosing the execution strategy
 
-Before implementing anything, decide *who* drives the per-stage TDD cycle (the `5a`–`5i` cycle below). Let `R` = the number of stages still to implement (last − starting + 1).
+**Do this before any stage work — do not skip it.** Decide *who* drives the per-stage TDD cycle (the `5a`–`5i` cycle below). Let `R` = the number of stages still to implement (last − starting + 1).
 
-- If `R ≤ 1`, or you are in auto / non-interactive mode, skip the question and use **Direct**; say so in one line.
+- This is a **required choice, not a clarification you may assume away** — treat it like Step 0's gate. **Ask whenever you can prompt the user**: arriving via the slash command, chaining in from `/feature-plan`, and running under a general "work autonomously / don't stop to ask" instruction all still require this question. Heads-down execution is **not** licence to silently pick Direct.
+- Skip the question — and default to **Direct**, saying so in one line — only when **(a)** `R ≤ 1` (there is nothing to choose), or **(b)** there is genuinely no interactive channel to answer on (a true headless / scheduled run, not merely an autonomous-feeling one).
 - Otherwise call `AskUserQuestion` exactly once:
   - **question**: `"How should I execute the <R> remaining stages? All three run the same TDD cycle and commit one-per-stage on the current branch, in order — the only difference is who drives each stage."`
   - **header**: `"Execution strategy"`
@@ -359,7 +360,7 @@ Keep the chat output under ~40 lines. Do not paste diffs or full file contents.
 - **Both files must exist on disk.** No implementation begins without the design and plan files confirmed present under the resolver-returned feature folder (Step 1 + Step 2). Never bypass the resolver.
 - **TDD as written in the plan is mandatory.** Behavior-changing stages: write test → confirm fail → implement → confirm pass. Scaffolding-only stages may skip the test cycle; the plan must mark them.
 - **One commit per stage.** No batch commits across stages. No commits mid-stage. The commit-message format is the resume contract for Step 4 — do not deviate from `<type>(plan v<version>): Stage <N> — <title>`.
-- **Execution strategy changes only the executor.** Per-stage / per-chunk subagent modes run the identical `5a`–`5i` cycle and obey every constraint here — current branch only, no new branches, no pushes, one commit per stage with the exact message format. Units run strictly in order, never in parallel. The strategy question is skipped (defaulting to Direct) in auto / non-interactive mode and when ≤1 stage remains. Steps 7–10 always run in the main agent, never in a subagent.
+- **Execution strategy changes only the executor.** Per-stage / per-chunk subagent modes run the identical `5a`–`5i` cycle and obey every constraint here — current branch only, no new branches, no pushes, one commit per stage with the exact message format. Units run strictly in order, never in parallel. The strategy question **must be asked whenever the user can be prompted** — slash-command, chain-in, and autonomous runs included — and is skipped (defaulting to Direct) only when ≤1 stage remains or the run is truly headless (no interactive channel). Steps 7–10 always run in the main agent, never in a subagent.
 - **Integer versions only.** `v<N>` in commit messages, file references, and tracker tokens — never `v<N>.<M>`.
 - **No silent design or plan drift.** If reality forces a change, update the plan file and record it under *Deviations*. Stop and surface big drifts to the user.
 - **Self-review every stage before commit.** Bloat, functional issues, inefficiencies, security — fix in the stage, not later.
