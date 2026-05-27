@@ -15,7 +15,7 @@ You are running the `bug-submit` skill. The user may have arrived here by typing
 
 This skill writes only to the local filesystem; it does **not** create GitHub issues, push, commit, or upload anything to a remote.
 
-This skill has eleven steps (Steps 0–10). Execute them in order. Do not skip Step 0 (proactive-invocation confirmation), Step 2 (bugs root), Step 3 (clarification), Step 4 (folder allocation), Step 7 (write the report), Step 8 (update the tracker), or Step 9 (lessons capture).
+This skill has ten steps (Steps 0–9). Execute them in order. Do not skip Step 0 (proactive-invocation confirmation), Step 2 (bugs root), Step 3 (clarification), Step 4 (folder allocation), Step 7 (write the report), or Step 8 (update the tracker).
 
 ## Step 0 — Confirm before proceeding (when invoked proactively)
 
@@ -205,13 +205,7 @@ Invoke the `bug-tracker-render` skill in this plugin via the `Skill` tool (no ar
 
 Do **not** inline the tracker rendering — `bug-tracker-render` is the single source of that logic for every skill in this plugin (the same reason `feature-resolve` and `lessons-capture` are factored out). Adding the render steps back here would re-introduce the drift the extraction exists to prevent.
 
-## Step 9 — Capture lessons
-
-Invoke the `lessons-capture` skill in this plugin via the `Skill` tool with the single argument `bug-submit`. It runs the reflection protocol, appends a dated entry to `~/.claude/dev-skills/lessons/bug-submit.md`, and returns the entry body for you to paste under the *Skill-improvement recommendations* heading in Step 10.
-
-Do not run the reflection inline — `lessons-capture` is the single source of the protocol for all skills in this plugin.
-
-## Step 10 — Present highlights
+## Step 9 — Present highlights
 
 In chat, output a short, scannable summary so the user has the pointers they need without re-reading the whole conversation:
 
@@ -227,9 +221,6 @@ Tracker:   bugs/bugs-tracker.html  (open the Issues tab)
 - Hypothesis: <one line>
 
 **Attachments:** <count> image(s) saved in the bug folder
-
-**Skill-improvement recommendations**
-- <single item from Step 9, or the line "No skill-improvement recommendations from this run.">
 ```
 
 Keep the chat output under ~20 lines. The bug folder, its report, and the tracker are the artefacts; the chat is the pointer.
@@ -247,4 +238,3 @@ Keep the chat output under ~20 lines. The bug folder, its report, and the tracke
 - **One bug per invocation.** Do not split a report into multiple bug folders automatically — if the description covers two separate bugs, note it in the Triage section and let the user split them deliberately.
 - **No symlinks.** Copy image files into the bug folder; never symlink them.
 - **Language-agnostic.** Do not bake in tooling specific to one ecosystem when reading the repo for triage. Adapt to whatever stack the repo is on.
-- **Lessons capture runs every time.** Step 9 always invokes `lessons-capture`; whether it produces a recommendation or "none this run" is decided by that skill.
