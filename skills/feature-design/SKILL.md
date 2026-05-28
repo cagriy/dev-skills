@@ -1,6 +1,6 @@
 ---
 name: feature-design
-description: Produce a reviewed feature design document under features/feature-v<N>-<description>/. Use when the user asks for a feature design, spec, design doc, design review, or to spec/scope a feature — typically as a follow-up to /feature-storm, or starting cold for features that don't need brainstorming. Grounds the design in the existing codebase (and any legacy docs/), asks clarifying questions until all open decisions are closed, writes feature-design-v<N>-<description>.md via feature-resolve, self-reviews for functional/security/efficiency gaps, updates the per-feature tracker, and presents highlights. Step 0 confirms with the user via AskUserQuestion before doing any work when invoked proactively; the confirmation is skipped when the user explicitly typed /feature-design or just chained in from /feature-storm.
+description: Produce a reviewed feature design document under features/feature-v<N>-<description>/. Use when the user asks for a feature design, spec, design doc, design review, or to spec/scope a feature — typically as a follow-up to /feature-storm, or starting cold for features that don't need brainstorming. Grounds the design in the existing codebase (and any legacy docs/), asks clarifying questions until all open decisions are closed, writes feature-design-v<N>-<description>.md via feature-resolve, self-reviews for functional/security/efficiency gaps, updates the per-feature tracker, and presents highlights. Step 0 confirms with the user via AskUserQuestion before doing any work when invoked proactively; the confirmation is skipped when the user explicitly typed /feature-design, just chained in from /feature-storm, or just chained in from /feature-dispatch.
 model: opus
 effort: xhigh
 user-invocable: true
@@ -22,6 +22,8 @@ This skill has eleven steps (Steps 0–10). Execute them in order. Do not skip S
 Check the most recent user message in the conversation for the literal tag `<command-name>/feature-design</command-name>` (or, equivalently, a leading `/feature-design` typed by the user). If present, the user has explicitly opted in via the slash command — skip this step and continue with Step 1.
 
 Also treat as opt-in (and skip this step) if you were just invoked as a chain from `/feature-storm`'s Step 9 — i.e. the immediately previous turn was an `AskUserQuestion` result with header `"Run /feature-design?"` and the user selected the option starting `"Yes, run /feature-design"`. In that case the user has already confirmed; do not re-ask.
+
+Also treat as opt-in (and skip this step) if you were just invoked as a chain from `/feature-dispatch` — i.e. the immediately previous turn was an `AskUserQuestion` result with header `"Route this feature?"` and the user selected an option whose label starts with `"Run /feature-design"`. In that case the user has already confirmed via the dispatcher; do not re-ask.
 
 Otherwise (you arrived here because the model decided to invoke this skill proactively from natural-language intent, with no recent chained opt-in), call `AskUserQuestion` exactly once before any other work:
 

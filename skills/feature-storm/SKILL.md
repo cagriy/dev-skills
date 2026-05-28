@@ -1,6 +1,6 @@
 ---
 name: feature-storm
-description: Brainstorm the high-level product / requirements view of a feature before any technical design work. Use when the user wants to think through a feature at the product layer — goals, scope, users, rough technical direction — without committing to a design yet. Typically the first step in the feature-storm → feature-design → feature-plan → feature-implement chain, but optional; /feature-design can start from cold. Establishes initial requirements with the user, calls /feature-resolve to allocate the feature folder, runs a structured brainstorming loop until the user approves a ≤10-bullet summary, writes feature-storm-v<N>-<desc>.md, updates the per-feature tracker (header + storming section + progress bar), captures lessons, and offers to chain into /feature-design. Step 0 confirms with the user via AskUserQuestion before doing any work when invoked proactively; the confirmation is skipped when the user explicitly typed /feature-storm.
+description: Brainstorm the high-level product / requirements view of a feature before any technical design work. Use when the user wants to think through a feature at the product layer — goals, scope, users, rough technical direction — without committing to a design yet. Typically the first step in the feature-storm → feature-design → feature-plan → feature-implement chain, but optional; /feature-design can start from cold. Establishes initial requirements with the user, calls /feature-resolve to allocate the feature folder, runs a structured brainstorming loop until the user approves a ≤10-bullet summary, writes feature-storm-v<N>-<desc>.md, updates the per-feature tracker (header + storming section + progress bar), captures lessons, and offers to chain into /feature-design. Step 0 confirms with the user via AskUserQuestion before doing any work when invoked proactively; the confirmation is skipped when the user explicitly typed /feature-storm or just chained in from /feature-dispatch.
 model: opus
 effort: xhigh
 user-invocable: true
@@ -21,7 +21,9 @@ This skill has ten steps (Steps 0–9). Execute them in order. Do not skip Step 
 
 Check the most recent user message in the conversation for the literal tag `<command-name>/feature-storm</command-name>` (or, equivalently, a leading `/feature-storm` typed by the user). If present, the user has explicitly opted in via the slash command — skip this step and continue with Step 1.
 
-Otherwise (you arrived here because the model decided to invoke this skill proactively from natural-language intent), call `AskUserQuestion` exactly once before any other work. Frame the question concretely so the user can correct your interpretation in the same step:
+Also treat as opt-in (and skip this step) if you were just invoked as a chain from `/feature-dispatch` — i.e. the immediately previous turn was an `AskUserQuestion` result with header `"Route this feature?"` and the user selected an option whose label starts with `"Run /feature-storm"`. In that case the user has already confirmed via the dispatcher; do not re-ask.
+
+Otherwise (you arrived here because the model decided to invoke this skill proactively from natural-language intent, with no recent chained opt-in), call `AskUserQuestion` exactly once before any other work. Frame the question concretely so the user can correct your interpretation in the same step:
 
 - **question**: `"Launch /feature-storm to brainstorm requirements for <your one-line restatement of what the user asked for>?"` — replace `<...>` with the specific scope you'd brainstorm.
 - **header**: `"Run /feature-storm?"`

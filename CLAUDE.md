@@ -9,6 +9,7 @@ A Claude Code **plugin** (`.claude-plugin/plugin.json`, name `dev-skills`) that 
 The skills divide into these groups:
 
 - **Feature chain** — `feature-storm`, `feature-design`, `feature-plan`, `feature-implement`, plus the internal `feature-resolve` they all delegate to for pathing.
+- **Router** — `feature-dispatch`, a model-only skill (`user-invocable: false`) that watches user prompts for non-trivial feature work (≥ ~75 LOC heuristic), recommends the right entry into the feature chain (`/feature-storm` for vague/high-level, `/feature-design` for clearer-but-undesigned), and on selection hands over via the `Skill` tool. Stays silent when the prompt is small, is a bug, or the user already picked an entry skill.
 - **Bug workflow** — `bug-submit` (file a triaged bug under `bugs/`) and `bug-fix` (diagnose, TDD-fix, and close one open bug), plus the internal `bug-tracker-render` they both delegate to for (re)generating `bugs/bugs-tracker.html`. These do not use `feature-resolve` and do not write under `features/`.
 - **Reflection / improvement** — `lessons-capture` (internal, called as the final step of the feature-* skills and `bug-fix`; `bug-submit` deliberately does not call it) and `lessons-learn` (user-only, periodic).
 
@@ -24,6 +25,11 @@ A procedure step is never a plan stage, and a plan stage is never a procedure st
 ## The skill chain (architecture)
 
 ```
+                  (model-only, fires on feature-shaped prompts)
+                              feature-dispatch
+                                    │
+                  ┌─────────────────┴─────────────────┐
+                  ▼ (vague / high-level)              ▼ (clear-but-undesigned)
 /feature-storm  →  /feature-design  →  /feature-plan  →  /feature-implement
        │                │                  │                   │
        │                │                  │                   │
@@ -50,6 +56,7 @@ features/
     feature-v<N>-tracker.html                 ← seeded by feature-resolve, updated by each stage
 ```
 
+- **`feature-dispatch`** — model-only router (`user-invocable: false`). Fires when the user's most recent message looks like non-trivial feature work (~75 LOC heuristic) and recommends the right entry into the feature chain: `/feature-storm` when the requirement is vague / under-specified at the product layer, `/feature-design` when the user is clear on what they want but the work still needs a real technical design. Asks once via `AskUserQuestion` with three explicit options (recommended skill first, alternative second, "Continue without dispatch" third) and on selection hands over via the `Skill` tool with the user's original request as the argument. Stays silent when the prompt is small, is a bug, the user already typed an entry slash command, or work is already in flight. Does not call `lessons-capture`. The chain-in is recognised by `feature-storm` and `feature-design` Step 0 (header `"Route this feature?"` + option label starting `"Run /feature-<slug>"`), which lets the dispatcher's confirmation stand in for theirs.
 - **`feature-storm`** *(optional)* — high-level product/requirements brainstorm. Asks the user for goals, scope, users, technical constraints, open questions. Writes a 5-section storm.md. Step 0 is the proactive-confirmation gate.
 - **`feature-design`** — produces the technical design under `features/feature-v<N>-<desc>/feature-design-v<N>-<desc>.md`. Clarification loop (Step 4) and self-review (Step 6) are load-bearing — skipping them defeats the skill. Can start cold (no storm) or pick up from a just-saved storm via Step 0 chain-in.
 - **`feature-plan`** — produces `feature-plan-v<N>-<desc>.md` under the same feature folder. Refuses to run without an existing design; refuses if design §8 (Open questions) is non-empty. The plan file is named directly off the resolver — there is no separate plan-versioning.
@@ -70,7 +77,7 @@ These are spread across the skill files but easy to break with a well-meaning ed
 - **Feature-* skill artefacts live under `features/feature-v<N>-<description>/`**, in the target project's cwd. `docs/` is **legacy** — feature-* skills may read it for grounding context but never write to it. The lessons log under `~/.claude/dev-skills/` is the only feature-* output that lives outside the project. The bug-workflow skills do not write under `features/`. `bug-submit` writes its artefacts under `bugs/` in the target repo: a `bugs/bug-N-<description>/` folder per bug (report markdown plus copied-in images), and a regenerated `bugs/bugs-tracker.html` (via `bug-tracker-render`). `bug-fix` additionally modifies project source/test files (the fix), `mv`s a bug folder into `bugs/archive/`, and makes one commit on the current branch — it is the only skill in the plugin that commits, and it never pushes.
 - **`feature-resolve` is the single source of pathing.** Feature-* skills never glob `features/`, never increment versions themselves, and never construct stage file paths by string concatenation. They invoke `feature-resolve` and use its returned `feature_folder` / `stage_file` / `tracker_file` / `prereq_file` verbatim.
 - **Integer versions only.** `v1`, `v2`, `v10` — never `v1.0`, `v1.2`. Numeric compare on version (so `v10` > `v9`). No minor-version revisions of stage files — to revise, you re-run the stage on a new feature version (default) or pass an explicit `version=<N>` to overwrite (resolver asks).
-- **Step 0 (proactive-invocation confirmation) gate.** Each feature-* skill checks for the literal `<command-name>/<slug></command-name>` tag, or a chained opt-in from the previous skill's final step. Otherwise it calls `AskUserQuestion` once before doing anything. For `feature-implement` this is strictly enforced because it writes code and commits.
+- **Step 0 (proactive-invocation confirmation) gate.** Each feature-* skill checks for the literal `<command-name>/<slug></command-name>` tag, or a chained opt-in from the previous skill's final step, or (for `feature-storm` and `feature-design`) a chained opt-in from `/feature-dispatch` (header `"Route this feature?"` + option label starting `"Run /feature-<slug>"`). Otherwise it calls `AskUserQuestion` once before doing anything. For `feature-implement` this is strictly enforced because it writes code and commits.
 - **Clarification steps run even in auto / non-interactive mode.** The skills explicitly override "skip clarifying questions" instructions — closing material ambiguity is the whole point. Don't add a bypass.
 - **Skills are deliberately language-agnostic.** `lessons-learn` filter #3 actively drops or rewrites language/framework-specific suggestions. When editing a skill, keep examples as illustrative lists across ecosystems, not as a single canonical command.
 - **Tracker token substitution is defensive.** Each skill substitutes only tokens that are still literal `{{...}}` — never overwrites content placed by an earlier stage. Future-stage tokens get the empty placeholder (`<p class="empty">Not yet filled — pending /feature-<step>.</p>`) the first time the tracker is touched.
