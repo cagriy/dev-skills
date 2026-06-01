@@ -79,6 +79,8 @@ Catalogue the project's test directory and naming conventions before drafting �
 
 Also identify the project's primary test framework and runner (read package/build manifests, existing test files, and any CI config). Record the runner command the plan's "run the test" steps will use. If the project uses multiple frameworks for different layers, record which one applies to each area the plan touches.
 
+For each **shared symbol the design changes** — a constructor or function signature, a widely-used class, a renamed config key — grep its construction/reference count across both source and tests to size the blast radius before staging. That count drives the staging decision (land the change atomically, defer it, or add a backward-compatible shim) and guards against plans that break the suite between stages or bundle an un-reviewably large mechanical edit.
+
 The goal is (a) to produce concrete, executable steps in Step 4, and (b) to surface conflicts between the design and current reality that you will raise in Step 6.
 
 ## Step 4 — Draft the staged implementation plan
@@ -192,7 +194,7 @@ Re-read the draft critically and fix what you find via `Edit` directly in the pl
 - **TDD discipline** — every behavior-changing stage has all four TDD steps in order; the "confirm fail" step records a concrete expected failure (not "it will fail"); every "non-TDD scaffolding" stage has a justification.
 - **Inaccuracies** — every file, function, library, framework, or API cited *as already existing* must actually exist (verify the non-obvious ones with `Read`/`Grep`). For things the plan introduces, the cited path/name must be consistent across stages. Replace or remove anything invented.
 - **Conflicts** — does any stage contradict another? Does any stage rely on something an earlier stage hasn't yet introduced? Does any stage break the system between merges? Fix the ordering or split the stage.
-- **Conflicts with the design** — does the plan silently change a decision from the design? If so, either revert to the design or move it to *Deviations from the design* with rationale (and flag to the user in Step 9).
+- **Conflicts with the design** — does the plan silently change a decision from the design? If so, either revert to the design or move it to *Deviations from the design* with rationale (and flag to the user in Step 9). Re-ordering or re-grouping implementation stages relative to the design's §9 rollout sequence is **not** a deviation — the plan owns staging order; only changes to scope, requirements, approach, or interfaces count.
 - **Security issues** — does any stage introduce a regression in input validation, authz, secret handling, logging of sensitive data, or trust boundaries that the design protected? Does the *order* of stages create a window where the system is insecure (e.g. endpoint live before authz check is wired)? Fix by reordering, adding guard stages, or feature-flagging.
 - **Hand-waves** — replace any "TBD", "TODO", "we'll just…", "should be straightforward" with concrete steps or move them to *Risks and open issues* with explicit mitigations.
 - **Stage size** — no single stage should be so large that it can't be reviewed in one sitting. Split large stages. Conversely, do not fragment trivially small steps into their own stages.
@@ -226,7 +228,7 @@ Apply these edits via the `Edit` tool. For each `{{TOKEN}}`, check it is still l
 - `{{FEATURE_SLUG}}` → `feature-v<N>-<description>`.
 - `{{GENERATED_AT}}` → today's UTC date.
 
-**Plan section tokens** (this skill owns these). Compute the timestamp once via `date -u +"%Y-%m-%d %H:%M UTC"` and reuse the same value for the chip:
+**Plan section tokens** (this skill owns these — always fill them with real content). Compute the timestamp once via `date -u +"%Y-%m-%d %H:%M UTC"` and reuse the same value for the chip. **If `/feature-storm` or `/feature-design` ran first, these are no longer the literal `{{PLAN_*}}` tokens — the earlier stage rendered them as the placeholder prose `Awaiting /feature-plan` (the chip) and two `<p class="empty">Not yet filled — pending /feature-plan.</p>` blocks (bullets + details). Overwrite those placeholder strings with the real plan content; the skip-if-substituted rule above protects only *other* skills' tokens, never your own Plan panel.**
 
 - `{{PLAN_AT}}` → `Updated <YYYY-MM-DD HH:MM UTC>` (the timestamp chip text — no surrounding HTML).
 - `{{PLAN_BULLETS}}` → an `<ul>` of 5–10 plan highlights, one `<li>` per bullet — typically the stage titles plus the *Deviations from the design* line.

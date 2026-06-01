@@ -65,7 +65,7 @@ Settle the description that goes into the folder name:
      - `{ "label": "Edit it", "description": "Give a different short title (≤10 words)." }`
    - If the user edits, re-validate ≤10 words; ask once more if they overshoot. Do not truncate silently.
 
-   **Skip the confirmation entirely** if Step 1 picked up a just-completed `/feature-storm` — the storm already established this description with the user; re-asking would be friction without value.
+   **Skip the confirmation entirely** if Step 1 picked up a just-completed `/feature-storm` (the storm already established this description with the user), or if the user supplied the title explicitly — a quoted phrase or a `title=`/`description=` slot — that is ≤10 words and filename-safe; re-confirming a title the user just typed is friction without value. Still confirm when the candidate was merely inferred from the leading words of the requirements.
 
 Now invoke `feature-resolve` via the `Skill` tool with the argument string:
 
@@ -111,7 +111,7 @@ Iteratively use `AskUserQuestion` (1–4 questions per call) to resolve every ma
 
 - **Scope** — what is explicitly in and out of scope for this feature.
 - **Acceptance criteria** — what "done" concretely means; how the user verifies the feature works.
-- **Approach choices** — when multiple viable paths exist, present them as options for the user to pick.
+- **Approach choices** — when multiple viable paths exist, present them as options for the user to pick. When an option differs from the others on a **measurable dimension** (cost, latency, storage, memory, quota/request usage), compute that quantity from the Step 3 grounding and state it inside the option description rather than offering an abstract trade-off — quantified options close the decision in one round and ground your recommendation in numbers the user can verify.
 - **Constraints** — performance, security, dependencies, deadlines, compatibility, platform.
 - **Data and state** — what is stored, where, with what lifetime, with what migration path if any.
 - **Failure behavior** — how the feature behaves on bad input, partial failure, network errors, race conditions.
@@ -221,7 +221,7 @@ Apply these edits via the `Edit` tool. For each `{{TOKEN}}`, check it is still l
 - `{{FEATURE_SLUG}}` → `feature-v<N>-<description>`.
 - `{{GENERATED_AT}}` → today's UTC date (`YYYY-MM-DD`).
 
-**Design section tokens** (this skill owns these). Compute the timestamp once via `date -u +"%Y-%m-%d %H:%M UTC"` and reuse the same value for the chip:
+**Design section tokens** (this skill owns these — always fill them with real content). Compute the timestamp once via `date -u +"%Y-%m-%d %H:%M UTC"` and reuse the same value for the chip. **If `/feature-storm` ran first, these are no longer the literal `{{DESIGN_*}}` tokens — the storm rendered them as the placeholder prose `Awaiting /feature-design` (the chip) and two `<p class="empty">Not yet filled — pending /feature-design.</p>` blocks (bullets + details). Overwrite those placeholder strings with the real design content; the skip-if-substituted rule above protects only *other* skills' tokens, never your own Design panel.**
 
 - `{{DESIGN_AT}}` → `Updated <YYYY-MM-DD HH:MM UTC>` (the timestamp chip text — no surrounding HTML).
 - `{{DESIGN_BULLETS}}` → an `<ul>` of 5–10 design highlights, one `<li>` per bullet, plain text content (no markdown — convert any markdown to HTML).

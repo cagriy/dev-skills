@@ -197,6 +197,8 @@ If the plan flagged the stage as **non-TDD scaffolding**, skip the test cycle fo
 
 **Pre-flight signature-change scan** — when a stage changes a public constructor or function signature (adds a required kwarg, renames a parameter, changes the return type in a breaking way), `grep` across the codebase for every caller / instantiator of that symbol before writing the first test. List them in the stage's notes as "tests likely to need updating in this stage" so the inner-stage TDD slice can plan for them, rather than discovering them only at 5e's wider-suite regression check. Targeted-test green ≠ system green when constructor signatures move.
 
+**Pre-flight time-dependency scan** — when a stage introduces current-time-based logic (clock reads, "now"-relative filtering, time-window cutoffs, TTL/expiry), `grep` existing tests for hardcoded or fixed-date fixtures that the new time logic would retroactively filter out or expire, before writing the first test. Plan to inject and pin the clock through a shared test seam within this same stage, rather than discovering the dated-fixture breakage only at 5e's wider-suite regression check.
+
 ### 5b. Write the test first
 Create or modify the test file(s) specified by the stage. Write concrete test cases that describe the new behavior. Do **not** write any production code yet.
 

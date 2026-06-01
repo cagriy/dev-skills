@@ -107,6 +107,8 @@ Follow the standard TDD cycle without exception:
 3. **Refactor (only if needed).** Tidy strictly what you just touched, keeping tests green.
 4. **No regressions.** Run the full `TEST` suite plus `LINT` / `TYPE_CHECK` / `BUILD` where they exist. Compare against the Step 2 baseline — anything green before must still be green. Pre-existing unrelated failures stay as they were (don't fix-and-bundle them here).
 
+When the obvious assertion for a bug is unreliable, ground the regression test in an observed, deterministic signal instead of a guessed or flaky one. For visual / layout / geometry bugs, first run a throwaway probe that dumps the framework's *measured* values and assert against those, rather than against guessed pixel thresholds (which are usually wrong and cause red-green-red churn). For performance / scaling bugs, assert on a proxy for the work done — items processed, regions invalidated, calls made — and that it stays bounded as input grows, rather than on wall-clock time.
+
 If the bug genuinely has no automatable layer (pure visual/UI, external-only behaviour), still add a test at whatever layer *is* testable; Step 7 covers the human check for the rest. Never skip writing the test just because the top layer is hard to reach.
 
 ## Step 7 — Verify the resolution
