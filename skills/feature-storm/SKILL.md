@@ -48,7 +48,7 @@ Resolve the requirements statement:
 
 You must have a real requirements statement before continuing. If the user declines to provide one (e.g. answers "nevermind"), stop the skill cleanly with no files written.
 
-**Ground brownfield requirements before clarifying.** If the requirements cite prior feature versions (e.g. `v9`, `v11`) or existing code/config symbols, do a quick grounding read of those (the prior storm/design docs, the named symbols) before the Step 3 clarification round — enough to make the questions fact-based. Stay at product altitude: you're confirming what exists and what's load-bearing, not designing.
+**Ground brownfield requirements before clarifying.** If the requirements cite prior feature versions (e.g. `v9`, `v11`) or existing code/config symbols, or propose changing the current repo's existing behaviour, do a quick grounding read of those (the prior storm/design docs, the named symbols, or the relevant code path) before the Step 3 clarification round — enough to make the questions and their options fact-based. Stay at product altitude: you're confirming what exists and what's load-bearing, not designing.
 
 ## Step 2 — Resolve the feature folder via `feature-resolve`
 
@@ -88,7 +88,7 @@ If the resolver stops with an error (e.g. plan/implement prereq missing — shou
 
 **This step is mandatory even in auto / non-interactive mode.** If the user or the harness has told you to "work without stopping" or "skip clarifying questions", that instruction does **not** apply here — converging on product intent before writing the brainstorm document is the entire purpose of this skill. Ask the questions anyway.
 
-Iteratively use `AskUserQuestion` (1–4 questions per call) to converge on the product picture. **Always present options with a recommendation** rather than open-ended prompts — the user can still pick "Other" to redirect. **Pace the bundle size to the user's footing:** for technically-uncertain or feasibility-gated features, open with the single highest-leverage question (or a short feasibility note) and expand to 3–4 question rounds only once the user is answering decisions rather than clarifying what's possible. Cover at minimum:
+Iteratively use `AskUserQuestion` (1–4 questions per call) to converge on the product picture. **Always present options with a recommendation** rather than open-ended prompts — the user can still pick "Other" to redirect. **Pace the bundle size to the user's footing:** for technically-uncertain or feasibility-gated features, open with the single highest-leverage question (or a short feasibility note) and expand to 3–4 question rounds only once the user is answering decisions rather than clarifying what's possible. **Sequence by dependency:** ask the foundational decisions whose answers constrain later questions first (e.g. where a component runs relative to its clients before how they communicate or authenticate), so a late-surfacing upstream fact doesn't invalidate answers already given. Cover at minimum:
 
 - **Goals** — concrete outcomes the feature should achieve.
 - **Non-goals** — what is explicitly out of scope (deferred, not "won't ever do").
@@ -97,7 +97,7 @@ Iteratively use `AskUserQuestion` (1–4 questions per call) to converge on the 
 - **High-level technical direction** — hard constraints, ecosystem (cloud, platform, runtime), integrations, performance/security ceilings the design must respect. **Stay high-level** — do not solve the design; surface the constraints the design must honour.
 - **Open questions for design** — the decisions you can already see `/feature-design` will need to close.
 
-After each round, restate your working understanding internally. Ask another round only if a remaining ambiguity would meaningfully change the brainstorm. Stop when the remaining uncertainty is at the design level, not the requirements level. Don't pad with questions for their own sake — and don't stop early to avoid friction.
+After each round, restate your working understanding internally and cross-check the answers for contradictions — when selections conflict (e.g. two mutually-exclusive options picked in one round), immediately re-ask to reconcile rather than relying on inline option warnings to have prevented the pick. Ask another round only if a remaining ambiguity would meaningfully change the brainstorm. Stop when the remaining uncertainty is at the design level, not the requirements level. Don't pad with questions for their own sake — and don't stop early to avoid friction.
 
 Keep the conversation product-flavoured. If a question would require resolving a deep technical decision (specific algorithm, schema shape, library choice), defer it to design and record it as an open question instead.
 

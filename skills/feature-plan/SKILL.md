@@ -77,6 +77,8 @@ Use `Read`, `Grep`, and `Glob` to verify the design's assumptions about the exis
 
 Catalogue the project's test directory and naming conventions before drafting — for each new test file the plan will create, name an existing sibling that follows the same pattern (e.g. `<tests-root>/<area>/<existing-sibling-test-file>`). This avoids inventing test paths in Step 4 that you then have to rename in Step 6 once you notice they don't match the project's convention.
 
+**Greenfield branch:** if the project has no existing test suite to mirror (a first-feature or otherwise test-less repo), waive the sibling-naming requirement; instead have an early stage of the plan explicitly establish and document the test convention — directory layout, framework/runner command, and any fixture/async setup — and record that choice, rather than inventing a nonexistent sibling path.
+
 Also identify the project's primary test framework and runner (read package/build manifests, existing test files, and any CI config). Record the runner command the plan's "run the test" steps will use. If the project uses multiple frameworks for different layers, record which one applies to each area the plan touches.
 
 For each **shared symbol the design changes** — a constructor or function signature, a widely-used class, a renamed config key — grep its construction/reference count across both source and tests to size the blast radius before staging. That count drives the staging decision (land the change atomically, defer it, or add a backward-compatible shim) and guards against plans that break the suite between stages or bundle an un-reviewably large mechanical edit.
@@ -219,7 +221,7 @@ find ~ -path "*/dev-skills/templates/feature-tracker.html" 2>/dev/null
 
 If no template can be located, skip the tracker update and note it in Step 9 — do **not** fail the whole skill.
 
-Apply these edits via the `Edit` tool. For each `{{TOKEN}}`, check it is still literal text in the file. Skip silently if already substituted.
+Apply these edits via the `Edit` tool. For each `{{TOKEN}}`, check it is still literal text in the file. Skip silently if already substituted. Note: the seeded tracker opens with an HTML documentation comment that lists every token name literally, so a bare `{{TOKEN}}` match (or whole-file grep) is non-unique and can match the comment instead of the live markup — scope each check/Edit to the rendered body occurrence (the `panel-plan` section, chip span, bullets `<ul>`, details block, or `<h1>` title), never the comment-block token.
 
 **Header tokens** (only edit if still literal):
 

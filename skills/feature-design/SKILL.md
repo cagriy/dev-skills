@@ -212,12 +212,12 @@ find ~ -path "*/dev-skills/templates/feature-tracker.html" 2>/dev/null
 
 If no template can be located, skip the tracker update and note it in Step 9 — do **not** fail the whole skill.
 
-Apply these edits via the `Edit` tool. For each `{{TOKEN}}`, check it is still literal text in the file (so you never overwrite content from `/feature-storm` or any other prior stage). If a token is already substituted, skip that edit silently.
+Apply these edits via the `Edit` tool. For each `{{TOKEN}}`, check it is still literal text in the file (so you never overwrite content from `/feature-storm` or any other prior stage). If a token is already substituted, skip that edit silently. Note: the seeded tracker opens with an HTML documentation comment that lists every token name literally, so a bare `{{TOKEN}}` match is non-unique — scope each Edit to the rendered body occurrence (the chip span, bullets `<ul>`, details block, or `<h1>` title), never the comment-block token.
 
 **Header tokens** (only edit if still literal):
 
 - `{{FEATURE_VERSION}}` → `<N>` (integer).
-- `{{FEATURE_TITLE}}` → human-readable title: take `description`, replace hyphens with spaces, preserve case (`Add-Reminders` → `Add Reminders`).
+- `{{FEATURE_TITLE}}` → human-readable title: take `description`, replace hyphens with spaces, then title-case each word while preserving any existing capitalization and upper-casing well-known acronyms (REST, API, CLI, HTTP, URL, SQL) (`Add-Reminders` → `Add Reminders`; `python-rest-server` → `Python REST Server`).
 - `{{FEATURE_SLUG}}` → `feature-v<N>-<description>`.
 - `{{GENERATED_AT}}` → today's UTC date (`YYYY-MM-DD`).
 

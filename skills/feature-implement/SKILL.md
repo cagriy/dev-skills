@@ -88,7 +88,8 @@ Run these checks in order:
 1. `git rev-parse --is-inside-work-tree` — confirm we are inside a git repo. If not, stop and tell the user.
 2. Identify the repo's default branch (in priority order: the remote HEAD via `git symbolic-ref refs/remotes/origin/HEAD`, falling back to `main`, then `master`). Call this `<default>`.
 3. `git status --short` — check for uncommitted changes.
-   - If the working tree is dirty, **stop**. Show the user what's modified and ask whether to commit/stash/discard before proceeding. Do not touch their changes.
+   - **First, distinguish the chain's own churn from the user's work.** If the only uncommitted changes are this feature's own artifacts (`features/feature-v<version>-*` — the design/plan/tracker files left by the preceding chain stage) and/or files that are gitignored-but-tracked, this is the chain's own output, not the user's unrelated work: offer to commit the feature docs as a `docs(...)` commit (ignoring the gitignored churn) and proceed, rather than treating it as a generic dirty-tree stop. This is near-guaranteed on chained `plan → implement` runs.
+   - Otherwise, if the working tree is dirty, **stop**. Show the user what's modified and ask whether to commit/stash/discard before proceeding. Do not touch their changes.
 4. `git rev-parse --abbrev-ref HEAD` — get the current branch.
    - If the current branch is **not** `<default>`, warn the user (e.g. "You're on `feature/x`, not `<default>`. This skill normally implements on `<default>`. Continue on the current branch?") and proceed only if confirmed. Do **not** switch branches yourself. Do **not** create a new branch.
 5. `git fetch --prune` — refresh remote refs.
@@ -177,6 +178,7 @@ A subagent starts with a fresh context and cannot see this conversation, so its 
 - **Files** — absolute paths to the plan file (`prereq_file`) and the design file; tell it to `Read` both and re-read the target stage block before coding.
 - **Tooling** — the resolved `TEST` / `LINT` / `FORMAT_CHECK` / `TYPE_CHECK` / `BUILD` commands from Step 3 verbatim (or "none" where unset).
 - **Baseline** — the Step 3 lists of pre-existing test and lint/type failures, so it gates regressions against the baseline, not against zero.
+- **Prior-stage state** *(units after the first only)* — a short carry-forward note: the stages already completed, the public interface (modules/types/functions and their signatures) of anything earlier units built that this unit will build on, any resolved interpreter / dependency / toolchain pins, and any deviations recorded so far. This keeps later units reusing prior work instead of re-scaffolding or guessing existing APIs.
 - **Discipline** — the full `5a`–`5i` cycle: the pre-flight scans, write test → confirm fail → implement → confirm pass, coverage check against the stage plan, self-review (bloat / functional / inefficiency / security / style), final `TEST`, and **one commit per stage** with the exact message `<type>(plan v<version>): Stage <N> — <stage title>`. It must `git add` only the files the stage touched.
 - **Git constraints** — current branch only; never create or switch branches, never push, never `--amend` / `--no-verify` / force. Commit each stage before starting the next.
 - **Stop conditions** — the Step 6 conditions: on an undiagnosable failure, a decision not covered by the plan/design, an externally-dirtied tree, or an unplanned large security issue, it must **stop**, leave completed stages committed and partial work uncommitted, and report rather than invent.

@@ -82,11 +82,14 @@ Fold the answers into your understanding of the bug before diagnosing.
 This is the gate the whole skill turns on. **Find the root cause, supported by evidence, before you change a single line of production code.**
 
 - Do not assume and do not invent hypotheses you can't test. Every claim about the cause must be backed by something you observed: a reproduction, a failing assertion, a log line, a value you printed, a code path you traced.
+- **Don't anchor on the triage.** The report's triage is a quick first read and may name a plausible-but-wrong cause or differentiator. When it asserts a specific factor, confirm or refute it empirically before theorising about mechanism — build a minimal controlled matrix (the suspected factor × an orthogonal control) and observe which cell actually reproduces, rather than reasoning forward from the triage's hypothesis.
 - Reproduce the bug if at all possible — run the failing command, write a throwaway probe or a (soon-to-be-permanent) failing test, add temporary instrumentation. Capture the exact observed-vs-expected behaviour.
 - If you cannot reach a confident root cause: run more tests/experiments, widen the trace, or **ask the user for help** (logs, exact repro, environment, a screen recording). Asking is correct; guessing is not.
 - Remove any temporary instrumentation you added once you have your answer.
 
 Only proceed to Step 5 when you can state the root cause concretely — citing `path/to/file.ext:line` and the evidence. If after honest effort you still can't, tell the user what you found, what you ruled out, and what you'd need from them; do **not** proceed to a speculative fix.
+
+**No-fix disposition.** If the evidence-backed conclusion is that the bug should *not* be fixed — works-as-intended, a duplicate, or cost unjustified by measured impact (record the measurement) — there is a parallel close path. Skip Step 5's fix approval and Step 6's TDD; confirm the disposition with the user via `AskUserQuestion` (**Close as <disposition>** / **Fix it anyway** / **Cancel**), then close as in Step 9 but with an evidence-backed `## Resolution` recording the disposition in place of a code fix, and commit with `chore(bug #<N>): <disposition> — <short title>` instead of `fix(...)`. Archiving and tracker regeneration are unchanged.
 
 ## Step 5 — Explain the fix and get approval
 
@@ -102,7 +105,7 @@ Then ask for approval via `AskUserQuestion`: **Proceed** (recommended) / **Adjus
 
 Follow the standard TDD cycle without exception:
 
-1. **Red.** Write a test that encodes the correct behaviour the bug violates (a regression test). Run it and confirm it **fails** for the expected reason — this proves the test actually captures the bug.
+1. **Red.** Write a test that encodes the correct behaviour the bug violates (a regression test). Run it and confirm it **fails** for the expected reason — this proves the test actually captures the bug. If the fix introduces a not-yet-existing symbol (a new type, function, or module the test references), a bare "symbol not found" compile/import error is **not** a meaningful Red — first add a minimal stub that compiles and returns a trivially-wrong value, so the failing test is a real assertion failure that proves the test captures the behaviour.
 2. **Green.** Make the **minimal** change at the root cause to make that test pass. No scope creep, no speculative hardening.
 3. **Refactor (only if needed).** Tidy strictly what you just touched, keeping tests green.
 4. **No regressions.** Run the full `TEST` suite plus `LINT` / `TYPE_CHECK` / `BUILD` where they exist. Compare against the Step 2 baseline — anything green before must still be green. Pre-existing unrelated failures stay as they were (don't fix-and-bundle them here).
