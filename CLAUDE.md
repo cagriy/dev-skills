@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this repo is
 
-A Claude Code **plugin** (`.claude-plugin/plugin.json`, name `dev-skills`) that ships a TDD-driven feature workflow plus a few standalone helper skills under `skills/`. There is no application code, no build step, no test suite — the artifact is the SKILL.md content itself. Changes ship as edits to the markdown skill definitions plus the `templates/feature-tracker.html` template.
+A Claude Code **plugin** (`.claude-plugin/plugin.json`, name `dev-skills`) that ships a TDD-driven feature workflow plus a few standalone helper skills under `skills/`. There is no build step and no test suite — the artifact is mostly the SKILL.md content itself. Changes ship as edits to the markdown skill definitions, the `templates/feature-tracker.html` template, and the one bit of executable code the plugin carries: the `hooks/` remote-readiness check.
 
 The skills divide into these groups:
 
@@ -100,6 +100,8 @@ Each `SKILL.md` starts with YAML frontmatter. The fields that matter for behavio
 - `skills/<slug>/SKILL.md` — the skill definitions; this is the product.
 - `.claude-plugin/plugin.json` — plugin manifest.
 - `templates/feature-tracker.html` — token-substitution HTML template (`{{FEATURE_VERSION}}`, `{{DESIGN_BULLETS}}`, etc.) plus a 4-step progress bar (`storm` → `design` → `plan` → `implement`) using `data-stage` / `data-state` attributes. `feature-resolve` copies this into each new feature folder; each feature-* skill substitutes its own tokens and flips its own progress step. The same template doubles as the **bug tracker**: it carries a 5th "Issues" tab and an optional `<body data-tracker-kind="bugs">` attribute that (via CSS) hides the stepper + feature tabs and shows only the Issues tab. The Issues panel is **not** `{{token}}`-driven — it is a living list regenerated wholesale by `/bug-submit` between HTML-comment markers (`<!-- ISSUES_OPEN/CLOSED/AT:START -->…:END -->`). Open vs. closed comes from `bugs/` vs. `bugs/archive/`; cards are expandable `<details>` with relative-path `<img>` screenshots.
+- `hooks/hooks.json` — plugin-shipped hook config (auto-discovered; top-level `"hooks"` key, same schema as settings.json). Registers `hooks/remote-check.sh` on **SessionStart** and **UserPromptSubmit**, each passed a mode arg (`sessionstart` / `userprompt`) via `${CLAUDE_PLUGIN_ROOT}`.
+- `hooks/remote-check.sh` — the only executable code in the plugin. A remote-readiness *warning* (not a gate): it `git fetch`es and, if the current branch is behind its upstream, injects an `additionalContext` note so Claude can offer a one-click `git pull --ff-only`. **SessionStart always fetches and resets the throttle; UserPromptSubmit fetches only when the last check is older than 2h** (state in `<git-dir>/dev-skills-remote-check`, never committed), so it never nags every prompt. No-op outside a git repo, with no upstream, or offline; it never pulls and never blocks. It is a complement to — not a replacement for — checking remote state at the point work happens; a once-or-throttled fetch can't see a remote that advances between checks, so it warns rather than enforces.
 - `.gitignore` — ignores `.DS_Store` and a local `cli/` workspace.
 
 ## Editing workflow
