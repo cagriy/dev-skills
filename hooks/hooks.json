@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/remote-check.sh sessionstart"
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/remote-check.sh\" sessionstart"
           }
         ]
       }
@@ -17,7 +17,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/remote-check.sh userprompt"
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/remote-check.sh\" userprompt"
           }
         ]
       }
