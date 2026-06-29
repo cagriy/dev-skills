@@ -3,8 +3,11 @@
 #
 # Warns when the current branch is behind its upstream so the user can pull
 # before doing feature work (the feature-* skills create files; doing so on a
-# behind branch invites a needless divergence). It never pulls — it injects a
-# note via additionalContext and lets Claude offer a one-click `git pull`.
+# behind branch invites a needless divergence). It never pulls. It surfaces the
+# warning two ways: a `systemMessage` shown directly to the user (so it is never
+# silent), plus an `additionalContext` note that lets Claude offer a one-click
+# `git pull`. (additionalContext alone is injected into Claude's context only and
+# is not displayed to the user — which is why a visible systemMessage is needed.)
 #
 # Modes (passed as $1 by hooks/hooks.json):
 #   sessionstart  -> always fetch, and reset the throttle window.
@@ -81,11 +84,18 @@ else
   event="UserPromptSubmit"
 fi
 
-# Single-quoted refs in the message keep double quotes out of the JSON string.
-msg="[dev-skills remote-check] Branch '${branch}' is ${behind} commit(s) behind its upstream '${upstream}'. Before any feature work (creating/editing files or running /feature-* skills), offer the user a one-click 'git pull --ff-only' to sync first — avoid creating files on a behind branch. Do not pull automatically; ask first."
+# Two parts to the output, both single-quoted refs to keep double quotes out of
+# the JSON strings:
+#   - systemMessage   -> shown directly to the user as a terminal warning, so the
+#                        behind-state is never silent (additionalContext alone is
+#                        injected into Claude's context and is not user-visible).
+#   - additionalContext -> lets Claude offer a one-click 'git pull --ff-only'.
+warn="[dev-skills remote-check] Branch '${branch}' is ${behind} commit(s) behind its upstream '${upstream}'. Run 'git pull --ff-only' to sync before making changes."
+ctx="[dev-skills remote-check] Branch '${branch}' is ${behind} commit(s) behind its upstream '${upstream}'. The user has been shown this as a warning. Before any feature work (creating/editing files or running /feature-* skills), offer the user a one-click 'git pull --ff-only' to sync first — avoid creating files on a behind branch. Do not pull automatically; ask first."
 
 # JSON-escape backslashes and double quotes defensively (ref names are tame, but be safe).
-esc="$(printf '%s' "$msg" | sed 's/\\/\\\\/g; s/"/\\"/g')"
+warn_esc="$(printf '%s' "$warn" | sed 's/\\/\\\\/g; s/"/\\"/g')"
+ctx_esc="$(printf '%s' "$ctx" | sed 's/\\/\\\\/g; s/"/\\"/g')"
 
-printf '{"hookSpecificOutput":{"hookEventName":"%s","additionalContext":"%s"}}\n' "$event" "$esc"
+printf '{"systemMessage":"%s","hookSpecificOutput":{"hookEventName":"%s","additionalContext":"%s"}}\n' "$warn_esc" "$event" "$ctx_esc"
 exit 0
