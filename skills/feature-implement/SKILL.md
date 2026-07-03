@@ -23,7 +23,7 @@ This skill writes code and creates commits — proactive invocation without a cl
 
 Check the most recent user message in the conversation for the literal tag `<command-name>/feature-implement</command-name>` (or, equivalently, a leading `/feature-implement` typed by the user). If present, the user has explicitly opted in via the slash command — skip this step and continue with Step 1.
 
-Also treat as opt-in (and skip this step) if you were just invoked as a chain from `/feature-plan`'s Step 10 — i.e. the immediately previous turn was an `AskUserQuestion` result with header `"Run /feature-implement?"` and the user selected the option starting `"Yes, run /feature-implement"`. In that case the user has already confirmed; do not re-ask.
+Also treat as opt-in (and skip this step) if you were just invoked as a chain from `/feature-plan`'s Step 11 — i.e. the immediately previous turn was an `AskUserQuestion` result with header `"Run /feature-implement?"` and the user selected the option starting `"Yes, run /feature-implement"`. In that case the user has already confirmed; do not re-ask.
 
 Otherwise (you arrived here because the model decided to invoke this skill proactively from natural-language intent, with no recent chained opt-in), call `AskUserQuestion` exactly once before any other work:
 
