@@ -178,12 +178,17 @@ The remaining stages (from the starting stage determined in Step 4 to the last) 
 
 **Direct** — run the `5a`–`5i` cycle yourself for each stage in order, exactly as written below. (This is the historical behaviour of the skill.)
 
-**Subagent modes (`per-stage`, `per-chunk`)** — partition the remaining stages into units: one stage per unit for `per-stage`, or consecutive groups of three for `per-chunk` (the last group may be shorter). Then, **for each unit in order**:
+**Subagent modes (`per-stage`, `per-chunk`)** — partition the remaining stages into units: one stage per unit for `per-stage`, or consecutive groups of three for `per-chunk` (the last group may be shorter). Before partitioning, pre-scan the stages and pull out of subagent units any stage a subagent cannot complete: stages whose verification is inherently manual/integration (e.g. a live UI or browser check), stages needing a skill or context available only in this conversation, and stages that provision a new environment over the network (dependency installs — a sandboxed subagent typically has no network access). Run those stages in the main agent at their ordinal position, and say so when recording the strategy. Then, **for each unit in order**:
 
 1. Launch a subagent with the `Agent` tool (called `Task` in some Claude Code versions) — `subagent_type: general-purpose`, **default isolation, not a worktree** (it must commit on the *current* branch in the shared working tree). Brief it with the **subagent contract** below. Launch one unit at a time and wait — never launch the next unit before this one returns.
-2. When it returns, verify in the main agent: run `git log --grep="(plan v<version>):" --oneline` and confirm a commit exists for every stage the unit was meant to deliver, and `git status` shows a clean tree.
+2. When it returns, verify in the main agent — treat the subagent's report as a claim to check, not a result to trust:
+   - `git log --grep="(plan v<version>):" --oneline` — confirm a commit exists for every stage the unit was meant to deliver, and `git status` shows a clean tree.
+   - `git show --stat` each new stage commit — confirm it touched only that stage's expected files (catches stray files swept in, and inaccurate self-reports).
+   - Re-run `TEST` (and `BUILD`, when set and the unit touched non-test code) yourself — the command's exit status is the sole pass/fail authority; never accept the unit's green claim, editor/indexer diagnostics, or the presence/absence of console output in its place.
+   - Scan the unit's touched files for newly introduced compiler/linter diagnostics and reconcile them against that authoritative `TEST`/`BUILD` result: fix real ones in a follow-up commit before the next unit launches; treat isolated-analysis false positives (e.g. unresolved same-module or test-framework symbols outside the real build graph) as non-blocking.
 3. If any expected stage commit is missing, or the subagent reported a Step 6 stop condition or a deviation, **do not launch the next unit** — surface the subagent's report to the user and decide together (same handling as Step 6). Step 4's resume logic lets you continue later from the last committed stage.
-4. Otherwise continue to the next unit.
+4. If the unit's subagent times out, crashes on an infrastructure error, or returns no report, do not assume wholesale failure and do not re-run the unit. Reconcile from the main agent: `git log --grep` to identify which of the unit's stages already committed; inspect the working tree for a complete-but-uncommitted stage and, if it verifies green (run `TEST`), commit it from the main agent with the standard message format; then resume only the remaining stages — a fresh subagent with an updated carry-forward note, or directly for a small trailing stage. Never re-run an already-committed stage.
+5. Otherwise continue to the next unit.
 
 Whoever executes, the `5a`–`5i` cycle is identical — nothing about TDD, self-review, coverage, commit format, or the git constraints changes; only the executor does. The final coverage & dead-code sweep (Step 7), tracker update (Step 8), lessons capture (Step 9), and summary (Step 10) **always run in the main agent** after every unit completes, never inside a subagent.
 
@@ -196,10 +201,11 @@ A subagent starts with a fresh context and cannot see this conversation, so its 
 - **Tooling** — the resolved `TEST` / `LINT` / `FORMAT_CHECK` / `TYPE_CHECK` / `BUILD` commands from Step 3 verbatim (or "none" where unset).
 - **Baseline** — the Step 3 lists of pre-existing test and lint/type failures, so it gates regressions against the baseline, not against zero.
 - **Prior-stage state** *(units after the first only)* — a short carry-forward note: the stages already completed, the public interface (modules/types/functions and their signatures) of anything earlier units built that this unit will build on, any resolved interpreter / dependency / toolchain pins, and any deviations recorded so far. This keeps later units reusing prior work instead of re-scaffolding or guessing existing APIs.
-- **Discipline** — the full `5a`–`5i` cycle: the pre-flight scans, write test → confirm fail → implement → confirm pass, coverage check against the stage plan, self-review (bloat / supersession-orphans / functional / inefficiency / security / style), final `TEST`, and **one commit per stage** with the exact message `<type>(plan v<version>): Stage <N> — <stage title>`. It must `git add` only the files the stage touched.
+- **Discipline** — the full `5a`–`5i` cycle: the pre-flight scans, write test → confirm fail → implement → confirm pass, coverage check against the stage plan, self-review (bloat / supersession-orphans / functional / inefficiency / security / style), final `TEST`, and **one commit per stage** with the exact message `<type>(plan v<version>): Stage <N> — <stage title>`. It must `git add` only the files the stage touched. Stage commits contain the stage's source and test files only; plan-deviation notes and repo-mandated side artifacts (changelog, wiki) go in a separate `docs:` commit whose subject omits `(plan v<version>):`.
 - **Git constraints** — current branch only; never create or switch branches, never push, never `--amend` / `--no-verify` / force. Commit each stage before starting the next.
 - **Stop conditions** — the Step 6 conditions: on an undiagnosable failure, a decision not covered by the plan/design, an externally-dirtied tree, or an unplanned large security issue, it must **stop**, leave completed stages committed and partial work uncommitted, and report rather than invent.
-- **Return format** — a compact report: per stage, the title, commit short-sha, and test result; plus any deviations (and whether it updated the plan's *Deviations from plan*), any stop condition hit, and the final clean/dirty tree state.
+- **Verification honesty** — if part of a stage's definition of done requires verification the subagent cannot perform (live UI, external system, manual check), it runs every available automated check, does **not** claim the live verification, and returns an exact live-verification checklist for the main agent to run (Step 7 picks it up).
+- **Return format** — a compact report: per stage, the title, commit short-sha, test result, the exact files committed, and an **API introduced** list (new public symbols — types, functions, constants — with signatures) for the main agent to paste verbatim into the next unit's carry-forward note; plus any deviations (and whether it updated the plan's *Deviations from plan*), any stop condition hit, and the final clean/dirty tree state.
 
 Treat a unit as atomic the way a single stage is: it either lands all its stage commits green, or it stops and the user is consulted.
 
@@ -268,6 +274,8 @@ Where `<type>` is `feat` for new behavior, `refactor` for non-behavioral structu
 
 Stage `git add` should add **only** the files this stage touched. Prefer `git add <files>` over `git add -A` to avoid sweeping in unrelated changes. Never `--no-verify`, never `--amend` a previous commit.
 
+A stage commit contains the stage's source and test files only. Anything else that changed alongside it — plan-file deviation notes from 5d, repo-mandated side artifacts (changelog, wiki), tracker edits — goes in a separate `docs:`-typed commit, either straight after the stage commit or folded into the Step 8 tracker commit. Keep `(plan v<version>):` out of these docs commit subjects so they never pollute Step 4's resume grep (e.g. `docs: record plan v<version> Stage <N> deviation`).
+
 After the commit, run `git status` to confirm a clean tree before moving to the next stage.
 
 ### 5i. Move to the next stage
@@ -307,7 +315,10 @@ find ~ -path "*/dev-skills/templates/feature-tracker.html" 2>/dev/null
 
 If no template can be located, skip the tracker update and note it in Step 10 — do **not** fail the whole skill.
 
-Apply these edits via the `Edit` tool. For each `{{TOKEN}}`, check it is still literal text in the file. Skip silently if already substituted.
+Apply these edits via the `Edit` tool. For each `{{TOKEN}}`, check it is still literal text in the file. Skip silently if already substituted — with two caveats:
+
+- Detect leftover literal tokens **in the rendered body only** — ignore the HTML comment legend at the top of the template, which names every token and makes a fully populated tracker look unfilled if grepped whole-file (risking overwrites of earlier skills' panels with empty placeholders).
+- The Implementation panel is this skill's to fill **even when it holds no literal tokens**: if it shows the seeded placeholders (`Awaiting /feature-implement` / `Not yet filled — pending /feature-implement.`), replace them with the real content below. The skip-if-substituted rule protects the header tokens and other skills' panels, not this skill's own section.
 
 **Header tokens** (only edit if still literal):
 
@@ -339,6 +350,8 @@ Apply these edits via the `Edit` tool. For each `{{TOKEN}}`, check it is still l
 If the Edit fails, the implement step is already `complete` (rerun on a fully tracked feature) — leave it alone.
 
 Do **not** touch other skills' tokens beyond the empty-placeholder fallback above. Do **not** touch other skills' progress steps.
+
+Finish by committing the tracker update — plus any still-uncommitted docs edits from the run (plan deviation notes, repo-mandated side artifacts) — as one docs commit, e.g. `docs: mark v<version> implementation complete in tracker`, so the run ends with a clean tree. This is a docs commit, not a stage commit: keep `(plan v<version>):` out of its subject so it never matches Step 4's resume grep.
 
 ## Step 9 — Capture lessons
 

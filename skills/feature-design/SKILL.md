@@ -25,6 +25,8 @@ Also treat as opt-in (and skip this step) if you were just invoked as a chain fr
 
 Also treat as opt-in (and skip this step) if you were just invoked as a chain from `/feature-dispatch` — i.e. the immediately previous turn was an `AskUserQuestion` result with header `"Route this feature?"` and the user selected an option whose label starts with `"Run /feature-design"`. In that case the user has already confirmed via the dispatcher; do not re-ask.
 
+Also treat as opt-in (and skip this step) if the user's immediately preceding message explicitly affirmed an assistant proposal that named this skill — e.g. they answered "yes" to "Want me to run this through /feature-design?". A fresh confirmation right after that affirmation is friction, not safety.
+
 Otherwise (you arrived here because the model decided to invoke this skill proactively from natural-language intent, with no recent chained opt-in), call `AskUserQuestion` exactly once before any other work:
 
 - **question**: `"Launch /feature-design to produce a feature design for <your one-line restatement of what the user asked for>?"` — replace `<...>` with the specific scope you intend to design.
@@ -47,7 +49,8 @@ Resolve the requirements statement, in this priority order:
 
 1. If the parsed free-form text is meaningful (>~5 words), use it as the initial requirements statement.
 2. Else, if the conversation context shows a **just-completed `/feature-storm`** (storm bullets visible in recent assistant messages, or a `features/feature-v<N>-<desc>/feature-storm-v<N>-<desc>.md` path visible in recent tool results), use the storm's approved bullets as the requirements basis. Capture the storm's resolved `description` as `candidate_description` if Step 1 didn't already produce one. State in chat which storm you picked up (e.g. `"Continuing from /feature-storm: features/feature-v3-add-reminders/feature-storm-v3-add-reminders.md."`) so the user can redirect with one word.
-3. Else, make exactly one `AskUserQuestion` call asking what feature the user wants designed. Their answer becomes the requirements statement.
+3. Else, if the recent conversation contains the requirements — a substantial design/requirements discussion, or an enumerated proposal the assistant just made that the arguments reference tersely (a number/range/ordinal like `1-4`, or "that" / "do it") — resolve the requirements from that context. State in chat which discussion or items you adopted (e.g. `"Designing items 1–4 of the remediation list above."`) so the user can redirect with one word.
+4. Else, make exactly one `AskUserQuestion` call asking what feature the user wants designed. Their answer becomes the requirements statement.
 
 Do not proceed past Step 1 without a real requirements statement.
 
@@ -97,6 +100,8 @@ Use `Read`, `Grep`, and `Glob` only to understand the parts of the project the f
 
 **Legacy `docs/` is fair game for grounding.** If the repo has older `docs/<prefix>-v<X>.<Y>.md` files (the previous-generation design convention), read them for context — they capture prior decisions and architectural intent. Do **not** continue their version numbering and do **not** write into `docs/`; the new artefact lives under the resolved `feature_folder`. The `notes` field from the resolver will mention if you're in a repo that has legacy docs.
 
+Two more grounding sources are load-bearing when they exist: (a) if the feature supersedes or remediates an area covered by an earlier feature, read the most recent prior `features/feature-v<M>-*` design for that area — it records the prior approach and decisions your §6 *Alternatives considered* should contrast; (b) if the requirements come from a multi-item review/spec document, also read its corrections / caveats / "deliberately not recommended" sections and reconcile the target item's stated mechanism against them and the actual code path before designing to it — review docs regularly contain a rationale that a later section (or the code) contradicts.
+
 The goal is twofold: (a) ask better clarifying questions in Step 4, and (b) ensure the design references real, existing structures rather than invented ones. Do not embark on a wide codebase audit — bound the exploration to what the feature touches.
 
 If the working directory is unfamiliar, a single top-level listing plus reading the obvious entry points (README, package manifests, main module) is usually sufficient before moving on.
@@ -116,9 +121,15 @@ Iteratively use `AskUserQuestion` (1–4 questions per call) to resolve every ma
 - **Data and state** — what is stored, where, with what lifetime, with what migration path if any.
 - **Failure behavior** — how the feature behaves on bad input, partial failure, network errors, race conditions.
 
-If a `/feature-storm` ran first, its §5 (Open questions for design) is the seed list — explicitly close every item there. Do not skip them on the assumption that "the design will figure it out".
+If a `/feature-storm` ran first, its §5 (Open questions for design) is the seed list — explicitly close every item there. Do not skip them on the assumption that "the design will figure it out". An item is *closed* either by a user answer **or** by a grounded decision you record in §5/§6 with rationale; reserve `AskUserQuestion` for items with a genuine user-facing trade-off.
 
 After each round, restate your working understanding internally and ask: *Is there any remaining decision that would meaningfully change the design if it went the other way?* If yes, ask another round. Stop only when the remaining uncertainty would not redirect the design.
+
+Three rules keep the rounds efficient and honest:
+
+- **Sequence by dependency.** When the design inherits a load-bearing premise that was flagged high-risk or uncertain (e.g. an external integration whose feasibility was in doubt), re-confirm that premise in the first question — detail questions that silently depend on it are wasted if the premise falls.
+- **Verified claims only.** Before presenting options whose descriptions or previews assert a specific technical or behavioural outcome, validate the claim against the Step 3 grounding (or a throwaway prototype). Never put an unverified behavioural guarantee in an option.
+- **Cross-check the answers.** After the loop ends, re-scan all collected answers for cross-answer contradictions (one answer forbidding what another requires); surface and resolve any before writing the design, and note the reconciliation in the doc.
 
 Do not pad with questions for their own sake. Equally, do not stop early to avoid friction — under-clarification is the failure mode this skill exists to prevent. The final design must have **no points that require further decisions**.
 
@@ -188,6 +199,7 @@ Re-read the draft critically through these lenses, and fix what you find via `Ed
 - **Inefficiencies** — blocking I/O on hot paths, unbounded scans / buffers / retries, cache misuse, redundant computation, premature abstraction, shotgun surgery; *for data-backed features also*: N+1 queries, missing indexes. Skip lenses that do not apply to the feature's domain — do not invent database concerns for features that touch no database. Fix or justify what remains.
 - **Modularity and testability** — is the feature decomposed into small components with single responsibilities and explicit interfaces? Can each component be unit-tested in isolation without standing up the rest of the feature? Flag any "god module" / monolithic blob that mixes responsibilities, and split it (or record an explicit rationale in §6 if the split would be artificial). Modularity for its own sake is not the goal — testability and clear seams are.
 - **Reference integrity** — every `path:line` citation, function name, library, or API named in the design must actually exist. Verify the non-obvious ones with `Read`/`Grep`. Remove or correct anything invented.
+- **Grounded-behaviour integrity** — existence is not enough: verify the design's *claims about* existing code against the Step 3 grounding. For any function the design leans on for an error-handling or degradation path, read its failure contract (raises vs returns empty vs no-op) rather than assuming graceful degradation. Confirm the proposed flow honours the documented preconditions and ordering/state invariants of any function or data structure it reuses or sits adjacent to. Every field or distinction the design derives must be obtainable from the grounded interface/response shapes — never promise data the integrated system cannot provide. If the feature touches a path served by an existing incremental-redraw, diff, cache, or index optimization, state whether the design preserves or consciously replaces it (with the cost). And for any requirement that changes a constant, default, or config value, confirm the current value from the codebase and flag already-satisfied no-op changes explicitly.
 - **Cross-section consistency** — for any scenario the design describes in more than one place (§5.4 + §5.5 + §5.9), trace it through ALL sections and check they agree on the same outcome. Contradictions between sections are the most common review failure.
 
 Update §1–§9 in place. Do not append a "review notes" section — the design is the artifact, not the review.
@@ -212,7 +224,7 @@ find ~ -path "*/dev-skills/templates/feature-tracker.html" 2>/dev/null
 
 If no template can be located, skip the tracker update and note it in Step 9 — do **not** fail the whole skill.
 
-Apply these edits via the `Edit` tool. For each `{{TOKEN}}`, check it is still literal text in the file (so you never overwrite content from `/feature-storm` or any other prior stage). If a token is already substituted, skip that edit silently. Note: the seeded tracker opens with an HTML documentation comment that lists every token name literally, so a bare `{{TOKEN}}` match is non-unique — scope each Edit to the rendered body occurrence (the chip span, bullets `<ul>`, details block, or `<h1>` title), never the comment-block token.
+First `Read` the tracker file once — `feature-resolve` seeded it via a shell copy, so the `Edit` tool has no read-state for it and every edit below would otherwise fail its first attempt. Then apply these edits via the `Edit` tool. For each `{{TOKEN}}`, check it is still literal text in the file (so you never overwrite content from `/feature-storm` or any other prior stage). If a token is already substituted, skip that edit silently. Note: the seeded tracker opens with an HTML documentation comment that lists every token name literally, so a bare `{{TOKEN}}` match is non-unique — scope each Edit to the rendered body occurrence (the chip span, bullets `<ul>`, details block, or `<h1>` title), never the comment-block token.
 
 **Header tokens** (only edit if still literal):
 
@@ -241,10 +253,12 @@ Apply these edits via the `Edit` tool. For each `{{TOKEN}}`, check it is still l
 
 **Progress bar** (mandatory transition — only fired in this step, after the design document is written and self-reviewed):
 
-- old_string: `data-stage="design" data-state="pending"`
-- new_string: `data-stage="design" data-state="complete"`
+- old_string: `<li class="step" data-stage="design" data-state="pending">`
+- new_string: `<li class="step" data-stage="design" data-state="complete">`
 
-If the Edit fails, the design step is already `complete` (backfill on a fully tracked feature) — leave it alone.
+Scope the match to the full stepper `<li>` opening tag as above — the bare `data-stage="design" data-state="pending"` attribute pair also appears in the template's documentation comment as its worked example, so the shorter old_string fails with two matches on every fresh tracker.
+
+If the Edit fails because no `pending` match exists, the design step is already `complete` (backfill on a fully tracked feature) — leave it alone.
 
 Do **not** touch other skills' tokens (storm content, plan, implementation) beyond the empty-placeholder fallback above. Do **not** touch other skills' progress steps.
 

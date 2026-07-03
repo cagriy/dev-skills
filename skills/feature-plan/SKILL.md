@@ -99,17 +99,34 @@ If §8 (Open questions) of the design is non-empty (anything other than "None �
 
 If a brainstorm file also lives in `feature_folder` (`feature-storm-v<N>-<description>.md`), `Read` it too — it captures the original product intent and any open questions §8 of the design should have addressed. Cross-check that the storm's intent is reflected in the design before planning.
 
+If the design cites an external document as a mandatory dependency or prerequisite (scan the requirements, architecture, risks, and rollout sections for cited paths or links), `Read` it as well before drafting — a stage that depends on it cannot be made concrete from the citation alone.
+
 ## Step 4 — Ground the plan in the codebase *(subagent)*
 
 Use `Read`, `Grep`, and `Glob` to verify the design's assumptions about the existing codebase: do the files/functions/utilities cited in §4 and §5 actually exist? What is already in place vs. what needs to be built? Bound the exploration to what the plan touches.
 
+When the design makes load-bearing claims about an external or sibling dependency — a sibling repo's API, an external tool's return shape or failure behavior — verify them by reading that dependency's source or docs rather than trusting the design prose. Claims about code the design's author does not own are the likeliest to have drifted.
+
 Catalogue the project's test directory and naming conventions before drafting — for each new test file the plan will create, name an existing sibling that follows the same pattern (e.g. `<tests-root>/<area>/<existing-sibling-test-file>`). This avoids inventing test paths in Step 5 that you then have to rename in Step 7 once you notice they don't match the project's convention.
 
-**Greenfield branch:** if the project has no existing test suite to mirror (a first-feature or otherwise test-less repo), waive the sibling-naming requirement; instead have an early stage of the plan explicitly establish and document the test convention — directory layout, framework/runner command, and any fixture/async setup — and record that choice, rather than inventing a nonexistent sibling path.
+**Greenfield branch (per layer):** if the feature adds tests in a language/runner the repo has no existing suite for — whether the repo is test-less outright or only that layer of a polyglot repo is — waive the sibling-naming requirement for that layer; instead have an early stage of the plan explicitly establish and document that layer's test convention — directory layout, framework/runner command, and any fixture/async setup — and record that choice, rather than inventing a nonexistent sibling path. Layers that do have an existing suite still follow the sibling-naming rule.
 
 Also identify the project's primary test framework and runner (read package/build manifests, existing test files, and any CI config). Record the runner command the plan's "run the test" steps will use. If the project uses multiple frameworks for different layers, record which one applies to each area the plan touches.
 
+Ground the rest of the build/run mechanics the stages depend on, not just the test runner:
+
+- Determine how new source and test files are registered with the build system — auto-discovered, or requiring an explicit manifest/project-file entry. If registration is explicit, every file-creating stage must include it as a step, or the new files silently never compile or run.
+- If symbols the plan changes feed build targets that have no tests (an app or UI shell, say), record a build-only check command for each; Step 7's working-after-each-stage check must require those targets to keep compiling between stages.
+- If a stage introduces a new package or component with its own dependency environment, that stage must provision the environment (and any CI wiring) before its test-run steps, and phrase its "confirm fail" as the behavior gap — a test failing because its environment doesn't exist yet proves nothing.
+
 For each **shared symbol the design changes** — a constructor or function signature, a widely-used class, a renamed config key — grep its construction/reference count across both source and tests to size the blast radius before staging. That count drives the staging decision (land the change atomically, defer it, or add a backward-compatible shim) and guards against plans that break the suite between stages or bundle an un-reviewably large mechanical edit.
+
+Key the blast-radius check to the *kind* of change — raw reference counts mislead for several common kinds:
+
+- **Changed default value** (no signature change): grep for tests that assert the old default or depend on its behavior; if none do, a high call-site count is not a risk signal.
+- **Widened structurally-typed interface** (protocol / abstract base / duck-typed contract): find implementers structurally — classes passed where the type is expected, and test fakes — not just by name-grepping the symbol.
+- **New variant on an enum / union / sealed type**: grep for exhaustive switch/match sites over that type; each is a forced same-stage edit — the new variant won't compile (or falls through) until every exhaustive site handles it.
+- **New entry in a registry / list that tests enumerate**: grep for tests that iterate or count that collection (the collection name near a length or equality assertion); the stage adding the entry must update those guards.
 
 The goal is (a) to produce concrete, executable steps in Step 5, and (b) to surface conflicts between the design and current reality that you will raise in Step 7.
 
@@ -124,7 +141,12 @@ For every stage that introduces or changes behavior, the steps inside the stage 
 3. **Implement the code** — the minimum needed to make the test pass; cite the files/functions to add or modify.
 4. **Run the test and confirm it passes** — and run the surrounding test suite to confirm no regressions.
 
-Stages that are pure scaffolding (e.g. creating an empty module file, adding a dependency) may skip the test cycle if there is nothing to assert; mark these stages explicitly as **non-TDD scaffolding** with a one-line justification.
+Not every stage fits the red-first cycle. These stage categories are also sanctioned — label each such stage with its category and a one-line justification; never invent an ad-hoc label:
+
+- **Non-TDD (scaffolding | config-only | integration-verified)** — nothing host-assertable: empty module files, dependency additions, configuration-only edits, or stages verifiable only by a live/integration check. An integration-verified stage must name the concrete verification command or check in its steps.
+- **Behaviour-preserving refactor / deletion** — restructures or removes code without changing observable behavior. Discipline: adjust existing tests first, then keep the suite green and the build clean; no new failing test is required.
+- **Characterization / guard tests** — behaviour-preservation invariants (parity with a prior implementation, a performance bound) expected to be green before *and* after the change. Each must name the regression it guards; a red here flags a defect in the guarded stage, not a TDD step.
+- **Platform-only / UI wiring** — behavior-changing code that cannot run under the host test runner (device/UI layers, platform-conditional code). Extract as much logic as possible into host-tested pure units under full TDD; verify the remaining wiring via build, simulator/device, or a stated manual check.
 
 Write the plan to the `stage_file` path from the resolution block in your briefing. In **continue-existing** mode where the resolver's `notes` record an authorised overwrite, edit the existing file in place to match this shape — do not duplicate or branch sections.
 
@@ -146,7 +168,7 @@ Every behavior-changing stage in this plan follows the TDD cycle:
 3. **Write the implementation.** The minimum code needed to satisfy the test.
 4. **Run the test and confirm it passes.** Plus the surrounding suite, to catch regressions.
 
-Stages that introduce no observable behavior (pure scaffolding) may skip this cycle and are labeled "non-TDD scaffolding" with a justification.
+Stages that fit a sanctioned non-red-first category — non-TDD (scaffolding | config-only | integration-verified), behaviour-preserving refactor/deletion, characterization/guard tests, platform-only/UI wiring — are labeled with that category and a one-line justification.
 
 ## Requirements coverage map
 A table mapping every numbered requirement in §3 of the design to the stage(s) that deliver it.
@@ -228,10 +250,11 @@ Do **not** decide design-level questions. If a gap would change the design itsel
 Re-read the draft critically and fix what you find via `Edit` directly in the plan file. Run all of these checks:
 
 - **Design coverage** — every numbered requirement in design §3 appears in the *Requirements coverage map* with at least one stage. Every component in design §5 *Architecture* has at least one stage that creates or modifies it. If anything is missing, add a stage or extend an existing one.
-- **TDD discipline** — every behavior-changing stage has all four TDD steps in order; the "confirm fail" step records a concrete expected failure (not "it will fail"); every "non-TDD scaffolding" stage has a justification.
+- **TDD discipline** — every behavior-changing, host-testable stage has all four TDD steps in order; the "confirm fail" step records a concrete expected failure (not "it will fail"); every other stage carries one of the sanctioned category labels from Step 5 (non-TDD scaffolding/config-only/integration-verified, behaviour-preserving refactor/deletion, characterization/guard, platform-only/UI wiring) with its one-line justification — an unlabeled or ad-hoc category is a defect.
 - **Inaccuracies** — every file, function, library, framework, or API cited *as already existing* must actually exist (verify the non-obvious ones with `Read`/`Grep`). For things the plan introduces, the cited path/name must be consistent across stages. Replace or remove anything invented.
 - **Conflicts** — does any stage contradict another? Does any stage rely on something an earlier stage hasn't yet introduced? Does any stage break the system between merges? Fix the ordering or split the stage.
-- **Conflicts with the design** — does the plan silently change a decision from the design? If so, either revert to the design or move it to *Deviations from the design* with rationale (flagged in the Step 10 summary). Re-ordering or re-grouping implementation stages relative to the design's §9 rollout sequence is **not** a deviation — the plan owns staging order; only changes to scope, requirements, approach, or interfaces count.
+- **Intermediate states** — when a stage replaces an existing implementation of the same observable behavior, check whether old and new can coexist; if they cannot, the swap and its test migration must land as one atomic stage, exempt from the stage-size splitting pressure below (record the rationale in the stage). For any requirement the coverage map delivers across multiple stages, state the user-visible behavior after each contributing stage and explicitly decide whether the stages should be bundled into one.
+- **Conflicts with the design** — does the plan silently change a decision from the design? If so, either revert to the design or move it to *Deviations from the design* with rationale (flagged in the Step 10 summary). Re-ordering or re-grouping implementation stages relative to the design's §9 rollout sequence is **not** a deviation — the plan owns staging order; only changes to scope, requirements, approach, or interfaces count. Likewise, a backward-compatible shim or defaulted parameter introduced only to bound the blast radius sized in Step 4 — leaving the design's interface contract intact — is a planning decision, not a deviation.
 - **Decision log** — every entry in *Planning decisions taken* is genuinely planning-level (staging order, flags, harness, paths). If any recorded decision actually changes scope, requirements, approach, or interfaces, it is design-level — halt per the `BLOCKED:` protocol rather than shipping it in the plan.
 - **Security issues** — does any stage introduce a regression in input validation, authz, secret handling, logging of sensitive data, or trust boundaries that the design protected? Does the *order* of stages create a window where the system is insecure (e.g. endpoint live before authz check is wired)? Fix by reordering, adding guard stages, or feature-flagging.
 - **Hand-waves** — replace any "TBD", "TODO", "we'll just…", "should be straightforward" with concrete steps or move them to *Risks and open issues* with explicit mitigations.
@@ -366,7 +389,7 @@ Do not skip this step or substitute the AskUserQuestion with prose. The offer is
 - **Output path comes from `feature-resolve` only.** Never write to `docs/`, never construct `features/...` paths by hand. Step 1 is the single source of pathing.
 - **Integer versions only.** `v<N>` everywhere — no `v<N>.<M>`. The plan version matches the feature version; there is no separate plan minor-versioning.
 - **The design's open questions must be empty.** If design §8 has any open question, the run halts (`BLOCKED:`). The plan cannot resolve design ambiguity — only `/feature-design` can.
-- **TDD is non-optional for behavior-changing stages.** Pure scaffolding stages may skip it with a stated justification; everything else follows write → fail → code → pass.
+- **TDD is non-optional for behavior-changing, host-testable stages.** Stages in a sanctioned non-red-first category (Step 5) carry their category label and one-line justification; everything else follows write → fail → code → pass.
 - **The planning core never prompts the user.** Steps 3–10 run without `AskUserQuestion` — in the subagent it is impossible, and the policy holds even in the direct-execution fallback. Only Steps 0, 1, and 11 may prompt, and only from the main agent.
 - **No silent scope or decision changes.** Divergence from the design lives in *Deviations from the design*; autonomous planning-level choices live in *Planning decisions taken*; both are surfaced in the Step 10 summary. Design-level ambiguity is never decided unilaterally — it halts.
 - **Tracker edits are defensive.** Substitute only tokens still literal `{{...}}`; never overwrite content placed by `/feature-storm`, `/feature-design`, or any other skill. The progress bar's `data-stage="plan"` entry is this skill's alone to touch — and only on a successful run.

@@ -6,7 +6,7 @@ effort: xhigh
 user-invocable: true
 disable-model-invocation: false
 argument-hint: <free-form requirements (optionally including v<N> and a short title), or omit to be asked>
-allowed-tools: Read, Grep, Glob, Write, Edit, AskUserQuestion, Skill, Bash(ls *), Bash(find *), Bash(mkdir -p *), Bash(test *), Bash(cp *), Bash(pwd), Bash(date *)
+allowed-tools: Read, Grep, Glob, Write, Edit, AskUserQuestion, Skill, WebFetch, WebSearch, Bash(ls *), Bash(find *), Bash(mkdir -p *), Bash(test *), Bash(cp *), Bash(pwd), Bash(date *)
 ---
 
 # feature-storm — High-level Product/Requirements Brainstorm
@@ -48,15 +48,15 @@ Resolve the requirements statement:
 
 You must have a real requirements statement before continuing. If the user declines to provide one (e.g. answers "nevermind"), stop the skill cleanly with no files written.
 
-**Ground brownfield requirements before clarifying.** If the requirements cite prior feature versions (e.g. `v9`, `v11`) or existing code/config symbols, or propose changing the current repo's existing behaviour, do a quick grounding read of those (the prior storm/design docs, the named symbols, or the relevant code path) before the Step 3 clarification round — enough to make the questions and their options fact-based. Stay at product altitude: you're confirming what exists and what's load-bearing, not designing.
+**Ground brownfield requirements before clarifying.** If the requirements cite prior feature versions (e.g. `v9`, `v11`) or existing code/config symbols, or propose changing the current repo's existing behaviour, do a quick grounding read of those (the prior storm/design docs, the named symbols, or the relevant code path) before the Step 3 clarification round — enough to make the questions and their options fact-based. Stay at product altitude: you're confirming what exists and what's load-bearing, not designing. Grounding covers external references too: fetch and read any linked design/spec artifact the brief cites (mockups, design-tool links, shared specs) before the Step 3 round, and when a named third-party service or API is load-bearing and the user's assumption about it is unverified (auth model, sync vs async, key handling), do a quick docs/web feasibility check first — the questions must be fact-based from the first round.
 
 ## Step 2 — Resolve the feature folder via `feature-resolve`
 
 Before calling the resolver, settle the **brief description** that will go into the folder name. Rules:
 
-1. If `candidate_description` was extracted in Step 1 *and* is ≤10 words *and* looks filename-safe — proceed with it.
+1. If `candidate_description` was lifted verbatim from a clearly-delimited title slot in the user's input (quoted, a `title=` slot, or a standalone leading line) *and* is ≤10 words *and* looks filename-safe — proceed with it **without a confirmation question**. State the chosen folder title in one line of prose; the Step 4 approval gate is the correction point.
 2. Otherwise, derive a candidate (≤10 words, ideally 2–5) from the requirements statement. Strip articles/filler ("a", "the", "for users", "system"), preserve meaning, normalise spacing to single spaces, preserve the user's case where natural (e.g. proper nouns stay capitalised).
-3. Call `AskUserQuestion` **exactly once** to confirm:
+3. A **derived** candidate needs confirming — but prefer folding the confirmation into the first Step 3 `AskUserQuestion` bundle (as one of its up-to-4 questions, deferring the resolver invocation below until that round returns) rather than spending a standalone round-trip on the title alone. Whichever position it takes, ask it **exactly once**:
    - **question**: `"Use this short title for the feature folder: \"<candidate>\"?"`
    - **header**: `"Feature title"`
    - **options**:
@@ -64,7 +64,7 @@ Before calling the resolver, settle the **brief description** that will go into 
      - `{ "label": "Edit it", "description": "Give a different short title (≤10 words)." }`
    - If the user picks "Edit it" or selects "Other" with a revised title, take that text as the description and re-validate ≤10 words. If they over-shoot, ask once more for a shorter version. Do not silently truncate.
 
-Now invoke `feature-resolve` via the `Skill` tool. Build the argument string:
+Now invoke `feature-resolve` via the `Skill` tool. (If the title confirmation was folded into Step 3's first bundle, run that round first, then return here and invoke the resolver with the confirmed title — the rest of this step is unchanged.) Build the argument string:
 
 ```
 stage=storm[, version=<N>][, description=<confirmed phrase>]
@@ -172,6 +172,8 @@ find ~ -path "*/dev-skills/templates/feature-tracker.html" 2>/dev/null
 If no template can be located, skip the tracker update and note that in the final summary — do **not** fail the whole skill on a missing template.
 
 Then apply the following edits via the `Edit` tool. For each token, check that it is still literal `{{...}}` text in the file (so you don't overwrite content from a prior stage). If a token is already substituted, skip that edit silently.
+
+**Anchor every Edit in surrounding markup, not the bare token.** Each token also appears a second time inside the template's top-of-file documentation comment, so a bare `{{TOKEN}}` Edit fails with two matches — and `replace_all` would dump rendered HTML into that comment. Match the live occurrence via its wrapper instead, e.g. `<p class="section-timestamp">{{BRAINSTORMING_AT}}</p>` or `<div class="bullets">{{BRAINSTORMING_BULLETS}}</div>`. The one token with **two** live occurrences is `{{FEATURE_TITLE}}` — substitute both the page `<title>{{FEATURE_TITLE}}</title>` and the `<h1 class="feature-title">{{FEATURE_TITLE}}</h1>`, each with its own anchored Edit.
 
 **Header tokens** (only edit if still literal):
 
