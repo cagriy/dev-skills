@@ -1,0 +1,1191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>dev-skills — Workflow Diagram</title>
+
+<!--
+  =====================================================================
+  workflow-diagram template (dev-skills plugin)
+  ---------------------------------------------------------------------
+  Source of truth for the PRESENTATION + INTERACTION ENGINE of the
+  plugin's workflow diagram. /diagram-update renders diagram/index.html
+  from this file by substituting seven tokens with per-run values
+  derived from skills/ and hooks/ -- it never edits the engine.
+
+  Tokens (names listed WITHOUT braces here so the anchored occurrences
+  below are the only literal matches; each appears exactly once):
+
+    PLUGIN_VERSION   plugin.json version, e.g. "0.3.22"
+    GENERATED_AT     UTC stamp, e.g. "2026-07-04 13:58 UTC"
+    DIAGRAM_GROUPS   JS array: { id, name, accent (hex), desc }
+    DIAGRAM_SKILLS   JS array, one object per skill/hook:
+                     { slug, g: <group id>, inv: "user"|"agent"|"both"|"hook",
+                       internal?, commits?, purpose,
+                       wraps?: { <id>: <bracket label> },
+                       steps: [{ k, t (<=3 words), d (2-4 sentences),
+                                 gate?, sub?, commits?,
+                                 par?: [unit names], wrap?: <id> }] }
+    DIAGRAM_EDGES    JS array: { f, t, ty, l } -- f/t are "slug.step"
+                     or a bare "slug"; ty is one of
+                     call | chain | hand | loop | data
+    OVERVIEW_NODES   JS array: { slug, x (left %), y (px) } -- every
+                     skill/hook exactly once
+    OVERVIEW_EDGES   JS array: { f, t (bare slugs), ty, l,
+                       bend? (px arc for same-row edges, negative = up) }
+
+  Modification points:
+    - DATA changes (skills, steps, edges, layout) flow through
+      /diagram-update's extraction -- rerun the skill; never hand-edit
+      diagram/index.html, it is overwritten wholesale.
+    - PRESENTATION / INTERACTION changes belong HERE, kept in lockstep
+      with the data contract in skills/diagram-update/SKILL.md.
+
+  Engine-owned conventions (accumulated design decisions -- keep them):
+  skills-only overview panel with always-visible edges; detail-board
+  connectors hidden until a step is hovered; cross-skill invocation
+  chips derived from the edge list (never hand-written); dashed
+  brackets for single-subagent runs and strategy-dependent step loops;
+  parallel-unit brackets; amber gate badges; popup invocation pills;
+  footer counts computed from the data; light/dark theme; fully
+  self-contained output (no external requests).
+  =====================================================================
+-->
+<style>
+  :root {
+    --bg: #f7f8fa;
+    --surface: #ffffff;
+    --surface-2: #f1f3f6;
+    --border: #e3e6eb;
+    --text: #101623;
+    --muted: #5b6472;
+    --subtle: #9aa2ae;
+    --shadow: 0 1px 2px rgba(16,22,35,.05), 0 8px 24px rgba(16,22,35,.06);
+    --gate-bg: #fef3c7; --gate-fg: #92400e; --gate-bd: #fcd34d;
+    --sub-bg: #ede9fe;  --sub-fg: #5b21b6;  --sub-bd: #c4b5fd;
+    --par-bg: #ccfbf1;  --par-fg: #115e59;  --par-bd: #5eead4;
+    --com-bg: #ffe4e6;  --com-fg: #9f1239;  --com-bd: #fda4af;
+    --pill-user-bg: #dbeafe; --pill-user-fg: #1e40af;
+    --pill-agent-bg: #e2e8f0; --pill-agent-fg: #334155;
+    --edge-call: #8c96a5;
+    --edge-chain: #5b5bd6;
+    --edge-hand: #c026d3;
+    --edge-loop: #d97706;
+    --edge-data: #8c96a5;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, system-ui, sans-serif;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0c0e12;
+      --surface: #14171d;
+      --surface-2: #1b1f27;
+      --border: #272c36;
+      --text: #eef1f5;
+      --muted: #a2aab6;
+      --subtle: #6b7380;
+      --shadow: 0 1px 2px rgba(0,0,0,.5), 0 10px 28px rgba(0,0,0,.35);
+      --gate-bg: rgba(245,158,11,.16); --gate-fg: #fbbf24; --gate-bd: rgba(245,158,11,.4);
+      --sub-bg: rgba(139,92,246,.16);  --sub-fg: #c4b5fd;  --sub-bd: rgba(139,92,246,.4);
+      --par-bg: rgba(20,184,166,.16);  --par-fg: #5eead4;  --par-bd: rgba(20,184,166,.4);
+      --com-bg: rgba(244,63,94,.16);   --com-fg: #fda4af;  --com-bd: rgba(244,63,94,.4);
+      --pill-user-bg: rgba(59,130,246,.18); --pill-user-fg: #93c5fd;
+      --pill-agent-bg: rgba(148,163,184,.16); --pill-agent-fg: #cbd5e1;
+      --edge-call: #5d6675;
+      --edge-chain: #818cf8;
+      --edge-hand: #e879f9;
+      --edge-loop: #f59e0b;
+      --edge-data: #5d6675;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: var(--sans); font-size: 15px; line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+  #page { position: relative; max-width: 1480px; margin: 0 auto; padding: 44px 36px 90px; }
+
+  /* Header ---------------------------------------------------------- */
+  header.top { margin-bottom: 26px; }
+  .chiprow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .vchip {
+    font-family: var(--mono); font-size: 11.5px; font-weight: 600;
+    background: var(--surface-2); border: 1px solid var(--border);
+    color: var(--muted); padding: 3px 10px; border-radius: 999px;
+  }
+  h1 { margin: 12px 0 6px; font-size: 30px; letter-spacing: -.02em; line-height: 1.15; }
+  .intro { max-width: 900px; color: var(--muted); margin: 0; }
+
+  /* Legend ---------------------------------------------------------- */
+  .legend {
+    margin-top: 20px; background: var(--surface); border: 1px solid var(--border);
+    border-radius: 14px; padding: 16px 20px; box-shadow: var(--shadow);
+    display: flex; flex-wrap: wrap; gap: 22px 34px; font-size: 12.5px;
+  }
+  .legend h3 { margin: 0 0 8px; font-size: 11px; text-transform: uppercase; letter-spacing: .09em; color: var(--subtle); }
+  .legend .col { min-width: 150px; }
+  .lg-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; color: var(--muted); }
+  .lg-row:last-child { margin-bottom: 0; }
+  .swatch { flex: 0 0 34px; height: 0; border-top: 2.5px solid; border-radius: 2px; position: relative; }
+  .swatch.dashed { border-top-style: dashed; }
+  .swatch.dotted { border-top-style: dotted; }
+  .swatch::after { content: ""; position: absolute; right: -1px; top: -4.5px; border: 3.5px solid transparent; border-left: 6px solid; border-left-color: inherit; }
+
+  /* Badges + pills --------------------------------------------------- */
+  .badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 10px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+    padding: 1.5px 7px; border-radius: 999px; border: 1px solid;
+    white-space: nowrap;
+  }
+  .b-gate { background: var(--gate-bg); color: var(--gate-fg); border-color: var(--gate-bd); }
+  .b-sub  { background: var(--sub-bg);  color: var(--sub-fg);  border-color: var(--sub-bd); }
+  .b-par  { background: var(--par-bg);  color: var(--par-fg);  border-color: var(--par-bd); }
+  .b-com  { background: var(--com-bg);  color: var(--com-fg);  border-color: var(--com-bd); }
+  .pill {
+    display: inline-flex; align-items: center;
+    font-size: 10.5px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase;
+    padding: 2px 9px; border-radius: 999px;
+  }
+  .p-user  { background: var(--pill-user-bg); color: var(--pill-user-fg); }
+  .p-agent { background: var(--pill-agent-bg); color: var(--pill-agent-fg); }
+
+  /* Groups + cards --------------------------------------------------- */
+  section.group { margin-top: 34px; position: relative; }
+  .group-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 12px; }
+  .group-head h2 { margin: 0; font-size: 17px; letter-spacing: -.01em; }
+  .group-head .gdot { width: 10px; height: 10px; border-radius: 3px; flex: 0 0 auto; transform: translateY(-1px); }
+  .group-head p { margin: 0; color: var(--subtle); font-size: 12.5px; }
+  .cards { display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); align-items: start; }
+  section.group[data-g="chain"] .cards { grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
+
+  .card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+    box-shadow: var(--shadow); overflow: hidden;
+    border-top: 3px solid var(--accent, var(--border));
+    transition: opacity .18s ease, box-shadow .18s ease;
+  }
+  .card.internal { background: color-mix(in srgb, var(--surface) 60%, var(--bg)); }
+  .card.internal .card-name { color: var(--muted); }
+  .card-head { padding: 13px 15px 11px; cursor: pointer; }
+  .card-head:hover { background: var(--surface-2); }
+  .card-name { font-family: var(--mono); font-size: 14px; font-weight: 700; letter-spacing: -.01em; }
+  .card-pills { display: flex; gap: 5px; flex-wrap: wrap; margin: 7px 0 6px; }
+  .card-purpose { font-size: 12px; color: var(--muted); line-height: 1.45; }
+  .steps { padding: 6px 10px 12px; display: flex; flex-direction: column; gap: 6px; }
+
+  .step-box {
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    background: var(--surface-2); border: 1px solid var(--border); border-radius: 9px;
+    padding: 6px 9px; cursor: pointer; position: relative;
+    transition: border-color .15s ease, background .15s ease, opacity .18s ease, box-shadow .15s ease;
+  }
+  .step-box:hover { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+  .step-box.gate { border-left: 3px solid var(--gate-bd); }
+  .sn {
+    font-family: var(--mono); font-size: 10px; font-weight: 700; color: var(--subtle);
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 6px; padding: 1px 5px; flex: 0 0 auto;
+  }
+  .st { font-size: 12.5px; font-weight: 600; letter-spacing: -.005em; }
+  .step-badges { display: inline-flex; gap: 4px; margin-left: auto; }
+
+  .parwrap {
+    flex-basis: 100%; margin-top: 5px; border: 1.5px dashed var(--par-bd);
+    border-radius: 8px; padding: 6px 8px 7px; background: color-mix(in srgb, var(--par-bg) 40%, transparent);
+  }
+  .parlabel { font-size: 9px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--par-fg); margin-bottom: 5px; }
+  .parunits { display: flex; flex-wrap: wrap; gap: 4px; }
+  .parunit {
+    font-family: var(--mono); font-size: 10px; background: var(--surface);
+    border: 1px solid var(--border); color: var(--muted);
+    border-radius: 6px; padding: 2px 6px;
+  }
+
+  /* Single-subagent bracket around a contiguous delegated step run ---- */
+  .subwrap {
+    display: flex; flex-direction: column; gap: 6px;
+    border: 1.5px dashed var(--sub-bd); border-radius: 10px;
+    padding: 7px 7px 8px; margin: 1px 0;
+    background: color-mix(in srgb, var(--sub-bg) 40%, transparent);
+  }
+  .sublabel {
+    font-size: 9px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--sub-fg); padding-left: 2px;
+  }
+
+  /* Cross-skill invocation chips on step boxes ------------------------ */
+  .callrow { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+  .callchip {
+    font-family: var(--mono); font-size: 10px; font-weight: 600;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 6px; padding: 2px 7px; cursor: pointer;
+    color: var(--muted); transition: border-color .12s ease, color .12s ease;
+  }
+  .callchip:hover { border-color: currentColor; }
+  .callchip.t-call { color: var(--pill-user-fg); background: color-mix(in srgb, var(--pill-user-bg) 55%, var(--surface)); }
+  .callchip.t-chain { color: var(--edge-chain); }
+  .callchip.t-hand { color: var(--edge-hand); }
+  .callchip.t-loop { color: var(--edge-loop); }
+
+  /* Hover dimming ----------------------------------------------------- */
+  body.hovering .card { opacity: .38; }
+  body.hovering .card.rel { opacity: 1; }
+  body.hovering .step-box { opacity: .45; }
+  body.hovering .step-box.rel, body.hovering .step-box.src { opacity: 1; }
+  .step-box.src { border-color: var(--accent); box-shadow: 0 0 0 1.5px var(--accent); }
+  .step-box.rel { border-color: var(--accent); }
+
+  /* Edges (SVG overlay) ---------------------------------------------- */
+  #wires { position: absolute; top: 0; left: 0; pointer-events: none; overflow: visible; z-index: 3; }
+  /* Detailed-board connectors are hidden until a step is hovered. */
+  #wires path { fill: none; stroke-width: 1.6; opacity: 0; transition: opacity .15s ease, stroke-width .15s ease; }
+  #wires path.e-call { stroke: var(--edge-call); }
+  #wires path.e-chain { stroke: var(--edge-chain); stroke-width: 2.2; }
+  #wires path.e-hand { stroke: var(--edge-hand); stroke-dasharray: 7 5; }
+  #wires path.e-loop { stroke: var(--edge-loop); stroke-dasharray: 5 4; }
+  #wires path.e-data { stroke: var(--edge-data); stroke-dasharray: 2 4; }
+  #wires path.hl { opacity: 1; stroke-width: 2.6; }
+  #wires text {
+    font-family: var(--sans); font-size: 10.5px; font-weight: 600;
+    fill: var(--muted); opacity: 0; transition: opacity .15s ease;
+    paint-order: stroke; stroke: var(--bg); stroke-width: 4px; stroke-linejoin: round;
+  }
+  #wires text.l-loop { fill: var(--edge-loop); }
+  #wires text.l-hand { fill: var(--edge-hand); }
+  #wires text.hl { opacity: 1; }
+
+  /* Overview flow (skills only) ---------------------------------------- */
+  .ovwrap {
+    margin-top: 30px; background: var(--surface); border: 1px solid var(--border);
+    border-radius: 14px; box-shadow: var(--shadow); overflow-x: auto;
+  }
+  .ovwrap h2 { margin: 18px 22px 0; font-size: 17px; letter-spacing: -.01em; }
+  .ovwrap .ovhint { margin: 3px 22px 0; font-size: 12.5px; color: var(--subtle); }
+  #ovbox { position: relative; height: 430px; min-width: 1080px; }
+  #ovwires { position: absolute; top: 0; left: 0; pointer-events: none; overflow: visible; }
+  #ovwires path { fill: none; stroke-width: 1.7; opacity: .5; transition: opacity .15s ease, stroke-width .15s ease; }
+  #ovwires path.e-call { stroke: var(--edge-call); stroke-width: 1.2; opacity: .35; }
+  #ovwires path.e-chain { stroke: var(--edge-chain); stroke-width: 2.4; opacity: .8; }
+  #ovwires path.e-hand { stroke: var(--edge-hand); stroke-dasharray: 7 5; opacity: .6; }
+  #ovwires path.e-loop { stroke: var(--edge-loop); stroke-dasharray: 5 4; opacity: .6; }
+  #ovwires path.e-data { stroke: var(--edge-data); stroke-dasharray: 2 4; opacity: .55; }
+  #ovwires path.hl { opacity: 1; stroke-width: 2.8; }
+  #ovwires path.dm { opacity: .07; }
+  #ovwires text {
+    font-family: var(--sans); font-size: 10px; font-weight: 600; fill: var(--muted); opacity: .85;
+    paint-order: stroke; stroke: var(--surface); stroke-width: 4px; stroke-linejoin: round;
+    transition: opacity .15s ease;
+  }
+  #ovwires text.l-loop { fill: var(--edge-loop); }
+  #ovwires text.l-hand { fill: var(--edge-hand); }
+  #ovwires text.dm { opacity: .07; }
+  .ovnode {
+    position: absolute; z-index: 2; cursor: pointer;
+    font-family: var(--mono); font-size: 11px; font-weight: 700; letter-spacing: -.01em;
+    background: var(--surface); color: var(--text);
+    border: 1px solid var(--border); border-left: 4px solid var(--ovaccent, var(--border));
+    border-radius: 9px; padding: 6px 11px; box-shadow: var(--shadow);
+    white-space: nowrap; transition: transform .12s ease, box-shadow .12s ease, opacity .15s ease;
+  }
+  .ovnode:hover { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(0,0,0,.18); }
+  .ovnode.internal { color: var(--muted); background: var(--surface-2); }
+  .ovnode.dm { opacity: .25; }
+
+  /* Popup ------------------------------------------------------------ */
+  #overlay {
+    position: fixed; inset: 0; background: rgba(10,12,18,.45);
+    backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px);
+    z-index: 40; display: none;
+  }
+  #overlay.open { display: block; }
+  #popup {
+    position: fixed; z-index: 41; top: 50%; left: 50%; transform: translate(-50%,-50%);
+    width: min(560px, calc(100vw - 40px)); max-height: min(72vh, 640px);
+    background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
+    box-shadow: 0 24px 70px rgba(0,0,0,.35); display: none; flex-direction: column;
+  }
+  #popup.open { display: flex; }
+  .pop-head { padding: 18px 22px 0; }
+  .pop-pills { display: flex; gap: 6px; flex-wrap: wrap; padding-right: 40px; }
+  .pop-skill { margin-top: 12px; font-family: var(--mono); font-size: 12px; color: var(--subtle); }
+  .pop-title { font-size: 19px; font-weight: 700; letter-spacing: -.015em; margin: 3px 0 0; }
+  .pop-body { padding: 12px 22px 20px; overflow-y: auto; }
+  .pop-body p { margin: 0 0 12px; color: var(--text); }
+  .pop-conn h4 { margin: 14px 0 6px; font-size: 10.5px; text-transform: uppercase; letter-spacing: .09em; color: var(--subtle); }
+  .pop-conn ul { margin: 0; padding: 0; list-style: none; }
+  .pop-conn li { font-size: 12.5px; color: var(--muted); padding: 3px 0; display: flex; gap: 7px; align-items: baseline; }
+  .pop-conn .ek { font-family: var(--mono); font-size: 10px; font-weight: 700; text-transform: uppercase; flex: 0 0 auto; border-radius: 5px; padding: 1px 6px; border: 1px solid var(--border); }
+  .ek.k-call { color: var(--edge-call); }
+  .ek.k-chain { color: var(--edge-chain); }
+  .ek.k-hand { color: var(--edge-hand); }
+  .ek.k-loop { color: var(--edge-loop); }
+  .ek.k-data { color: var(--edge-data); }
+  #pop-close {
+    position: absolute; top: 12px; right: 12px; width: 30px; height: 30px;
+    border-radius: 8px; border: 1px solid var(--border); background: var(--surface-2);
+    color: var(--muted); font-size: 15px; line-height: 1; cursor: pointer;
+  }
+  #pop-close:hover { color: var(--text); }
+
+  footer.bottom {
+    margin-top: 44px; padding-top: 18px; border-top: 1px solid var(--border);
+    color: var(--subtle); font-size: 12px; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px;
+  }
+
+  @media (max-width: 720px) {
+    #page { padding: 26px 14px 60px; }
+    h1 { font-size: 23px; }
+    .legend { gap: 14px 20px; }
+  }
+</style>
+</head>
+<body>
+<div id="page">
+  <header class="top">
+    <div class="chiprow">
+      <span class="vchip">dev-skills v0.3.22</span>
+      <span class="vchip">generated 2026-07-04 13:58 UTC</span>
+      <span class="vchip">by /diagram-update</span>
+    </div>
+    <h1>dev-skills — end-to-end workflow</h1>
+    <p class="intro">The overview below shows how the skills connect end-to-end; the detailed cards underneath break each skill into its procedure steps. <strong>Click a step</strong> for what it does and who can invoke its skill; <strong>hover a step</strong> to reveal its connectors to other steps and skills (hidden otherwise). Amber-edged steps are human approval gates; dashed amber arrows show where the flow goes back when something fails.</p>
+
+    <div class="legend" aria-label="Legend">
+      <div class="col">
+        <h3>Invocation pills</h3>
+        <div class="lg-row"><span class="pill p-user">User</span> invocable via slash command</div>
+        <div class="lg-row"><span class="pill p-agent">Agent</span> the model may invoke it</div>
+        <div class="lg-row"><span class="pill p-agent">Hook</span> fired by the harness, not invoked</div>
+      </div>
+      <div class="col">
+        <h3>Step badges</h3>
+        <div class="lg-row"><span class="badge b-gate">&#9208; gate</span> human approval required</div>
+        <div class="lg-row"><span class="badge b-sub">subagent</span> runs in a delegated subagent</div>
+        <div class="lg-row"><span class="badge b-par">parallel</span> fans out concurrently</div>
+        <div class="lg-row"><span class="badge b-com">commits</span> creates git commits</div>
+        <div class="lg-row"><span class="callchip t-call">&#8594; skill</span> invokes that skill — click to jump</div>
+      </div>
+      <div class="col">
+        <h3>Edges (hover a step)</h3>
+        <div class="lg-row"><span class="swatch" style="border-color:var(--edge-call)"></span> calls an internal skill</div>
+        <div class="lg-row"><span class="swatch" style="border-color:var(--edge-chain)"></span> chains into the next stage</div>
+        <div class="lg-row"><span class="swatch dashed" style="border-color:var(--edge-hand)"></span> hands over on a condition</div>
+        <div class="lg-row"><span class="swatch dashed" style="border-color:var(--edge-loop)"></span> loops back on failure</div>
+        <div class="lg-row"><span class="swatch dotted" style="border-color:var(--edge-data)"></span> data feed / manual follow-up</div>
+      </div>
+    </div>
+  </header>
+
+  <div class="ovwrap">
+    <h2>End-to-end flow</h2>
+    <p class="ovhint">Skills only — hover a node to isolate its connections, click it to jump to its detailed card below.</p>
+    <div id="ovbox">
+      <svg id="ovwires" aria-hidden="true">
+        <defs>
+          <marker id="mo-call" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--edge-call)"/></marker>
+          <marker id="mo-chain" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--edge-chain)"/></marker>
+          <marker id="mo-hand" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--edge-hand)"/></marker>
+          <marker id="mo-loop" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--edge-loop)"/></marker>
+          <marker id="mo-data" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--edge-data)"/></marker>
+        </defs>
+        <g id="ovEdgeLayer"></g>
+      </svg>
+    </div>
+  </div>
+
+  <main id="board"></main>
+
+  <svg id="wires" aria-hidden="true">
+    <defs>
+      <marker id="m-call" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--edge-call)"/></marker>
+      <marker id="m-chain" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--edge-chain)"/></marker>
+      <marker id="m-hand" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--edge-hand)"/></marker>
+      <marker id="m-loop" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--edge-loop)"/></marker>
+      <marker id="m-data" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--edge-data)"/></marker>
+    </defs>
+    <g id="edgeLayer"></g>
+  </svg>
+
+  <footer class="bottom">
+    <span id="counts"></span>
+    <span>Regenerate any time with <code>/diagram-update</code> — this file is overwritten wholesale.</span>
+  </footer>
+</div>
+
+<div id="overlay"></div>
+<div id="popup" role="dialog" aria-modal="true">
+  <button id="pop-close" aria-label="Close">&#10005;</button>
+  <div class="pop-head">
+    <div class="pop-pills" id="pop-pills"></div>
+    <div class="pop-skill" id="pop-skill"></div>
+    <h2 class="pop-title" id="pop-title"></h2>
+  </div>
+  <div class="pop-body">
+    <p id="pop-desc"></p>
+    <div class="pop-conn" id="pop-conn"></div>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+/* ======================= DATA (derived from skills/, hooks/) ======================= */
+
+const GROUPS = [
+  { id: "chain", name: "Feature chain", accent: "#6366f1",
+    desc: "dispatch → storm → design → plan → implement — one folder per feature under features/feature-v<N>-<desc>/" },
+  { id: "services", name: "Shared services (internal)", accent: "#64748b",
+    desc: "invoked by other skills only — pathing and reflection live in exactly one place" },
+  { id: "bugs", name: "Bug workflow", accent: "#0d9488",
+    desc: "file, fix, and close bugs tracked as folders under bugs/ — bug-tracker-render regenerates the HTML tracker" },
+  { id: "evals", name: "Eval scorers", accent: "#a855f7",
+    desc: "read-only quality scoring of unpushed work — offered by /feature-implement's closing step" },
+  { id: "reflect", name: "Reflection", accent: "#d97706",
+    desc: "periodic consolidation of captured lessons into SKILL.md edits" },
+  { id: "utils", name: "Utilities", accent: "#10b981",
+    desc: "standalone helpers: ship changes, cut releases, regenerate this diagram" },
+  { id: "hooks", name: "Hooks", accent: "#0891b2",
+    desc: "harness-fired scripts — the plugin's only executable code" }
+];
+
+const SKILLS = [
+
+/* ------------------------------- feature chain ------------------------------- */
+{ slug: "feature-dispatch", g: "chain", inv: "agent", internal: true,
+  purpose: "Model-only router: watches for non-trivial feature prompts and offers the right entry into the chain.",
+  steps: [
+    { k: "1", t: "Scope check", d: "Re-reads the user's latest message and silently stops if it is a bug, a small change, an explicit slash command, or work already in flight inside a feature or bug skill. Only genuinely feature-shaped prompts continue, and a skip produces no output at all." },
+    { k: "2", t: "Estimate size", d: "Silently estimates how many lines of code a first-cut implementation would take. Under ~75 LOC the dispatcher stops without a word; at or above, it picks /feature-storm (vague, product-level gaps) or /feature-design (clear but undesigned) as its recommendation." },
+    { k: "3", t: "Offer routing", gate: true, d: "Asks exactly one AskUserQuestion with three options: the recommended entry skill first, the alternative second, and “Continue without dispatch” third. It never asks twice — a decline ends the skill silently." },
+    { k: "4", t: "Hand over", d: "Invokes the chosen skill via the Skill tool with the user's original request as the argument, then stops. The target skill owns the conversation from here; the dispatcher never chains past the handover." }
+  ]},
+
+{ slug: "feature-storm", g: "chain", inv: "both",
+  purpose: "Product-layer brainstorm: goals, users, scope, constraints — before any technical design.",
+  steps: [
+    { k: "0", t: "Confirm invocation", gate: true, d: "Checks for the /feature-storm slash command or a fresh chain-in from /feature-dispatch; otherwise asks one AskUserQuestion before doing anything. A “No” stops the skill with no files written." },
+    { k: "1", t: "Initial requirements", d: "Parses the arguments for an explicit version token, a short title, and free-form requirements, asking once if nothing substantive was given. Brownfield references (prior versions, existing symbols, linked specs) get a quick grounding read so later questions are fact-based." },
+    { k: "2", t: "Resolve folder", d: "Settles the short folder title (confirming derived ones with the user) and invokes feature-resolve with stage=storm. The resolver allocates features/feature-v<N>-<desc>/, seeds the tracker from the template, and returns the authoritative paths every later step uses." },
+    { k: "3", t: "Clarification loop", gate: true, d: "Iterative AskUserQuestion rounds covering goals, non-goals, users and scenarios, scope, high-level technical constraints, and open questions for design. Mandatory even under autonomous instructions; it stops only when the remaining uncertainty is design-level, not requirements-level." },
+    { k: "4", t: "Approval gate", gate: true, d: "Presents a ≤10-bullet summary and asks Approve / Revise / Stop. Revise loops back into the discussion (at most three passes before forcing a decision); Stop abandons the brainstorm with no files written; only Approve unlocks the document write." },
+    { k: "5", t: "Write storm", d: "Writes feature-storm-v<N>-<desc>.md with the fixed five-section structure: summary, goals, scope in/out, high-level technical direction, and open questions for design. Technical direction stays at constraint altitude — solutions belong to /feature-design." },
+    { k: "6", t: "Update tracker", d: "Substitutes the storm-owned tokens in the per-feature tracker (header, timestamp chip, bullets, details), fills future-stage placeholders, and flips the storm progress step from pending to complete. It never touches another skill's tokens or progress entry." },
+    { k: "7", t: "Capture lessons", d: "Invokes lessons-capture with the slug feature-storm. That internal skill reflects on the run, appends at most one dated recommendation to ~/.claude/dev-skills/lessons/feature-storm.md, and returns the entry for the chat summary." },
+    { k: "8", t: "Present highlights", d: "Outputs a short scannable chat summary: saved file paths, the approved bullets, and the top open questions for design. Kept under ~30 lines — the file is the artifact, the chat is the pointer." },
+    { k: "9", t: "Offer design", gate: true, d: "One AskUserQuestion offering to chain straight into /feature-design. Acceptance invokes the design skill via the Skill tool with the feature version as argument; declining prints a one-line hint for running it later." }
+  ]},
+
+{ slug: "feature-design", g: "chain", inv: "both",
+  purpose: "Produces a decision-closed, self-reviewed technical design document for the feature.",
+  steps: [
+    { k: "0", t: "Confirm invocation", gate: true, d: "Skipped when the user typed /feature-design, chained in from /feature-storm or /feature-dispatch, or just affirmed a proposal that named this skill. Otherwise one AskUserQuestion runs before any work, and a “No” stops everything." },
+    { k: "1", t: "Capture requirements", d: "Resolves the requirements from the arguments, a just-completed storm, or the recent conversation — asking only as a last resort. It states which source it picked up so the user can redirect with one word." },
+    { k: "2", t: "Resolve folder", d: "Confirms the folder title where needed (skipping when a storm already established it) and invokes feature-resolve with stage=design. The returned folder, stage file, and tracker paths are authoritative; paths are never built by hand." },
+    { k: "3", t: "Ground in codebase", d: "Reads the storm first if one exists, then the modules the feature touches, legacy docs/, and prior related feature designs. For third-party integrations it grounds in official documentation, preferring docs-MCP servers (context7) over web fetches. Nothing about external surfaces is invented." },
+    { k: "4", t: "Clarify decisions", gate: true, d: "AskUserQuestion rounds until every material decision is closed: scope, acceptance criteria, approach choices (quantified where measurable), constraints, data and state, failure behaviour. Every open question the storm recorded must be explicitly closed. Mandatory even in autonomous mode." },
+    { k: "5", t: "Write design", d: "Writes the nine-section design document at the resolver-returned path, preferring a modular, separately-testable decomposition over a monolith. Section 8 (Open questions) must end empty — a design with open decisions is not allowed to ship." },
+    { k: "6", t: "Self-review & fix", d: "Re-reads the draft through eight lenses — requirement coverage, decision closure, security, efficiency, modularity, reference integrity, grounded-behaviour integrity, cross-section consistency — and fixes findings in place, looping until every check passes. The design is the artifact; no separate review doc." },
+    { k: "7", t: "Update tracker", d: "Fills the design panel (timestamp chip, bullets, details), overwriting the placeholders the storm left, sets remaining future-stage placeholders, and flips the design progress step to complete. Edits are anchored in surrounding markup so the template's doc-comment is never touched." },
+    { k: "8", t: "Capture lessons", d: "Invokes lessons-capture with slug feature-design; the returned entry (one recommendation or “none this run”) is pasted into the Step 9 summary." },
+    { k: "9", t: "Present highlights", d: "Short chat summary: approach, key data/interface decisions, top risks, and how acceptance will be verified. Under ~30 lines; the full design lives in the file." },
+    { k: "10", t: "Offer plan", gate: true, d: "One AskUserQuestion offering to chain into /feature-plan. Acceptance invokes the plan skill with the feature version; the resolver then continues into the same folder with no context guessing." }
+  ]},
+
+{ slug: "feature-plan", g: "chain", inv: "both",
+  purpose: "Turns the design into a staged, TDD-driven implementation plan — planning core runs in a subagent.",
+  wraps: { core: "single subagent · steps 3–10" },
+  steps: [
+    { k: "0", t: "Confirm invocation", gate: true, d: "Skipped on the slash command or a fresh chain-in from /feature-design's closing offer; otherwise one AskUserQuestion before any work." },
+    { k: "1", t: "Resolve folder", d: "Parses only a version token and invokes feature-resolve with stage=plan. The resolver refuses to plan without a design and asks any overwrite / older-version questions here, in the main agent, before the question-less subagent launches." },
+    { k: "2", t: "Launch subagent", d: "Runs in the main agent: launches one general-purpose subagent briefed with the resolver block plus the verbatim text of Steps 3–10 and a strict no-questions contract. On return it verifies the plan file exists; a message starting BLOCKED: is relayed verbatim and ends the run — design-level gaps point back to /feature-design." },
+    { k: "3", t: "Read design", sub: true, wrap: "core", d: "Reads the design end-to-end (and the storm, if present) and builds a map of requirements, components, and interfaces. A non-empty Open-questions section halts the run with BLOCKED rather than planning around ambiguity." },
+    { k: "4", t: "Ground plan", sub: true, wrap: "core", d: "Verifies the design's claims against the actual codebase: cited files exist, test directory conventions, build registration, environment needs, and the blast radius of any shared-symbol change (keyed to the kind of change, not raw grep counts)." },
+    { k: "5", t: "Draft stages", sub: true, wrap: "core", d: "Writes the staged plan: every behaviour-changing stage carries the four TDD steps (write test → confirm fail → implement → confirm pass) with a concrete expected failure; other stages carry a sanctioned category label. Includes a requirements coverage map, cross-cutting concerns, and verification." },
+    { k: "6", t: "Decide autonomously", sub: true, wrap: "core", d: "The subagent has no user channel, so planning-level gaps — stage ordering, feature flags, harness choice, file locations — are decided by convention and recorded in the plan's “Planning decisions taken” section. Design-level gaps are never decided: they halt with BLOCKED." },
+    { k: "7", t: "Review plan", sub: true, wrap: "core", d: "Checks design coverage, TDD discipline, invented references, cross-stage conflicts, intermediate working states, silent design deviations, security ordering, and stage size — editing the plan until all checks pass." },
+    { k: "8", t: "Update tracker", sub: true, wrap: "core", d: "Fills the plan panel tokens and flips the plan progress step to complete — never on a BLOCKED run." },
+    { k: "9", t: "Capture lessons", sub: true, wrap: "core", d: "Invokes lessons-capture with slug feature-plan from inside the subagent; if the Skill tool is unavailable there, the main agent runs it during verification instead." },
+    { k: "10", t: "Compose summary", sub: true, wrap: "core", d: "The subagent's final message is exactly the staged summary block — stages, coverage, planning decisions, deviations, risks — and nothing else. The main agent relays it to the user unmodified." },
+    { k: "11", t: "Offer implement", gate: true, d: "First relays the subagent's summary verbatim, then offers /feature-implement via one AskUserQuestion. The recommended option flips to “Not now” when the plan recorded deviations from the design, suggesting a design refresh first." }
+  ]},
+
+{ slug: "feature-implement", g: "chain", inv: "both", commits: true,
+  purpose: "Builds the plan stage-by-stage on the current branch — one commit per green stage, never pushes.",
+  wraps: { loop: "stage loop 5a–5i · direct or subagents, per strategy" },
+  steps: [
+    { k: "0", t: "Confirm invocation", gate: true, d: "Strictly enforced because this skill writes code and commits: skipped only on the slash command or a fresh chain-in from /feature-plan's offer; any other arrival asks one AskUserQuestion first." },
+    { k: "1", t: "Resolve folder", d: "Invokes feature-resolve with stage=implement. The resolver picks the latest folder with a plan but no implementation, asks about overwrites, and errors if no plan exists anywhere. Its returned paths are used verbatim." },
+    { k: "2", t: "Read plan+design", gate: true, d: "Reads the plan and the design in full and builds the internal model of stages, requirements, and constraints. Unresolved “Deviations from the design” trigger an AskUserQuestion — proceed as-is or pause for a design refresh — never a silent override." },
+    { k: "3", t: "Repo readiness", gate: true, d: "Verifies a clean tree and a synced current branch (never creating branches), detects the project's TEST / LINT / FORMAT_CHECK / TYPE_CHECK / BUILD / DEADCODE commands from manifests and CI, and records test, lint, and dead-code baselines. Any pre-existing test failure halts the skill: Investigate now, File a bug (hands over to /bug-submit), or Stop — it never builds on a red suite." },
+    { k: "4", t: "Find starting stage", d: "Detects prior stage commits for this feature version via git log --grep on the exact commit-message format, resuming at the first uncommitted stage. A fully committed plan skips straight to the final sweep with no new commits." },
+    { k: "5", t: "Choose strategy", gate: true, d: "Asks who drives each stage's TDD cycle — Direct in this conversation, one general-purpose subagent per stage, or one per consecutive three-stage chunk. All three run the identical 5a–5i cycle strictly in order and commit one-per-stage; the question is asked whenever the user can be prompted and skipped (defaulting to Direct) only when one stage remains or the run is truly headless. In subagent modes the main agent verifies each unit's commits and re-runs the tests itself before launching the next unit." },
+    { k: "5a", t: "Re-read stage", wrap: "loop", d: "Re-reads the stage block in the plan rather than trusting memory: goal, design references, files to touch, TDD steps, definition of done, risks. Pre-flight scans check for missing dependency-injection seams, type-identity mismatches across loaders, the caller blast radius of signature changes, and time-dependent fixtures. Stages the plan flagged as non-TDD scaffolding skip the test cycle." },
+    { k: "5b", t: "Write test", wrap: "loop", d: "Creates or modifies the stage's test files with concrete cases describing the new behaviour. No production code is written yet." },
+    { k: "5c", t: "Confirm fail", wrap: "loop", d: "Runs the targeted test and checks the failure matches the expected initial failure the plan recorded. A pass at this point means the test exercises nothing new — or the behaviour already exists — and the stage stops until that is resolved." },
+    { k: "5d", t: "Implement", wrap: "loop", d: "Makes the minimum change needed to satisfy the test, touching only the files the stage names or their direct consequences. If the planned files turn out wrong, the plan file is updated and the change recorded under Deviations from plan — never silent drift." },
+    { k: "5e", t: "Confirm pass", wrap: "loop", d: "Re-runs the targeted test, then the wider suite, comparing failures against the Step 3 baseline: pre-existing failures are not stage regressions, but any new failure must be fixed before commit. Baseline entries that start passing are dropped — the list only shrinks." },
+    { k: "5f", t: "Coverage check", wrap: "loop", d: "Point-by-point check of the implementation against the stage's promises: every file touched or justified, every behaviour tested, the definition of done satisfied, the coverage map's requirements exercised. Gaps are filled within the same stage by looping back to the test step — never papered over with TODOs." },
+    { k: "5g", t: "Self-review", wrap: "loop", d: "Reviews the stage's new code through six lenses — bloat, superseded/orphaned code (the one lens that looks beyond the diff), functional issues, inefficiencies, security, comment style — fixing findings in the same stage. A fix that changes behaviour gets a test to lock it in." },
+    { k: "5h", t: "Commit stage", wrap: "loop", commits: true, d: "One final TEST run after self-review edits, then exactly one commit in the resume-contract format <type>(plan v<N>): Stage <M> — <title>, staging only the files this stage touched. Deviation notes and side artifacts go in a separate docs: commit so the resume grep never matches them." },
+    { k: "5i", t: "Next stage", wrap: "loop", d: "Confirms a clean tree and loops back to 5a for the following stage. Between stages: no pushes, no branch switches, no plan or design edits beyond recorded deviations." },
+    { k: "6", t: "Stop conditions", gate: true, d: "Mid-loop halts: an undiagnosable failure, a decision the plan and design do not cover, an externally dirtied tree, an oversized security issue, or a plan wrong at the design level — the last recommends a new feature version via /feature-design. Partial work stays uncommitted; nothing is invented." },
+    { k: "7", t: "Coverage & dead-code", d: "After the last stage: every design requirement must have a verifying test, every component must exist and be tested, and a whole-project dead-code sweep (scoped against the Step 3 baseline) removes only orphans this feature stranded. Gaps become one more lightweight committed stage." },
+    { k: "8", t: "Update tracker", commits: true, d: "Fills the implementation panel (stages, tests, coverage, deviations), flips the implement progress step to complete, and commits the tracker plus any docs edits as a docs commit whose subject never matches the stage-resume grep." },
+    { k: "9", t: "Capture lessons", d: "Invokes lessons-capture with slug feature-implement; the entry lands in the final summary." },
+    { k: "10", t: "Final summary", d: "Scannable chat summary: stages and commit SHAs, test results, baseline exclusions, design coverage, dead-code outcome, deviations. Under ~40 lines, no diffs pasted." },
+    { k: "11", t: "Offer evals", gate: true, par: ["evals-code-run", "evals-e2e-run"], d: "Offers the eval suite via one AskUserQuestion while the work is still unpushed. On consent it launches evals-code-run and evals-e2e-run in two parallel read-only subagents — safe because they write different log files — and relays both score summaries. A declined offer or a failed eval never fails the implementation run." }
+  ]},
+
+/* ------------------------------- shared services ------------------------------- */
+{ slug: "feature-resolve", g: "services", inv: "agent", internal: true,
+  purpose: "Single source of pathing: computes the feature folder, version, and stage file every feature-* skill must use.",
+  steps: [
+    { k: "1", t: "Locate features/", d: "Ensures a features/ directory exists at the project root, creating it on first use. Artefacts never live anywhere else — docs/ is read-only legacy." },
+    { k: "2", t: "Scan folders", d: "Globs features/ for feature-v<N>-* folders and parses each one's integer version (numeric compare, so v10 beats v9), authoritative description, and which stage files are already present." },
+    { k: "3", t: "Resolve mode", gate: true, d: "Applies four priority rules to pick create-new vs continue-existing: explicit version wins, first-ever feature starts at v1, an in-progress latest folder is continued, and a completed stage forces either a new version or a user-authorised overwrite. Every ambiguity is asked via AskUserQuestion, never guessed." },
+    { k: "4", t: "Validate description", d: "For new folders only: the description must be ten words or fewer, filename-safe after hyphenation, and non-empty. Nothing is silently truncated." },
+    { k: "5", t: "Create folder", d: "Creates features/feature-v<N>-<description>/ when the mode is create-new; continuing runs reuse the existing folder untouched." },
+    { k: "6", t: "Seed tracker", d: "Copies the plugin's feature-tracker.html template into the folder if no tracker exists yet — always a copy, never a symlink. A missing template degrades to a note rather than failing the caller." },
+    { k: "7", t: "Output block", d: "Echoes the fixed parseable resolution block — mode, version, description, folder, stage file, tracker file, prerequisite file, notes — and stops. Callers parse it line-by-line and never reconstruct paths themselves." }
+  ]},
+
+{ slug: "lessons-capture", g: "services", inv: "agent", internal: true,
+  purpose: "The reflection protocol, in one place: appends at most one improvement recommendation per run to a per-skill log.",
+  steps: [
+    { k: "1", t: "Reflect on run", d: "Reviews the calling skill's run for reactive friction (ambiguous steps, wrong guidance) and proactive gains (heuristics, tighter templates, better lenses). At most one recommendation per run — and none is the common, correct outcome." },
+    { k: "2", t: "Format entry", d: "A real recommendation becomes three lines: Observation, Proposed change (naming the concrete SKILL.md edit), and Expected benefit. Otherwise the entry is the single no-recommendations line." },
+    { k: "3", t: "Append log", d: "Appends the dated entry to ~/.claude/dev-skills/lessons/<slug>.md via a single atomic shell append — never read-and-rewrite, so prior entries can never be clobbered." },
+    { k: "4", t: "Return entry", d: "Echoes the entry body back so the calling skill can paste it under its own “Skill-improvement recommendations” heading. This skill never edits any SKILL.md itself." }
+  ]},
+
+/* ------------------------------- bug workflow ------------------------------- */
+{ slug: "bug-submit", g: "bugs", inv: "both",
+  purpose: "Files a triaged bug as a local folder under bugs/, with screenshots, and regenerates the bug tracker.",
+  steps: [
+    { k: "0", t: "Confirm invocation", gate: true, d: "On proactive invocation, asks a plain-chat yes/no before doing anything — deliberately not AskUserQuestion, because images attached to its answers lose their filesystem paths. Typing /bug-submit skips the check." },
+    { k: "1", t: "Parse args & images", d: "Splits the arguments into description text and image path tokens, and scans recent messages for [Image: source: …] annotations from pasted screenshots. Every candidate path is validated on disk." },
+    { k: "2", t: "Locate bugs root", d: "Anchors everything at <repo_root>/bugs/ via git. Outside a work tree it stops — bug numbering needs a stable, canonical location." },
+    { k: "3", t: "Clarify bug", gate: true, d: "One plain-chat round when the description is thin or a visual bug arrived without screenshots. Mandatory even under autonomous instructions; if the user declines to elaborate, the skill stops with nothing created." },
+    { k: "4", t: "Allocate number", d: "Scans both bugs/ and bugs/archive/ for the numeric maximum and adds one, so a number is never reused after a bug is resolved. Builds the folder slug from the symptom." },
+    { k: "5", t: "Save images", gate: true, d: "Copies each screenshot into the bug folder with collision-safe names. Attachments that look sensitive (credentials, .env-adjacent paths) require an explicit “proceed” before being copied into the repo." },
+    { k: "6", t: "Triage bug", d: "A bounded grounding pass — up to three greps and two file reads — producing a summary of understanding, probable affected area, severity estimate, initial hypothesis, and next steps. Triaging, not fixing." },
+    { k: "7", t: "Write report", d: "Writes bug-N-<slug>.md from the fixed template: description, expected behaviour, repro steps, screenshots by relative path, and the grounded triage section." },
+    { k: "8", t: "Render tracker", d: "Invokes bug-tracker-render, which regenerates bugs/bugs-tracker.html wholesale from the template plus the filesystem. A skipped render (missing template) is surfaced as one line and never fails the filing." },
+    { k: "9", t: "Present highlights", d: "Short chat pointer: report path, tracker path, title, triage highlights, and attachment count. This skill never commits, pushes, or creates anything remote — and deliberately never calls lessons-capture." }
+  ]},
+
+{ slug: "bug-fix", g: "bugs", inv: "both", commits: true,
+  purpose: "Diagnoses one open bug with an evidence-backed root cause, fixes it test-first, archives it, and commits once.",
+  steps: [
+    { k: "0", t: "Select bug", d: "Picks the bug numbered in the arguments or the lowest-numbered open folder under bugs/. With no open bugs it reports cleanly and hands over to /bug-submit rather than inventing work. The report is read fully into context." },
+    { k: "1", t: "Confirm invocation", gate: true, d: "Strictly enforced because this skill modifies code and commits: proactive arrival asks Proceed / Pick a different bug / Cancel, naming the selected bug. Typing /bug-fix skips it." },
+    { k: "2", t: "Ground & baseline", d: "Reads the implicated code paths end-to-end, the last feature's docs, and recent git history around the affected files; detects the project's TEST/LINT/BUILD commands and records a baseline so pre-existing failures are never mistaken for regressions." },
+    { k: "3", t: "Clarify report", gate: true, d: "Closes material ambiguity in the report via AskUserQuestion with concrete options and a recommendation — expected behaviour, environment, interpretation. Mandatory even in autonomous mode; skipped in one line when nothing is ambiguous." },
+    { k: "4", t: "Root-cause gate", gate: true, d: "The hard gate: no production change until the root cause is established with observed evidence — a reproduction, a failing assertion, a traced path. Triage hypotheses are tested, not trusted. An evidence-backed no-fix disposition (works-as-intended, duplicate) closes via its own confirmation instead." },
+    { k: "5", t: "Approve fix", gate: true, d: "Explains root cause, proposed fix, and verification plan in a few lines, then asks Proceed / Adjust approach / Cancel. The fix stays scoped to the root cause — no bundled refactors." },
+    { k: "6", t: "TDD fix", d: "Red: a regression test that fails for the expected reason (stubbing first if a missing symbol would mask the assertion). Green: the minimal change at the root cause. Then the full suite against the Step 2 baseline — nothing green before may break." },
+    { k: "7", t: "Verify resolution", gate: true, d: "Automated coverage verifies where it can; for UI or external behaviour the user gets precise steps and confirms via Confirmed fixed / Still broken / Partially fixed. Success is never assumed." },
+    { k: "8", t: "Loop if unresolved", d: "A failed verification returns to diagnosis with the new evidence in hand — what the attempt ruled out is itself a fact. The loop is bounded: repeated non-convergence stops with an honest account rather than patch-on-patch." },
+    { k: "9", t: "Close & commit", commits: true, d: "Appends an evidence-backed ## Resolution (with lessons learned) to the report, moves the folder to bugs/archive/, invokes bug-tracker-render, and makes exactly one commit on the current branch — never pushing." },
+    { k: "10", t: "Capture lessons", d: "Invokes lessons-capture with slug bug-fix and closes with a short summary: root cause, fix, verification, and the commit SHA." }
+  ]},
+
+{ slug: "bug-tracker-render", g: "bugs", inv: "agent", internal: true,
+  purpose: "Regenerates bugs/bugs-tracker.html wholesale from the template plus the filesystem — no state of its own.",
+  steps: [
+    { k: "1", t: "Locate template", d: "Finds the repo root and the plugin's feature-tracker.html template. Not in a repo, or no template found: it emits a one-line skip note and returns — it never fails its caller." },
+    { k: "2", t: "Copy template", d: "Copies the template over bugs/bugs-tracker.html unconditionally. The tracker holds no state, so create and update are the same operation." },
+    { k: "3", t: "Set chrome", d: "Switches the page to the bug view (data-tracker-kind=“bugs”), sets the title, and blanks every feature-panel token so no literal {{…}} remains." },
+    { k: "4", t: "Gather bugs", d: "Scans bugs/ (open) and bugs/archive/ (closed), parsing each report's number, title, severity, filed date, body, and image files. Sorted newest first." },
+    { k: "5", t: "Render cards", d: "Builds one expandable details card per bug — number, title, severity badge, date, report body, and screenshots referenced by relative path only." },
+    { k: "6", t: "Write regions", d: "Replaces the content between the three ISSUES_* comment-marker pairs — timestamp, open list, closed list — leaving the markers in place. Open/closed counts are computed by the page's own JS, never written." },
+    { k: "7", t: "Report status", d: "Returns a single status line to the caller: updated with N open and M closed, or the skip reason." }
+  ]},
+
+/* ------------------------------- evals ------------------------------- */
+{ slug: "evals-code-run", g: "evals", inv: "both",
+  purpose: "Scores the unpushed commits for duplication, bloat, inefficiency, and security — appends four entries to code.json.",
+  steps: [
+    { k: "0", t: "Confirm invocation", gate: true, d: "The slash command (or an initiating agent's explicit brief, as in /feature-implement's eval offer) skips the check; any other proactive arrival asks one AskUserQuestion first." },
+    { k: "1", t: "Resolve change set", d: "Determines the base ref (upstream, origin/HEAD, or an explicit argument), collects the unpushed commits and diff, and computes the added-lines denominator excluding lockfiles and generated output. Zero unpushed commits means stop — nothing evaluated, nothing written." },
+    { k: "2", t: "Four parallel evals", sub: true, par: ["duplication", "bloat", "inefficiency", "security"], d: "Launches four read-only opus subagents in a single message, one per dimension, each with a self-contained brief: the change set, the counting rules, and the strict output contract. Duplication actively greps the rest of the repo, not just the diff." },
+    { k: "3", t: "Validate results", d: "Recomputes each score from its numerator and denominator, checks findings and scores agree, re-runs an unreliable block once, and trims recommendations to 100 words (forced empty at score 0). A twice-failed dimension is analysed directly rather than left as a hole." },
+    { k: "4", t: "Append log", d: "Appends exactly four five-field entries sharing one UTC timestamp to ~/.claude/evals/code.json via an atomic temp-file replace. A corrupt existing log is moved aside to a .corrupt-<ts> backup, never silently discarded." },
+    { k: "5", t: "Summarize", d: "Reports what was evaluated, the score table (higher is worse), evidence-cited findings per nonzero dimension, and the log-write confirmation. Deliberately does not call lessons-capture — the JSON log is its home for recommendations." }
+  ]},
+
+{ slug: "evals-e2e-run", g: "evals", inv: "both",
+  purpose: "Scores a chain-built feature end-to-end: artefact quality and stage-to-stage consistency, into design.json.",
+  steps: [
+    { k: "0", t: "Confirm invocation", gate: true, d: "Same gate as evals-code-run: the slash command or an initiating agent's explicit brief proceeds; other proactive arrivals ask once. There is deliberately no gate proving the work “is” a feature — the initiator implies it." },
+    { k: "1", t: "Resolve feature & evals", d: "Identifies the feature version from stage-format commits in the unpushed range (falling back to the highest-versioned features/ folder), locates artefacts by read-only globbing — deliberately never via feature-resolve, which would create folders — and selects up to eight evals by input presence." },
+    { k: "2", t: "Parallel eval subagents", sub: true, par: ["storm_quality", "design_quality", "plan_quality", "design_consistency", "plan_consistency", "code_storm_consistency", "code_design_consistency", "code_plan_consistency"], d: "One read-only opus subagent per selected eval, all launched in a single message. Quality evals judge rubric criteria; consistency evals classify each upstream commitment as honored, partially honored, or silently dropped." },
+    { k: "3", t: "Validate results", d: "Verifies each eval_type is one of the eight literal names, recomputes scores from items met/assessed, checks sub-80 scores carry recommendations (and ≥80 carry none), and re-runs unreliable blocks once." },
+    { k: "4", t: "Append log", d: "One atomic append of one five-field entry per eval actually run — entry count varies, so consumers key on eval-type, never position — to ~/.claude/evals/design.json, with the same corrupt-log backup discipline." },
+    { k: "5", t: "Summarize", d: "Reports the resolved feature, which evals ran or were skipped, the score table (higher is better), findings for anything under 80, and the log-write confirmation. Does not call lessons-capture." }
+  ]},
+
+/* ------------------------------- reflection ------------------------------- */
+{ slug: "lessons-learn", g: "reflect", inv: "user",
+  purpose: "Consolidates a skill's accumulated lessons log into user-approved SKILL.md edits, then archives the log.",
+  steps: [
+    { k: "0", t: "Pick target", gate: true, d: "Takes the target skill's slug from the argument; without one, lists the logs that contain real recommendations and asks which to process. Nothing to learn from means a clean stop." },
+    { k: "1", t: "Locate SKILL.md", d: "Finds the target skills/<slug>/SKILL.md on disk (the plugin can be installed anywhere) and reads it in full, so suggestions already addressed drop out naturally." },
+    { k: "2", t: "Read log", d: "Parses every dated entry in ~/.claude/dev-skills/lessons/<slug>.md and discards the no-recommendation ones." },
+    { k: "3", t: "Group & filter", d: "Clusters entries targeting the same behaviour, then filters hard: already addressed, one-off quirks, language-specific bias (rewritten generically or dropped), complexity without payoff, unsound reasoning. A typical run keeps 0–3 improvements." },
+    { k: "4", t: "Present proposals", gate: true, d: "Each survivor becomes an AskUserQuestion proposal — what, where, the concrete edit, why — with Apply / Skip / Defer options, batched up to four per call." },
+    { k: "5", t: "Apply edits", d: "Applies each approved change to the target SKILL.md one Edit at a time; a stale match stops and asks rather than being patched around. Never auto-commits — the diff is the user's to review." },
+    { k: "6", t: "Archive log", d: "Snapshots the whole active log to <slug>.archive-<UTC>.md and rebuilds a fresh active log containing only deferred entries. Archives are immutable once written." },
+    { k: "7", t: "Summarize", d: "Reports entries reviewed, applied, skipped, and deferred, plus the archive path — and reminds that this skill never commits or feeds its own reflections back into a log." }
+  ]},
+
+/* ------------------------------- utilities ------------------------------- */
+{ slug: "push", g: "utils", inv: "user", commits: true,
+  purpose: "Commits all working-tree changes with a style-matched message and pushes to the remote.",
+  steps: [
+    { k: "1", t: "Check status", d: "Runs git status to find staged and unstaged changes across the tree." },
+    { k: "2", t: "Stop if clean", d: "With nothing to commit, informs the user and ends — no empty commits." },
+    { k: "3", t: "Review changes", d: "Reads the actual diff and the last five commit subjects so the new message matches the repository's established style." },
+    { k: "4", t: "Commit message", d: "Uses the message passed as the argument, or derives a concise one focused on the what and why. First line under 72 characters; never any attribution." },
+    { k: "5", t: "Update gitignore", d: "New files or directories that should not ship (local workspaces, generated noise) are added to .gitignore before staging." },
+    { k: "6", t: "Stage all", d: "Stages everything with git add -A — this skill's contract is to ship the whole working tree." },
+    { k: "7", t: "Commit", commits: true, d: "Creates the commit with the chosen message." },
+    { k: "8", t: "Push", d: "Pushes to the remote; a failure (needs pull, protected branch) is reported with suggested next steps rather than forced." },
+    { k: "9", t: "Confirm success", d: "Shows the commit hash and verifies the repo is clean after the push." }
+  ]},
+
+{ slug: "release", g: "utils", inv: "user", commits: true,
+  purpose: "Version bump, changelog, commit, tag, and push — language detected per run, with per-language sections.",
+  steps: [
+    { k: "1", t: "Parse type", d: "Accepts exactly one of major, minor, or patch from the argument, defaulting to patch. The type applies identically to every language." },
+    { k: "2", t: "Detect language", d: "Inspects the repo root: Python markers (pyproject.toml, uv.lock, …), Swift markers (Package.swift, *.xcodeproj), else the Generic manifest list (.claude-plugin/plugin.json, package.json, Cargo.toml, composer.json, pubspec.yaml)." },
+    { k: "3", t: "Read version", gate: true, d: "Reads the version from the language section's source and validates strict X.Y.Z (Swift's X.Y normalises to X.Y.0). Anything else — rc suffixes, date versions — stops and asks the user to normalise; a base version is never invented." },
+    { k: "4", t: "Compute version", d: "Semantic bump: major zeroes the rest, minor zeroes patch, patch increments the last segment." },
+    { k: "5", t: "Update sources", d: "Edits every version location the language section lists, keeping them in sync — only the version values, never reformatting." },
+    { k: "6", t: "Update changelog", d: "If CHANGELOG.md exists, moves Unreleased items into a dated version section (Keep a Changelog format). Swift creates the changelog when missing; other languages skip and note it." },
+    { k: "7", t: "Pre-commit steps", d: "Language extras that must precede staging: uv lock for uv projects, a package-lock refresh for Node — so lockfiles never go stale against the bumped version." },
+    { k: "8", t: "Stage & commit", commits: true, d: "Stages only the files the release touched plus anything the user had deliberately staged — never git add -A — and commits as Release vX.Y.Z with no attribution." },
+    { k: "9", t: "Tag", gate: true, d: "Checks the tag locally and on the remote first; an existing vX.Y.Z stops the run rather than force-overwriting. Then tags." },
+    { k: "10", t: "Push", d: "Pushes the branch and the new tag without asking — the user has standing authorisation for /release end-to-end. No remote configured: skip and report the local state; a failed push is surfaced verbatim with nothing rolled back." },
+    { k: "11", t: "Report", d: "One compact block: version, branch, short SHA, files updated, and the tag/push outcome." }
+  ]},
+
+{ slug: "diagram-update", g: "utils", inv: "both",
+  purpose: "Regenerates this page: analyses every skill, hook, and script on disk and overwrites diagram/index.html wholesale.",
+  steps: [
+    { k: "0", t: "Confirm invocation", gate: true, d: "Typing /diagram-update proceeds directly; a proactive arrival asks one AskUserQuestion first, since the run overwrites diagram/index.html." },
+    { k: "1", t: "Repo gate", d: "Refuses to run anywhere but the dev-skills plugin repo itself — the manifest at .claude-plugin/plugin.json must be named dev-skills. Records the plugin version and a UTC timestamp for the header, and verifies templates/workflow-diagram.html exists — the page is rendered from that template, never authored from scratch." },
+    { k: "2", t: "Inventory plugin", d: "Enumerates and reads in full every skills/*/SKILL.md, hooks/hooks.json plus the scripts it references, and templates/. The files are the source of truth — never summaries or memory." },
+    { k: "3", t: "Extract model", d: "For each skill: invocation surface from frontmatter, ordered steps with ≤3-word titles and plain-language explanations, approval gates, loop-backs, parallel fan-outs, subagent delegation, and step-anchored cross-skill edges. Hooks get their triggers and actual script behaviour." },
+    { k: "4", t: "Derive graph", d: "Clusters skills into workflow groups from their cross-references, lays chained skills out in pipeline order, renders shared internal helpers as converging service boxes, and types every edge: calls, chains into, hands over, loops back." },
+    { k: "5", t: "Author data", d: "Produces the seven substitution values the template expects: plugin version, timestamp, the group list, the skills-with-steps array (titles, explanations, gates, brackets, parallel units), the step-anchored edge list, and the overview nodes and edges. All presentation and interaction lives in the template — this step authors data only." },
+    { k: "6", t: "Render template", d: "Reads templates/workflow-diagram.html, substitutes the seven anchored tokens with the Step 5 values, and writes the result wholesale to diagram/index.html. The engine (CSS and JS) is never edited during a run — presentation changes belong in the template itself." },
+    { k: "7", t: "Verify output", d: "Static checks on the written file: no literal template tokens remain, every skill folder appears exactly once, step counts match the extraction, edge anchors resolve, no external URL references, and the legend covers everything used. Failures are fixed and re-verified." },
+    { k: "8", t: "Report", d: "One summary line — skills, steps, edges, gates, loop-backs, parallel clusters — plus the pointer to open the file. Never commits or pushes; the regenerated diagram is left as a working-tree change." }
+  ]},
+
+/* ------------------------------- hooks ------------------------------- */
+{ slug: "remote-check", g: "hooks", inv: "hook", internal: true,
+  purpose: "hooks/remote-check.sh — warns when the branch is behind its upstream; fired on SessionStart and UserPromptSubmit.",
+  steps: [
+    { k: "1", t: "Locate repo", d: "Reads the hook payload's cwd and silently exits outside a git work tree. The hook must never block or error the session." },
+    { k: "2", t: "Throttle check", d: "SessionStart always fetches and resets the window; UserPromptSubmit fetches only when the last check is older than two hours, so it never nags every prompt. State lives in the repo's git dir and is never committed." },
+    { k: "3", t: "Bounded fetch", d: "git fetch with a 15-second timeout so a slow or offline remote cannot stall the prompt. The attempt is recorded whether or not it succeeds." },
+    { k: "4", t: "Compute behind", d: "Counts commits behind the upstream. Up to date, ahead-only, or no upstream: silent exit — there is nothing to warn about." },
+    { k: "5", t: "Warn & ask", gate: true, d: "Emits a user-visible systemMessage (so the behind-state is never silent) plus an additionalContext note telling Claude to offer git pull --ff-only via AskUserQuestion at the start of its next reply — at most once per session. The hook itself never pulls and never prompts." }
+  ]}
+];
+
+/* Edges: f/t are "slug.stepKey" or a bare "slug" (anchors to the card header). */
+const EDGES = [
+  /* internal-service calls */
+  { f: "feature-storm.2",      t: "feature-resolve", ty: "call", l: "stage=storm" },
+  { f: "feature-design.2",     t: "feature-resolve", ty: "call", l: "stage=design" },
+  { f: "feature-plan.1",       t: "feature-resolve", ty: "call", l: "stage=plan" },
+  { f: "feature-implement.1",  t: "feature-resolve", ty: "call", l: "stage=implement" },
+  { f: "feature-storm.7",      t: "lessons-capture", ty: "call", l: "reflect" },
+  { f: "feature-design.8",     t: "lessons-capture", ty: "call", l: "reflect" },
+  { f: "feature-plan.9",       t: "lessons-capture", ty: "call", l: "reflect" },
+  { f: "feature-implement.9",  t: "lessons-capture", ty: "call", l: "reflect" },
+  { f: "bug-fix.10",           t: "lessons-capture", ty: "call", l: "reflect" },
+  { f: "bug-submit.8",         t: "bug-tracker-render", ty: "call", l: "render tracker" },
+  { f: "bug-fix.9",            t: "bug-tracker-render", ty: "call", l: "render tracker" },
+  { f: "feature-implement.11", t: "evals-code-run.0",  ty: "call", l: "parallel subagent" },
+  { f: "feature-implement.11", t: "evals-e2e-run.0",   ty: "call", l: "parallel subagent" },
+  /* chain-in offers */
+  { f: "feature-dispatch.4", t: "feature-storm.0",     ty: "chain", l: "route: storm" },
+  { f: "feature-dispatch.4", t: "feature-design.0",    ty: "chain", l: "route: design" },
+  { f: "feature-storm.9",    t: "feature-design.0",    ty: "chain", l: "chain in" },
+  { f: "feature-design.10",  t: "feature-plan.0",      ty: "chain", l: "chain in" },
+  { f: "feature-plan.11",    t: "feature-implement.0", ty: "chain", l: "chain in" },
+  /* conditional handovers */
+  { f: "feature-implement.3", t: "bug-submit.0", ty: "hand", l: "red baseline → file bug" },
+  { f: "bug-fix.0",           t: "bug-submit.0", ty: "hand", l: "no open bugs" },
+  /* loop-backs */
+  { f: "feature-storm.4",     t: "feature-storm.3",  ty: "loop", l: "revise summary" },
+  { f: "bug-fix.8",           t: "bug-fix.4",        ty: "loop", l: "still broken → re-diagnose" },
+  { f: "feature-implement.7", t: "feature-implement.5a", ty: "loop", l: "coverage gap → extra stage" },
+  { f: "feature-implement.5i", t: "feature-implement.5a", ty: "loop", l: "next stage" },
+  { f: "feature-implement.5f", t: "feature-implement.5b", ty: "loop", l: "gap → more tests" },
+  { f: "feature-plan.2",      t: "feature-design",   ty: "loop", l: "BLOCKED: design gap" },
+  { f: "feature-implement.6", t: "feature-design",   ty: "loop", l: "design-level drift → new version" },
+  /* data feed */
+  { f: "lessons-capture.3", t: "lessons-learn.2", ty: "data", l: "lessons log" }
+];
+
+/* ======================= Render ======================= */
+
+const board = document.getElementById("board");
+const bySlug = {};
+SKILLS.forEach(s => { bySlug[s.slug] = s; });
+
+function pillsFor(inv) {
+  if (inv === "both")  return '<span class="pill p-user">User</span><span class="pill p-agent">Agent</span>';
+  if (inv === "user")  return '<span class="pill p-user">User only</span>';
+  if (inv === "hook")  return '<span class="pill p-agent">Hook</span>';
+  return '<span class="pill p-agent">Agent only</span>';
+}
+function badgesFor(st, inSubWrap) {
+  let h = "";
+  if (st.gate)    h += '<span class="badge b-gate">&#9208; gate</span>';
+  if (st.sub && !inSubWrap) h += '<span class="badge b-sub">subagent</span>';
+  if (st.par)     h += '<span class="badge b-par">parallel</span>';
+  if (st.commits) h += '<span class="badge b-com">commits</span>';
+  return h;
+}
+
+/* Steps that invoke another skill get a visible chip naming the target
+   (the connectors are hidden until hover, so the delegation must be
+   readable at rest). Derived from EDGES, never hand-maintained. */
+const stepCalls = {};
+EDGES.forEach(e => {
+  if (e.ty === "data") return;
+  const dot = e.f.lastIndexOf(".");
+  if (dot < 0) return;
+  const src = e.f.substring(0, dot);
+  const tdot = e.t.lastIndexOf(".");
+  const tgt = (tdot > 0 && bySlug[e.t.substring(0, tdot)]) ? e.t.substring(0, tdot) : e.t;
+  if (!bySlug[tgt] || tgt === src) return;
+  const list = (stepCalls[e.f] = stepCalls[e.f] || []);
+  if (!list.some(c => c.tgt === tgt)) list.push({ tgt, ty: e.ty });
+});
+
+GROUPS.forEach(g => {
+  const skills = SKILLS.filter(s => s.g === g.id);
+  if (!skills.length) return;
+  const sec = document.createElement("section");
+  sec.className = "group";
+  sec.dataset.g = g.id;
+  sec.innerHTML =
+    '<div class="group-head"><span class="gdot" style="background:' + g.accent + '"></span>' +
+    "<h2>" + g.name + "</h2><p>" + g.desc + "</p></div>" +
+    '<div class="cards"></div>';
+  const cards = sec.querySelector(".cards");
+  skills.forEach(s => {
+    const card = document.createElement("article");
+    card.className = "card" + (s.internal ? " internal" : "");
+    card.id = "card-" + s.slug;
+    card.style.setProperty("--accent", g.accent);
+    function renderStep(st, inSubWrap) {
+      let parHtml = "";
+      if (st.par) {
+        parHtml = '<div class="parwrap"><div class="parlabel">parallel</div><div class="parunits">' +
+          st.par.map(u => '<span class="parunit">' + u + "</span>").join("") + "</div></div>";
+      }
+      const calls = (stepCalls[s.slug + "." + st.k] || [])
+        .filter(c => !(st.par && st.par.includes(c.tgt)));
+      const callHtml = calls.length
+        ? '<div class="callrow">' + calls.map(c =>
+            '<span class="callchip t-' + c.ty + '" data-target="' + c.tgt + '" title="' +
+            (c.ty === "loop" ? "flow can return to " : "invokes ") + c.tgt + '">' +
+            (c.ty === "loop" ? "&#8617; " : "&#8594; ") + c.tgt + "</span>").join("") + "</div>"
+        : "";
+      return '<div class="step-box' + (st.gate ? " gate" : "") + '" id="st-' + s.slug + "-" + st.k +
+        '" data-skill="' + s.slug + '" data-step="' + st.k + '" tabindex="0" role="button">' +
+        '<span class="sn">' + st.k + '</span><span class="st">' + st.t + "</span>" +
+        '<span class="step-badges">' + badgesFor(st, inSubWrap) + "</span>" + callHtml + parHtml + "</div>";
+    }
+    /* Contiguous steps sharing a `wrap` id render inside ONE dashed
+       bracket (labelled via the skill's `wraps` map) — used for a run
+       delegated to a single subagent, or a per-stage execution loop. */
+    let stepsHtml = "";
+    for (let i = 0; i < s.steps.length; ) {
+      const w = s.steps[i].wrap;
+      if (w) {
+        let j = i;
+        while (j < s.steps.length && s.steps[j].wrap === w) j++;
+        stepsHtml += '<div class="subwrap"><div class="sublabel">' + s.wraps[w] + "</div>" +
+          s.steps.slice(i, j).map(st => renderStep(st, true)).join("") + "</div>";
+        i = j; continue;
+      }
+      stepsHtml += renderStep(s.steps[i], false);
+      i++;
+    }
+    card.innerHTML =
+      '<div class="card-head" data-skill="' + s.slug + '">' +
+      '<div class="card-name">' + s.slug + "</div>" +
+      '<div class="card-pills">' + pillsFor(s.inv) +
+      (s.commits ? '<span class="badge b-com">commits</span>' : "") + "</div>" +
+      '<div class="card-purpose">' + s.purpose + "</div></div>" +
+      '<div class="steps">' + stepsHtml + "</div>";
+    cards.appendChild(card);
+  });
+  board.appendChild(sec);
+});
+
+/* footer counts */
+(function () {
+  const nSteps = SKILLS.reduce((a, s) => a + s.steps.length, 0);
+  const nGates = SKILLS.reduce((a, s) => a + s.steps.filter(x => x.gate).length, 0);
+  const nPar = SKILLS.reduce((a, s) => a + s.steps.filter(x => x.par).length, 0);
+  const nLoop = EDGES.filter(e => e.ty === "loop").length;
+  document.getElementById("counts").textContent =
+    SKILLS.length + " skills & hooks · " + nSteps + " steps · " + EDGES.length +
+    " edges · " + nGates + " approval gates · " + nLoop + " loop-backs · " + nPar + " parallel fan-outs";
+})();
+
+/* ======================= Edge drawing ======================= */
+
+const wires = document.getElementById("wires");
+const edgeLayer = document.getElementById("edgeLayer");
+const page = document.getElementById("page");
+
+function anchorEl(ref) {
+  const dot = ref.lastIndexOf(".");
+  if (dot > 0 && bySlug[ref.substring(0, dot)]) {
+    return document.getElementById("st-" + ref.substring(0, dot) + "-" + ref.substring(dot + 1));
+  }
+  const card = document.getElementById("card-" + ref);
+  return card ? card.querySelector(".card-head") : null;
+}
+function docRect(el) {
+  const r = el.getBoundingClientRect();
+  const pr = page.getBoundingClientRect();
+  return { x: r.left - pr.left, y: r.top - pr.top, w: r.width, h: r.height };
+}
+
+function drawEdges() {
+  wires.setAttribute("width", page.scrollWidth);
+  wires.setAttribute("height", page.scrollHeight);
+  let html = "";
+  EDGES.forEach((e, i) => {
+    const se = anchorEl(e.f), te = anchorEl(e.t);
+    if (!se || !te) return;
+    const a = docRect(se), b = docRect(te);
+    const sameCard = se.closest(".card") === te.closest(".card");
+    let x1, y1, x2, y2, d;
+    if (sameCard) {
+      x1 = a.x; y1 = a.y + a.h / 2;
+      x2 = b.x; y2 = b.y + b.h / 2;
+      const bulge = 46;
+      d = "M" + x1 + "," + y1 + " C" + (x1 - bulge) + "," + y1 + " " + (x2 - bulge) + "," + y2 + " " + x2 + "," + y2;
+    } else {
+      const acx = a.x + a.w / 2, acy = a.y + a.h / 2;
+      const bcx = b.x + b.w / 2, bcy = b.y + b.h / 2;
+      if (Math.abs(bcx - acx) > Math.abs(bcy - acy)) {
+        const dir = bcx > acx ? 1 : -1;
+        x1 = dir > 0 ? a.x + a.w : a.x; y1 = acy;
+        x2 = dir > 0 ? b.x : b.x + b.w; y2 = bcy;
+        const k = Math.max(36, Math.abs(x2 - x1) * 0.35);
+        d = "M" + x1 + "," + y1 + " C" + (x1 + dir * k) + "," + y1 + " " + (x2 - dir * k) + "," + y2 + " " + x2 + "," + y2;
+      } else {
+        const dir = bcy > acy ? 1 : -1;
+        x1 = acx; y1 = dir > 0 ? a.y + a.h : a.y;
+        x2 = bcx; y2 = dir > 0 ? b.y : b.y + b.h;
+        const k = Math.max(36, Math.abs(y2 - y1) * 0.3);
+        d = "M" + x1 + "," + y1 + " C" + x1 + "," + (y1 + dir * k) + " " + x2 + "," + (y2 - dir * k) + " " + x2 + "," + y2;
+      }
+    }
+    const mx = (x1 + x2) / 2, my = (y1 + y2) / 2 - 6;
+    html += '<path id="edge-' + i + '" class="e-' + e.ty + '" d="' + d + '" marker-end="url(#m-' + e.ty + ')"/>';
+    html += '<text id="elabel-' + i + '" class="l-' + e.ty + '" x="' + mx + '" y="' + my + '" text-anchor="middle">' + e.l + "</text>";
+  });
+  edgeLayer.innerHTML = html;
+}
+
+/* adjacency: element id -> edge indexes */
+const adj = {};
+EDGES.forEach((e, i) => {
+  [e.f, e.t].forEach(ref => {
+    const dot = ref.lastIndexOf(".");
+    const key = (dot > 0 && bySlug[ref.substring(0, dot)])
+      ? "st-" + ref.substring(0, dot) + "-" + ref.substring(dot + 1)
+      : "card-" + ref;
+    (adj[key] = adj[key] || []).push(i);
+  });
+});
+
+function refEls(ref) {
+  const dot = ref.lastIndexOf(".");
+  if (dot > 0 && bySlug[ref.substring(0, dot)]) {
+    const st = document.getElementById("st-" + ref.substring(0, dot) + "-" + ref.substring(dot + 1));
+    return { step: st, card: st ? st.closest(".card") : null };
+  }
+  return { step: null, card: document.getElementById("card-" + ref) };
+}
+
+function setHover(el, on) {
+  const key = el.id;
+  const edges = adj[key] || (el.classList.contains("card-head") ? adj["card-" + el.dataset.skill] : null) || [];
+  if (!edges.length && !on) { clearHover(); return; }
+  clearHover();
+  if (!on || !edges.length) return;
+  document.body.classList.add("hovering");
+  el.classList.add("src");
+  const myCard = el.closest(".card");
+  if (myCard) myCard.classList.add("rel");
+  edges.forEach(i => {
+    const p = document.getElementById("edge-" + i);
+    const t = document.getElementById("elabel-" + i);
+    if (p) p.classList.add("hl");
+    if (t) t.classList.add("hl");
+    [EDGES[i].f, EDGES[i].t].forEach(ref => {
+      const r = refEls(ref);
+      if (r.step) r.step.classList.add("rel");
+      if (r.card) r.card.classList.add("rel");
+    });
+  });
+}
+function clearHover() {
+  document.body.classList.remove("hovering");
+  document.querySelectorAll(".src, .rel").forEach(x => x.classList.remove("src", "rel"));
+  document.querySelectorAll("#wires .hl").forEach(x => x.classList.remove("hl"));
+}
+
+/* ======================= Popup ======================= */
+
+const overlay = document.getElementById("overlay");
+const popup = document.getElementById("popup");
+
+function openPopup(skill, stepKey) {
+  const s = bySlug[skill];
+  const st = stepKey != null ? s.steps.find(x => x.k === stepKey) : null;
+  let pills = pillsFor(s.inv);
+  if (st) {
+    if (st.gate)    pills += '<span class="badge b-gate">&#9208; approval gate</span>';
+    if (st.sub)     pills += '<span class="badge b-sub">subagent</span>';
+    if (st.par)     pills += '<span class="badge b-par">parallel</span>';
+    if (st.commits || (!st && s.commits)) pills += '<span class="badge b-com">commits</span>';
+  } else if (s.commits) {
+    pills += '<span class="badge b-com">commits</span>';
+  }
+  document.getElementById("pop-pills").innerHTML = pills;
+  document.getElementById("pop-skill").textContent =
+    s.slug + (s.inv === "hook" ? " · SessionStart + UserPromptSubmit" : "");
+  document.getElementById("pop-title").textContent = st ? "Step " + st.k + " — " + st.t : s.slug;
+  document.getElementById("pop-desc").textContent = st ? st.d : s.purpose;
+
+  const connBox = document.getElementById("pop-conn");
+  const key = st ? "st-" + skill + "-" + st.k : "card-" + skill;
+  const edges = adj[key] || [];
+  if (edges.length) {
+    const KIND = { call: "calls", chain: "chains", hand: "handover", loop: "loop-back", data: "data" };
+    let items = "";
+    edges.forEach(i => {
+      const e = EDGES[i];
+      const isSrc = (e.f === (st ? skill + "." + st.k : skill));
+      const other = isSrc ? e.t : e.f;
+      items += '<li><span class="ek k-' + e.ty + '">' + KIND[e.ty] + "</span><span>" +
+        (isSrc ? "→ " : "← ") + other + " — " + e.l + "</span></li>";
+    });
+    connBox.innerHTML = "<h4>Connections</h4><ul>" + items + "</ul>";
+  } else {
+    connBox.innerHTML = "";
+  }
+  overlay.classList.add("open");
+  popup.classList.add("open");
+}
+function closePopup() {
+  overlay.classList.remove("open");
+  popup.classList.remove("open");
+}
+overlay.addEventListener("click", closePopup);
+document.getElementById("pop-close").addEventListener("click", closePopup);
+document.addEventListener("keydown", e => { if (e.key === "Escape") closePopup(); });
+
+/* ======================= Overview flow (skills only) ======================= */
+
+const OV_NODES = [
+  { slug: "remote-check",       x: 1,  y: 26 },
+  { slug: "feature-dispatch",   x: 1,  y: 120 },
+  { slug: "feature-storm",      x: 17, y: 120 },
+  { slug: "feature-design",     x: 33, y: 120 },
+  { slug: "feature-plan",       x: 49, y: 120 },
+  { slug: "feature-implement",  x: 65, y: 120 },
+  { slug: "push",               x: 86, y: 82 },
+  { slug: "release",            x: 86, y: 152 },
+  { slug: "feature-resolve",    x: 24, y: 240 },
+  { slug: "lessons-capture",    x: 44, y: 240 },
+  { slug: "evals-code-run",     x: 62, y: 240 },
+  { slug: "evals-e2e-run",      x: 77, y: 240 },
+  { slug: "bug-submit",         x: 6,  y: 350 },
+  { slug: "bug-fix",            x: 24, y: 350 },
+  { slug: "bug-tracker-render", x: 42, y: 350 },
+  { slug: "lessons-learn",      x: 61, y: 350 },
+  { slug: "diagram-update",     x: 86, y: 350 }
+];
+
+/* bend: arc offset in px for same-row edges (negative = arc above) */
+const OV_EDGES = [
+  { f: "remote-check",      t: "feature-dispatch",  ty: "data",  l: "branch-sync warning" },
+  { f: "feature-dispatch",  t: "feature-storm",     ty: "chain", l: "vague" },
+  { f: "feature-dispatch",  t: "feature-design",    ty: "chain", l: "clear, undesigned", bend: -62 },
+  { f: "feature-storm",     t: "feature-design",    ty: "chain", l: "" },
+  { f: "feature-design",    t: "feature-plan",      ty: "chain", l: "" },
+  { f: "feature-plan",      t: "feature-implement", ty: "chain", l: "" },
+  { f: "feature-storm",     t: "feature-resolve",   ty: "call",  l: "" },
+  { f: "feature-design",    t: "feature-resolve",   ty: "call",  l: "" },
+  { f: "feature-plan",      t: "feature-resolve",   ty: "call",  l: "" },
+  { f: "feature-implement", t: "feature-resolve",   ty: "call",  l: "" },
+  { f: "feature-storm",     t: "lessons-capture",   ty: "call",  l: "" },
+  { f: "feature-design",    t: "lessons-capture",   ty: "call",  l: "" },
+  { f: "feature-plan",      t: "lessons-capture",   ty: "call",  l: "" },
+  { f: "feature-implement", t: "lessons-capture",   ty: "call",  l: "" },
+  { f: "bug-fix",           t: "lessons-capture",   ty: "call",  l: "" },
+  { f: "feature-implement", t: "evals-code-run",    ty: "call",  l: "eval offer (parallel)" },
+  { f: "feature-implement", t: "evals-e2e-run",     ty: "call",  l: "" },
+  { f: "feature-plan",      t: "feature-design",    ty: "loop",  l: "BLOCKED: design gap", bend: -52 },
+  { f: "feature-implement", t: "feature-design",    ty: "loop",  l: "design-level drift", bend: -92 },
+  { f: "feature-implement", t: "bug-submit",        ty: "hand",  l: "red test baseline" },
+  { f: "bug-fix",           t: "bug-submit",        ty: "hand",  l: "no open bugs", bend: 44 },
+  { f: "bug-submit",        t: "bug-fix",           ty: "data",  l: "user runs /bug-fix" },
+  { f: "bug-submit",        t: "bug-tracker-render", ty: "call", l: "" },
+  { f: "bug-fix",           t: "bug-tracker-render", ty: "call", l: "" },
+  { f: "lessons-capture",   t: "lessons-learn",     ty: "data",  l: "lessons log" },
+  { f: "feature-implement", t: "push",              ty: "data",  l: "user: /push when ready" },
+  { f: "push",              t: "release",           ty: "data",  l: "then /release" }
+];
+
+const ovbox = document.getElementById("ovbox");
+const ovwires = document.getElementById("ovwires");
+const ovEdgeLayer = document.getElementById("ovEdgeLayer");
+
+OV_NODES.forEach(n => {
+  const s = bySlug[n.slug];
+  const g = GROUPS.find(x => x.id === s.g);
+  const el = document.createElement("div");
+  el.className = "ovnode" + (s.internal ? " internal" : "");
+  el.id = "ov-" + n.slug;
+  el.style.left = n.x + "%";
+  el.style.top = n.y + "px";
+  el.style.setProperty("--ovaccent", g.accent);
+  el.textContent = n.slug;
+  el.title = s.purpose;
+  ovbox.appendChild(el);
+});
+
+const ovAdj = {};
+OV_EDGES.forEach((e, i) => {
+  (ovAdj[e.f] = ovAdj[e.f] || []).push(i);
+  (ovAdj[e.t] = ovAdj[e.t] || []).push(i);
+});
+
+function ovRect(slug) {
+  const r = document.getElementById("ov-" + slug).getBoundingClientRect();
+  const br = ovbox.getBoundingClientRect();
+  return { x: r.left - br.left, y: r.top - br.top, w: r.width, h: r.height };
+}
+
+function drawOverview() {
+  ovwires.setAttribute("width", ovbox.scrollWidth);
+  ovwires.setAttribute("height", ovbox.scrollHeight);
+  let html = "";
+  OV_EDGES.forEach((e, i) => {
+    const a = ovRect(e.f), b = ovRect(e.t);
+    const acx = a.x + a.w / 2, acy = a.y + a.h / 2;
+    const bcx = b.x + b.w / 2, bcy = b.y + b.h / 2;
+    let d, lx, ly;
+    if (e.bend && Math.abs(bcy - acy) < 14) {
+      const top = e.bend < 0;
+      const x1 = acx, y1 = top ? a.y : a.y + a.h;
+      const x2 = bcx, y2 = top ? b.y : b.y + b.h;
+      d = "M" + x1 + "," + y1 + " C" + x1 + "," + (y1 + e.bend) + " " + x2 + "," + (y2 + e.bend) + " " + x2 + "," + y2;
+      lx = (x1 + x2) / 2; ly = y1 + e.bend * 0.75 + (top ? -4 : 14);
+    } else if (Math.abs(bcx - acx) > Math.abs(bcy - acy)) {
+      const dir = bcx > acx ? 1 : -1;
+      const x1 = dir > 0 ? a.x + a.w : a.x, y1 = acy;
+      const x2 = dir > 0 ? b.x : b.x + b.w, y2 = bcy;
+      const k = Math.max(28, Math.abs(x2 - x1) * 0.35);
+      d = "M" + x1 + "," + y1 + " C" + (x1 + dir * k) + "," + y1 + " " + (x2 - dir * k) + "," + y2 + " " + x2 + "," + y2;
+      lx = (x1 + x2) / 2; ly = (y1 + y2) / 2 - 7;
+    } else {
+      const dir = bcy > acy ? 1 : -1;
+      const x1 = acx, y1 = dir > 0 ? a.y + a.h : a.y;
+      const x2 = bcx, y2 = dir > 0 ? b.y : b.y + b.h;
+      const k = Math.max(28, Math.abs(y2 - y1) * 0.3);
+      d = "M" + x1 + "," + y1 + " C" + x1 + "," + (y1 + dir * k) + " " + x2 + "," + (y2 - dir * k) + " " + x2 + "," + y2;
+      lx = (x1 + x2) / 2 + 6; ly = (y1 + y2) / 2;
+    }
+    html += '<path id="ovedge-' + i + '" class="e-' + e.ty + '" d="' + d + '" marker-end="url(#mo-' + e.ty + ')"/>';
+    if (e.l) html += '<text id="ovlabel-' + i + '" class="l-' + e.ty + '" x="' + lx + '" y="' + ly + '" text-anchor="middle">' + e.l + "</text>";
+  });
+  ovEdgeLayer.innerHTML = html;
+}
+
+function ovHover(slug, on) {
+  const edges = ovAdj[slug] || [];
+  document.querySelectorAll("#ovwires .hl, #ovwires .dm").forEach(x => x.classList.remove("hl", "dm"));
+  document.querySelectorAll(".ovnode.dm").forEach(x => x.classList.remove("dm"));
+  if (!on) return;
+  const related = new Set([slug]);
+  edges.forEach(i => { related.add(OV_EDGES[i].f); related.add(OV_EDGES[i].t); });
+  OV_EDGES.forEach((e, i) => {
+    const p = document.getElementById("ovedge-" + i);
+    const t = document.getElementById("ovlabel-" + i);
+    const active = edges.includes(i);
+    if (p) p.classList.add(active ? "hl" : "dm");
+    if (t) t.classList.add(active ? "hl" : "dm");
+  });
+  OV_NODES.forEach(n => {
+    if (!related.has(n.slug)) document.getElementById("ov-" + n.slug).classList.add("dm");
+  });
+}
+
+OV_NODES.forEach(n => {
+  const el = document.getElementById("ov-" + n.slug);
+  el.addEventListener("mouseenter", () => ovHover(n.slug, true));
+  el.addEventListener("mouseleave", () => ovHover(n.slug, false));
+  el.addEventListener("click", () => {
+    const card = document.getElementById("card-" + n.slug);
+    if (card) card.scrollIntoView({ behavior: "smooth", block: "center" });
+  });
+});
+
+/* ======================= Wire up interactions ======================= */
+
+document.querySelectorAll(".step-box").forEach(el => {
+  el.addEventListener("click", () => openPopup(el.dataset.skill, el.dataset.step));
+  el.addEventListener("keydown", e => {
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openPopup(el.dataset.skill, el.dataset.step); }
+  });
+  el.addEventListener("mouseenter", () => setHover(el, true));
+  el.addEventListener("mouseleave", clearHover);
+});
+document.querySelectorAll(".card-head").forEach(el => {
+  el.addEventListener("click", () => openPopup(el.dataset.skill, null));
+  el.addEventListener("mouseenter", () => setHover(el, true));
+  el.addEventListener("mouseleave", clearHover);
+});
+document.querySelectorAll(".callchip").forEach(el => {
+  el.addEventListener("click", e => {
+    e.stopPropagation();
+    const card = document.getElementById("card-" + el.dataset.target);
+    if (card) card.scrollIntoView({ behavior: "smooth", block: "center" });
+  });
+});
+
+let resizeTimer = null;
+window.addEventListener("resize", () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => { drawEdges(); drawOverview(); }, 120);
+});
+drawEdges();
+drawOverview();
+requestAnimationFrame(() => { drawEdges(); drawOverview(); });
+</script>
+</body>
+</html>

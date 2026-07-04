@@ -1,0 +1,850 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>dev-skills — Workflow Diagram</title>
+
+<!--
+  =====================================================================
+  workflow-diagram template (dev-skills plugin)
+  ---------------------------------------------------------------------
+  Source of truth for the PRESENTATION + INTERACTION ENGINE of the
+  plugin's workflow diagram. /diagram-update renders diagram/index.html
+  from this file by substituting seven tokens with per-run values
+  derived from skills/ and hooks/ -- it never edits the engine.
+
+  Tokens (names listed WITHOUT braces here so the anchored occurrences
+  below are the only literal matches; each appears exactly once):
+
+    PLUGIN_VERSION   plugin.json version, e.g. "0.3.22"
+    GENERATED_AT     UTC stamp, e.g. "2026-07-04 13:58 UTC"
+    DIAGRAM_GROUPS   JS array: { id, name, accent (hex), desc }
+    DIAGRAM_SKILLS   JS array, one object per skill/hook:
+                     { slug, g: <group id>, inv: "user"|"agent"|"both"|"hook",
+                       internal?, commits?, purpose,
+                       wraps?: { <id>: <bracket label> },
+                       steps: [{ k, t (<=3 words), d (2-4 sentences),
+                                 gate?, sub?, commits?,
+                                 par?: [unit names], wrap?: <id> }] }
+    DIAGRAM_EDGES    JS array: { f, t, ty, l } -- f/t are "slug.step"
+                     or a bare "slug"; ty is one of
+                     call | chain | hand | loop | data
+    OVERVIEW_NODES   JS array: { slug, x (left %), y (px) } -- every
+                     skill/hook exactly once
+    OVERVIEW_EDGES   JS array: { f, t (bare slugs), ty, l,
+                       bend? (px arc for same-row edges, negative = up) }
+
+  Modification points:
+    - DATA changes (skills, steps, edges, layout) flow through
+      /diagram-update's extraction -- rerun the skill; never hand-edit
+      diagram/index.html, it is overwritten wholesale.
+    - PRESENTATION / INTERACTION changes belong HERE, kept in lockstep
+      with the data contract in skills/diagram-update/SKILL.md.
+
+  Engine-owned conventions (accumulated design decisions -- keep them):
+  skills-only overview panel with always-visible edges; detail-board
+  connectors hidden until a step is hovered; cross-skill invocation
+  chips derived from the edge list (never hand-written); dashed
+  brackets for single-subagent runs and strategy-dependent step loops;
+  parallel-unit brackets; amber gate badges; popup invocation pills;
+  footer counts computed from the data; light/dark theme; fully
+  self-contained output (no external requests).
+  =====================================================================
+-->
+<style>
+  :root {
+    --bg: #f7f8fa;
+    --surface: #ffffff;
+    --surface-2: #f1f3f6;
+    --border: #e3e6eb;
+    --text: #101623;
+    --muted: #5b6472;
+    --subtle: #9aa2ae;
+    --shadow: 0 1px 2px rgba(16,22,35,.05), 0 8px 24px rgba(16,22,35,.06);
+    --gate-bg: #fef3c7; --gate-fg: #92400e; --gate-bd: #fcd34d;
+    --sub-bg: #ede9fe;  --sub-fg: #5b21b6;  --sub-bd: #c4b5fd;
+    --par-bg: #ccfbf1;  --par-fg: #115e59;  --par-bd: #5eead4;
+    --com-bg: #ffe4e6;  --com-fg: #9f1239;  --com-bd: #fda4af;
+    --pill-user-bg: #dbeafe; --pill-user-fg: #1e40af;
+    --pill-agent-bg: #e2e8f0; --pill-agent-fg: #334155;
+    --edge-call: #8c96a5;
+    --edge-chain: #5b5bd6;
+    --edge-hand: #c026d3;
+    --edge-loop: #d97706;
+    --edge-data: #8c96a5;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, system-ui, sans-serif;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0c0e12;
+      --surface: #14171d;
+      --surface-2: #1b1f27;
+      --border: #272c36;
+      --text: #eef1f5;
+      --muted: #a2aab6;
+      --subtle: #6b7380;
+      --shadow: 0 1px 2px rgba(0,0,0,.5), 0 10px 28px rgba(0,0,0,.35);
+      --gate-bg: rgba(245,158,11,.16); --gate-fg: #fbbf24; --gate-bd: rgba(245,158,11,.4);
+      --sub-bg: rgba(139,92,246,.16);  --sub-fg: #c4b5fd;  --sub-bd: rgba(139,92,246,.4);
+      --par-bg: rgba(20,184,166,.16);  --par-fg: #5eead4;  --par-bd: rgba(20,184,166,.4);
+      --com-bg: rgba(244,63,94,.16);   --com-fg: #fda4af;  --com-bd: rgba(244,63,94,.4);
+      --pill-user-bg: rgba(59,130,246,.18); --pill-user-fg: #93c5fd;
+      --pill-agent-bg: rgba(148,163,184,.16); --pill-agent-fg: #cbd5e1;
+      --edge-call: #5d6675;
+      --edge-chain: #818cf8;
+      --edge-hand: #e879f9;
+      --edge-loop: #f59e0b;
+      --edge-data: #5d6675;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: var(--sans); font-size: 15px; line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+  #page { position: relative; max-width: 1480px; margin: 0 auto; padding: 44px 36px 90px; }
+
+  /* Header ---------------------------------------------------------- */
+  header.top { margin-bottom: 26px; }
+  .chiprow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .vchip {
+    font-family: var(--mono); font-size: 11.5px; font-weight: 600;
+    background: var(--surface-2); border: 1px solid var(--border);
+    color: var(--muted); padding: 3px 10px; border-radius: 999px;
+  }
+  h1 { margin: 12px 0 6px; font-size: 30px; letter-spacing: -.02em; line-height: 1.15; }
+  .intro { max-width: 900px; color: var(--muted); margin: 0; }
+
+  /* Legend ---------------------------------------------------------- */
+  .legend {
+    margin-top: 20px; background: var(--surface); border: 1px solid var(--border);
+    border-radius: 14px; padding: 16px 20px; box-shadow: var(--shadow);
+    display: flex; flex-wrap: wrap; gap: 22px 34px; font-size: 12.5px;
+  }
+  .legend h3 { margin: 0 0 8px; font-size: 11px; text-transform: uppercase; letter-spacing: .09em; color: var(--subtle); }
+  .legend .col { min-width: 150px; }
+  .lg-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; color: var(--muted); }
+  .lg-row:last-child { margin-bottom: 0; }
+  .swatch { flex: 0 0 34px; height: 0; border-top: 2.5px solid; border-radius: 2px; position: relative; }
+  .swatch.dashed { border-top-style: dashed; }
+  .swatch.dotted { border-top-style: dotted; }
+  .swatch::after { content: ""; position: absolute; right: -1px; top: -4.5px; border: 3.5px solid transparent; border-left: 6px solid; border-left-color: inherit; }
+
+  /* Badges + pills --------------------------------------------------- */
+  .badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 10px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+    padding: 1.5px 7px; border-radius: 999px; border: 1px solid;
+    white-space: nowrap;
+  }
+  .b-gate { background: var(--gate-bg); color: var(--gate-fg); border-color: var(--gate-bd); }
+  .b-sub  { background: var(--sub-bg);  color: var(--sub-fg);  border-color: var(--sub-bd); }
+  .b-par  { background: var(--par-bg);  color: var(--par-fg);  border-color: var(--par-bd); }
+  .b-com  { background: var(--com-bg);  color: var(--com-fg);  border-color: var(--com-bd); }
+  .pill {
+    display: inline-flex; align-items: center;
+    font-size: 10.5px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase;
+    padding: 2px 9px; border-radius: 999px;
+  }
+  .p-user  { background: var(--pill-user-bg); color: var(--pill-user-fg); }
+  .p-agent { background: var(--pill-agent-bg); color: var(--pill-agent-fg); }
+
+  /* Groups + cards --------------------------------------------------- */
+  section.group { margin-top: 34px; position: relative; }
+  .group-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 12px; }
+  .group-head h2 { margin: 0; font-size: 17px; letter-spacing: -.01em; }
+  .group-head .gdot { width: 10px; height: 10px; border-radius: 3px; flex: 0 0 auto; transform: translateY(-1px); }
+  .group-head p { margin: 0; color: var(--subtle); font-size: 12.5px; }
+  .cards { display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); align-items: start; }
+  section.group[data-g="chain"] .cards { grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
+
+  .card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+    box-shadow: var(--shadow); overflow: hidden;
+    border-top: 3px solid var(--accent, var(--border));
+    transition: opacity .18s ease, box-shadow .18s ease;
+  }
+  .card.internal { background: color-mix(in srgb, var(--surface) 60%, var(--bg)); }
+  .card.internal .card-name { color: var(--muted); }
+  .card-head { padding: 13px 15px 11px; cursor: pointer; }
+  .card-head:hover { background: var(--surface-2); }
+  .card-name { font-family: var(--mono); font-size: 14px; font-weight: 700; letter-spacing: -.01em; }
+  .card-pills { display: flex; gap: 5px; flex-wrap: wrap; margin: 7px 0 6px; }
+  .card-purpose { font-size: 12px; color: var(--muted); line-height: 1.45; }
+  .steps { padding: 6px 10px 12px; display: flex; flex-direction: column; gap: 6px; }
+
+  .step-box {
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    background: var(--surface-2); border: 1px solid var(--border); border-radius: 9px;
+    padding: 6px 9px; cursor: pointer; position: relative;
+    transition: border-color .15s ease, background .15s ease, opacity .18s ease, box-shadow .15s ease;
+  }
+  .step-box:hover { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+  .step-box.gate { border-left: 3px solid var(--gate-bd); }
+  .sn {
+    font-family: var(--mono); font-size: 10px; font-weight: 700; color: var(--subtle);
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 6px; padding: 1px 5px; flex: 0 0 auto;
+  }
+  .st { font-size: 12.5px; font-weight: 600; letter-spacing: -.005em; }
+  .step-badges { display: inline-flex; gap: 4px; margin-left: auto; }
+
+  .parwrap {
+    flex-basis: 100%; margin-top: 5px; border: 1.5px dashed var(--par-bd);
+    border-radius: 8px; padding: 6px 8px 7px; background: color-mix(in srgb, var(--par-bg) 40%, transparent);
+  }
+  .parlabel { font-size: 9px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--par-fg); margin-bottom: 5px; }
+  .parunits { display: flex; flex-wrap: wrap; gap: 4px; }
+  .parunit {
+    font-family: var(--mono); font-size: 10px; background: var(--surface);
+    border: 1px solid var(--border); color: var(--muted);
+    border-radius: 6px; padding: 2px 6px;
+  }
+
+  /* Single-subagent bracket around a contiguous delegated step run ---- */
+  .subwrap {
+    display: flex; flex-direction: column; gap: 6px;
+    border: 1.5px dashed var(--sub-bd); border-radius: 10px;
+    padding: 7px 7px 8px; margin: 1px 0;
+    background: color-mix(in srgb, var(--sub-bg) 40%, transparent);
+  }
+  .sublabel {
+    font-size: 9px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--sub-fg); padding-left: 2px;
+  }
+
+  /* Cross-skill invocation chips on step boxes ------------------------ */
+  .callrow { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+  .callchip {
+    font-family: var(--mono); font-size: 10px; font-weight: 600;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 6px; padding: 2px 7px; cursor: pointer;
+    color: var(--muted); transition: border-color .12s ease, color .12s ease;
+  }
+  .callchip:hover { border-color: currentColor; }
+  .callchip.t-call { color: var(--pill-user-fg); background: color-mix(in srgb, var(--pill-user-bg) 55%, var(--surface)); }
+  .callchip.t-chain { color: var(--edge-chain); }
+  .callchip.t-hand { color: var(--edge-hand); }
+  .callchip.t-loop { color: var(--edge-loop); }
+
+  /* Hover dimming ----------------------------------------------------- */
+  body.hovering .card { opacity: .38; }
+  body.hovering .card.rel { opacity: 1; }
+  body.hovering .step-box { opacity: .45; }
+  body.hovering .step-box.rel, body.hovering .step-box.src { opacity: 1; }
+  .step-box.src { border-color: var(--accent); box-shadow: 0 0 0 1.5px var(--accent); }
+  .step-box.rel { border-color: var(--accent); }
+
+  /* Edges (SVG overlay) ---------------------------------------------- */
+  #wires { position: absolute; top: 0; left: 0; pointer-events: none; overflow: visible; z-index: 3; }
+  /* Detailed-board connectors are hidden until a step is hovered. */
+  #wires path { fill: none; stroke-width: 1.6; opacity: 0; transition: opacity .15s ease, stroke-width .15s ease; }
+  #wires path.e-call { stroke: var(--edge-call); }
+  #wires path.e-chain { stroke: var(--edge-chain); stroke-width: 2.2; }
+  #wires path.e-hand { stroke: var(--edge-hand); stroke-dasharray: 7 5; }
+  #wires path.e-loop { stroke: var(--edge-loop); stroke-dasharray: 5 4; }
+  #wires path.e-data { stroke: var(--edge-data); stroke-dasharray: 2 4; }
+  #wires path.hl { opacity: 1; stroke-width: 2.6; }
+  #wires text {
+    font-family: var(--sans); font-size: 10.5px; font-weight: 600;
+    fill: var(--muted); opacity: 0; transition: opacity .15s ease;
+    paint-order: stroke; stroke: var(--bg); stroke-width: 4px; stroke-linejoin: round;
+  }
+  #wires text.l-loop { fill: var(--edge-loop); }
+  #wires text.l-hand { fill: var(--edge-hand); }
+  #wires text.hl { opacity: 1; }
+
+  /* Overview flow (skills only) ---------------------------------------- */
+  .ovwrap {
+    margin-top: 30px; background: var(--surface); border: 1px solid var(--border);
+    border-radius: 14px; box-shadow: var(--shadow); overflow-x: auto;
+  }
+  .ovwrap h2 { margin: 18px 22px 0; font-size: 17px; letter-spacing: -.01em; }
+  .ovwrap .ovhint { margin: 3px 22px 0; font-size: 12.5px; color: var(--subtle); }
+  #ovbox { position: relative; height: 430px; min-width: 1080px; }
+  #ovwires { position: absolute; top: 0; left: 0; pointer-events: none; overflow: visible; }
+  #ovwires path { fill: none; stroke-width: 1.7; opacity: .5; transition: opacity .15s ease, stroke-width .15s ease; }
+  #ovwires path.e-call { stroke: var(--edge-call); stroke-width: 1.2; opacity: .35; }
+  #ovwires path.e-chain { stroke: var(--edge-chain); stroke-width: 2.4; opacity: .8; }
+  #ovwires path.e-hand { stroke: var(--edge-hand); stroke-dasharray: 7 5; opacity: .6; }
+  #ovwires path.e-loop { stroke: var(--edge-loop); stroke-dasharray: 5 4; opacity: .6; }
+  #ovwires path.e-data { stroke: var(--edge-data); stroke-dasharray: 2 4; opacity: .55; }
+  #ovwires path.hl { opacity: 1; stroke-width: 2.8; }
+  #ovwires path.dm { opacity: .07; }
+  #ovwires text {
+    font-family: var(--sans); font-size: 10px; font-weight: 600; fill: var(--muted); opacity: .85;
+    paint-order: stroke; stroke: var(--surface); stroke-width: 4px; stroke-linejoin: round;
+    transition: opacity .15s ease;
+  }
+  #ovwires text.l-loop { fill: var(--edge-loop); }
+  #ovwires text.l-hand { fill: var(--edge-hand); }
+  #ovwires text.dm { opacity: .07; }
+  .ovnode {
+    position: absolute; z-index: 2; cursor: pointer;
+    font-family: var(--mono); font-size: 11px; font-weight: 700; letter-spacing: -.01em;
+    background: var(--surface); color: var(--text);
+    border: 1px solid var(--border); border-left: 4px solid var(--ovaccent, var(--border));
+    border-radius: 9px; padding: 6px 11px; box-shadow: var(--shadow);
+    white-space: nowrap; transition: transform .12s ease, box-shadow .12s ease, opacity .15s ease;
+  }
+  .ovnode:hover { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(0,0,0,.18); }
+  .ovnode.internal { color: var(--muted); background: var(--surface-2); }
+  .ovnode.dm { opacity: .25; }
+
+  /* Popup ------------------------------------------------------------ */
+  #overlay {
+    position: fixed; inset: 0; background: rgba(10,12,18,.45);
+    backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px);
+    z-index: 40; display: none;
+  }
+  #overlay.open { display: block; }
+  #popup {
+    position: fixed; z-index: 41; top: 50%; left: 50%; transform: translate(-50%,-50%);
+    width: min(560px, calc(100vw - 40px)); max-height: min(72vh, 640px);
+    background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
+    box-shadow: 0 24px 70px rgba(0,0,0,.35); display: none; flex-direction: column;
+  }
+  #popup.open { display: flex; }
+  .pop-head { padding: 18px 22px 0; }
+  .pop-pills { display: flex; gap: 6px; flex-wrap: wrap; padding-right: 40px; }
+  .pop-skill { margin-top: 12px; font-family: var(--mono); font-size: 12px; color: var(--subtle); }
+  .pop-title { font-size: 19px; font-weight: 700; letter-spacing: -.015em; margin: 3px 0 0; }
+  .pop-body { padding: 12px 22px 20px; overflow-y: auto; }
+  .pop-body p { margin: 0 0 12px; color: var(--text); }
+  .pop-conn h4 { margin: 14px 0 6px; font-size: 10.5px; text-transform: uppercase; letter-spacing: .09em; color: var(--subtle); }
+  .pop-conn ul { margin: 0; padding: 0; list-style: none; }
+  .pop-conn li { font-size: 12.5px; color: var(--muted); padding: 3px 0; display: flex; gap: 7px; align-items: baseline; }
+  .pop-conn .ek { font-family: var(--mono); font-size: 10px; font-weight: 700; text-transform: uppercase; flex: 0 0 auto; border-radius: 5px; padding: 1px 6px; border: 1px solid var(--border); }
+  .ek.k-call { color: var(--edge-call); }
+  .ek.k-chain { color: var(--edge-chain); }
+  .ek.k-hand { color: var(--edge-hand); }
+  .ek.k-loop { color: var(--edge-loop); }
+  .ek.k-data { color: var(--edge-data); }
+  #pop-close {
+    position: absolute; top: 12px; right: 12px; width: 30px; height: 30px;
+    border-radius: 8px; border: 1px solid var(--border); background: var(--surface-2);
+    color: var(--muted); font-size: 15px; line-height: 1; cursor: pointer;
+  }
+  #pop-close:hover { color: var(--text); }
+
+  footer.bottom {
+    margin-top: 44px; padding-top: 18px; border-top: 1px solid var(--border);
+    color: var(--subtle); font-size: 12px; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px;
+  }
+
+  @media (max-width: 720px) {
+    #page { padding: 26px 14px 60px; }
+    h1 { font-size: 23px; }
+    .legend { gap: 14px 20px; }
+  }
+</style>
+</head>
+<body>
+<div id="page">
+  <header class="top">
+    <div class="chiprow">
+      <span class="vchip">dev-skills v{{PLUGIN_VERSION}}</span>
+      <span class="vchip">generated {{GENERATED_AT}}</span>
+      <span class="vchip">by /diagram-update</span>
+    </div>
+    <h1>dev-skills — end-to-end workflow</h1>
+    <p class="intro">The overview below shows how the skills connect end-to-end; the detailed cards underneath break each skill into its procedure steps. <strong>Click a step</strong> for what it does and who can invoke its skill; <strong>hover a step</strong> to reveal its connectors to other steps and skills (hidden otherwise). Amber-edged steps are human approval gates; dashed amber arrows show where the flow goes back when something fails.</p>
+
+    <div class="legend" aria-label="Legend">
+      <div class="col">
+        <h3>Invocation pills</h3>
+        <div class="lg-row"><span class="pill p-user">User</span> invocable via slash command</div>
+        <div class="lg-row"><span class="pill p-agent">Agent</span> the model may invoke it</div>
+        <div class="lg-row"><span class="pill p-agent">Hook</span> fired by the harness, not invoked</div>
+      </div>
+      <div class="col">
+        <h3>Step badges</h3>
+        <div class="lg-row"><span class="badge b-gate">&#9208; gate</span> human approval required</div>
+        <div class="lg-row"><span class="badge b-sub">subagent</span> runs in a delegated subagent</div>
+        <div class="lg-row"><span class="badge b-par">parallel</span> fans out concurrently</div>
+        <div class="lg-row"><span class="badge b-com">commits</span> creates git commits</div>
+        <div class="lg-row"><span class="callchip t-call">&#8594; skill</span> invokes that skill — click to jump</div>
+      </div>
+      <div class="col">
+        <h3>Edges (hover a step)</h3>
+        <div class="lg-row"><span class="swatch" style="border-color:var(--edge-call)"></span> calls an internal skill</div>
+        <div class="lg-row"><span class="swatch" style="border-color:var(--edge-chain)"></span> chains into the next stage</div>
+        <div class="lg-row"><span class="swatch dashed" style="border-color:var(--edge-hand)"></span> hands over on a condition</div>
+        <div class="lg-row"><span class="swatch dashed" style="border-color:var(--edge-loop)"></span> loops back on failure</div>
+        <div class="lg-row"><span class="swatch dotted" style="border-color:var(--edge-data)"></span> data feed / manual follow-up</div>
+      </div>
+    </div>
+  </header>
+
+  <div class="ovwrap">
+    <h2>End-to-end flow</h2>
+    <p class="ovhint">Skills only — hover a node to isolate its connections, click it to jump to its detailed card below.</p>
+    <div id="ovbox">
+      <svg id="ovwires" aria-hidden="true">
+        <defs>
+          <marker id="mo-call" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--edge-call)"/></marker>
+          <marker id="mo-chain" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--edge-chain)"/></marker>
+          <marker id="mo-hand" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--edge-hand)"/></marker>
+          <marker id="mo-loop" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--edge-loop)"/></marker>
+          <marker id="mo-data" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--edge-data)"/></marker>
+        </defs>
+        <g id="ovEdgeLayer"></g>
+      </svg>
+    </div>
+  </div>
+
+  <main id="board"></main>
+
+  <svg id="wires" aria-hidden="true">
+    <defs>
+      <marker id="m-call" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--edge-call)"/></marker>
+      <marker id="m-chain" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--edge-chain)"/></marker>
+      <marker id="m-hand" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--edge-hand)"/></marker>
+      <marker id="m-loop" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--edge-loop)"/></marker>
+      <marker id="m-data" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--edge-data)"/></marker>
+    </defs>
+    <g id="edgeLayer"></g>
+  </svg>
+
+  <footer class="bottom">
+    <span id="counts"></span>
+    <span>Regenerate any time with <code>/diagram-update</code> — this file is overwritten wholesale.</span>
+  </footer>
+</div>
+
+<div id="overlay"></div>
+<div id="popup" role="dialog" aria-modal="true">
+  <button id="pop-close" aria-label="Close">&#10005;</button>
+  <div class="pop-head">
+    <div class="pop-pills" id="pop-pills"></div>
+    <div class="pop-skill" id="pop-skill"></div>
+    <h2 class="pop-title" id="pop-title"></h2>
+  </div>
+  <div class="pop-body">
+    <p id="pop-desc"></p>
+    <div class="pop-conn" id="pop-conn"></div>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+/* ======================= DATA (derived from skills/, hooks/) ======================= */
+
+const GROUPS = {{DIAGRAM_GROUPS}};
+
+const SKILLS = {{DIAGRAM_SKILLS}};
+
+/* Edges: f/t are "slug.stepKey" or a bare "slug" (anchors to the card header). */
+const EDGES = {{DIAGRAM_EDGES}};
+
+/* ======================= Render ======================= */
+
+const board = document.getElementById("board");
+const bySlug = {};
+SKILLS.forEach(s => { bySlug[s.slug] = s; });
+
+function pillsFor(inv) {
+  if (inv === "both")  return '<span class="pill p-user">User</span><span class="pill p-agent">Agent</span>';
+  if (inv === "user")  return '<span class="pill p-user">User only</span>';
+  if (inv === "hook")  return '<span class="pill p-agent">Hook</span>';
+  return '<span class="pill p-agent">Agent only</span>';
+}
+function badgesFor(st, inSubWrap) {
+  let h = "";
+  if (st.gate)    h += '<span class="badge b-gate">&#9208; gate</span>';
+  if (st.sub && !inSubWrap) h += '<span class="badge b-sub">subagent</span>';
+  if (st.par)     h += '<span class="badge b-par">parallel</span>';
+  if (st.commits) h += '<span class="badge b-com">commits</span>';
+  return h;
+}
+
+/* Steps that invoke another skill get a visible chip naming the target
+   (the connectors are hidden until hover, so the delegation must be
+   readable at rest). Derived from EDGES, never hand-maintained. */
+const stepCalls = {};
+EDGES.forEach(e => {
+  if (e.ty === "data") return;
+  const dot = e.f.lastIndexOf(".");
+  if (dot < 0) return;
+  const src = e.f.substring(0, dot);
+  const tdot = e.t.lastIndexOf(".");
+  const tgt = (tdot > 0 && bySlug[e.t.substring(0, tdot)]) ? e.t.substring(0, tdot) : e.t;
+  if (!bySlug[tgt] || tgt === src) return;
+  const list = (stepCalls[e.f] = stepCalls[e.f] || []);
+  if (!list.some(c => c.tgt === tgt)) list.push({ tgt, ty: e.ty });
+});
+
+GROUPS.forEach(g => {
+  const skills = SKILLS.filter(s => s.g === g.id);
+  if (!skills.length) return;
+  const sec = document.createElement("section");
+  sec.className = "group";
+  sec.dataset.g = g.id;
+  sec.innerHTML =
+    '<div class="group-head"><span class="gdot" style="background:' + g.accent + '"></span>' +
+    "<h2>" + g.name + "</h2><p>" + g.desc + "</p></div>" +
+    '<div class="cards"></div>';
+  const cards = sec.querySelector(".cards");
+  skills.forEach(s => {
+    const card = document.createElement("article");
+    card.className = "card" + (s.internal ? " internal" : "");
+    card.id = "card-" + s.slug;
+    card.style.setProperty("--accent", g.accent);
+    function renderStep(st, inSubWrap) {
+      let parHtml = "";
+      if (st.par) {
+        parHtml = '<div class="parwrap"><div class="parlabel">parallel</div><div class="parunits">' +
+          st.par.map(u => '<span class="parunit">' + u + "</span>").join("") + "</div></div>";
+      }
+      const calls = (stepCalls[s.slug + "." + st.k] || [])
+        .filter(c => !(st.par && st.par.includes(c.tgt)));
+      const callHtml = calls.length
+        ? '<div class="callrow">' + calls.map(c =>
+            '<span class="callchip t-' + c.ty + '" data-target="' + c.tgt + '" title="' +
+            (c.ty === "loop" ? "flow can return to " : "invokes ") + c.tgt + '">' +
+            (c.ty === "loop" ? "&#8617; " : "&#8594; ") + c.tgt + "</span>").join("") + "</div>"
+        : "";
+      return '<div class="step-box' + (st.gate ? " gate" : "") + '" id="st-' + s.slug + "-" + st.k +
+        '" data-skill="' + s.slug + '" data-step="' + st.k + '" tabindex="0" role="button">' +
+        '<span class="sn">' + st.k + '</span><span class="st">' + st.t + "</span>" +
+        '<span class="step-badges">' + badgesFor(st, inSubWrap) + "</span>" + callHtml + parHtml + "</div>";
+    }
+    /* Contiguous steps sharing a `wrap` id render inside ONE dashed
+       bracket (labelled via the skill's `wraps` map) — used for a run
+       delegated to a single subagent, or a per-stage execution loop. */
+    let stepsHtml = "";
+    for (let i = 0; i < s.steps.length; ) {
+      const w = s.steps[i].wrap;
+      if (w) {
+        let j = i;
+        while (j < s.steps.length && s.steps[j].wrap === w) j++;
+        stepsHtml += '<div class="subwrap"><div class="sublabel">' + s.wraps[w] + "</div>" +
+          s.steps.slice(i, j).map(st => renderStep(st, true)).join("") + "</div>";
+        i = j; continue;
+      }
+      stepsHtml += renderStep(s.steps[i], false);
+      i++;
+    }
+    card.innerHTML =
+      '<div class="card-head" data-skill="' + s.slug + '">' +
+      '<div class="card-name">' + s.slug + "</div>" +
+      '<div class="card-pills">' + pillsFor(s.inv) +
+      (s.commits ? '<span class="badge b-com">commits</span>' : "") + "</div>" +
+      '<div class="card-purpose">' + s.purpose + "</div></div>" +
+      '<div class="steps">' + stepsHtml + "</div>";
+    cards.appendChild(card);
+  });
+  board.appendChild(sec);
+});
+
+/* footer counts */
+(function () {
+  const nSteps = SKILLS.reduce((a, s) => a + s.steps.length, 0);
+  const nGates = SKILLS.reduce((a, s) => a + s.steps.filter(x => x.gate).length, 0);
+  const nPar = SKILLS.reduce((a, s) => a + s.steps.filter(x => x.par).length, 0);
+  const nLoop = EDGES.filter(e => e.ty === "loop").length;
+  document.getElementById("counts").textContent =
+    SKILLS.length + " skills & hooks · " + nSteps + " steps · " + EDGES.length +
+    " edges · " + nGates + " approval gates · " + nLoop + " loop-backs · " + nPar + " parallel fan-outs";
+})();
+
+/* ======================= Edge drawing ======================= */
+
+const wires = document.getElementById("wires");
+const edgeLayer = document.getElementById("edgeLayer");
+const page = document.getElementById("page");
+
+function anchorEl(ref) {
+  const dot = ref.lastIndexOf(".");
+  if (dot > 0 && bySlug[ref.substring(0, dot)]) {
+    return document.getElementById("st-" + ref.substring(0, dot) + "-" + ref.substring(dot + 1));
+  }
+  const card = document.getElementById("card-" + ref);
+  return card ? card.querySelector(".card-head") : null;
+}
+function docRect(el) {
+  const r = el.getBoundingClientRect();
+  const pr = page.getBoundingClientRect();
+  return { x: r.left - pr.left, y: r.top - pr.top, w: r.width, h: r.height };
+}
+
+function drawEdges() {
+  wires.setAttribute("width", page.scrollWidth);
+  wires.setAttribute("height", page.scrollHeight);
+  let html = "";
+  EDGES.forEach((e, i) => {
+    const se = anchorEl(e.f), te = anchorEl(e.t);
+    if (!se || !te) return;
+    const a = docRect(se), b = docRect(te);
+    const sameCard = se.closest(".card") === te.closest(".card");
+    let x1, y1, x2, y2, d;
+    if (sameCard) {
+      x1 = a.x; y1 = a.y + a.h / 2;
+      x2 = b.x; y2 = b.y + b.h / 2;
+      const bulge = 46;
+      d = "M" + x1 + "," + y1 + " C" + (x1 - bulge) + "," + y1 + " " + (x2 - bulge) + "," + y2 + " " + x2 + "," + y2;
+    } else {
+      const acx = a.x + a.w / 2, acy = a.y + a.h / 2;
+      const bcx = b.x + b.w / 2, bcy = b.y + b.h / 2;
+      if (Math.abs(bcx - acx) > Math.abs(bcy - acy)) {
+        const dir = bcx > acx ? 1 : -1;
+        x1 = dir > 0 ? a.x + a.w : a.x; y1 = acy;
+        x2 = dir > 0 ? b.x : b.x + b.w; y2 = bcy;
+        const k = Math.max(36, Math.abs(x2 - x1) * 0.35);
+        d = "M" + x1 + "," + y1 + " C" + (x1 + dir * k) + "," + y1 + " " + (x2 - dir * k) + "," + y2 + " " + x2 + "," + y2;
+      } else {
+        const dir = bcy > acy ? 1 : -1;
+        x1 = acx; y1 = dir > 0 ? a.y + a.h : a.y;
+        x2 = bcx; y2 = dir > 0 ? b.y : b.y + b.h;
+        const k = Math.max(36, Math.abs(y2 - y1) * 0.3);
+        d = "M" + x1 + "," + y1 + " C" + x1 + "," + (y1 + dir * k) + " " + x2 + "," + (y2 - dir * k) + " " + x2 + "," + y2;
+      }
+    }
+    const mx = (x1 + x2) / 2, my = (y1 + y2) / 2 - 6;
+    html += '<path id="edge-' + i + '" class="e-' + e.ty + '" d="' + d + '" marker-end="url(#m-' + e.ty + ')"/>';
+    html += '<text id="elabel-' + i + '" class="l-' + e.ty + '" x="' + mx + '" y="' + my + '" text-anchor="middle">' + e.l + "</text>";
+  });
+  edgeLayer.innerHTML = html;
+}
+
+/* adjacency: element id -> edge indexes */
+const adj = {};
+EDGES.forEach((e, i) => {
+  [e.f, e.t].forEach(ref => {
+    const dot = ref.lastIndexOf(".");
+    const key = (dot > 0 && bySlug[ref.substring(0, dot)])
+      ? "st-" + ref.substring(0, dot) + "-" + ref.substring(dot + 1)
+      : "card-" + ref;
+    (adj[key] = adj[key] || []).push(i);
+  });
+});
+
+function refEls(ref) {
+  const dot = ref.lastIndexOf(".");
+  if (dot > 0 && bySlug[ref.substring(0, dot)]) {
+    const st = document.getElementById("st-" + ref.substring(0, dot) + "-" + ref.substring(dot + 1));
+    return { step: st, card: st ? st.closest(".card") : null };
+  }
+  return { step: null, card: document.getElementById("card-" + ref) };
+}
+
+function setHover(el, on) {
+  const key = el.id;
+  const edges = adj[key] || (el.classList.contains("card-head") ? adj["card-" + el.dataset.skill] : null) || [];
+  if (!edges.length && !on) { clearHover(); return; }
+  clearHover();
+  if (!on || !edges.length) return;
+  document.body.classList.add("hovering");
+  el.classList.add("src");
+  const myCard = el.closest(".card");
+  if (myCard) myCard.classList.add("rel");
+  edges.forEach(i => {
+    const p = document.getElementById("edge-" + i);
+    const t = document.getElementById("elabel-" + i);
+    if (p) p.classList.add("hl");
+    if (t) t.classList.add("hl");
+    [EDGES[i].f, EDGES[i].t].forEach(ref => {
+      const r = refEls(ref);
+      if (r.step) r.step.classList.add("rel");
+      if (r.card) r.card.classList.add("rel");
+    });
+  });
+}
+function clearHover() {
+  document.body.classList.remove("hovering");
+  document.querySelectorAll(".src, .rel").forEach(x => x.classList.remove("src", "rel"));
+  document.querySelectorAll("#wires .hl").forEach(x => x.classList.remove("hl"));
+}
+
+/* ======================= Popup ======================= */
+
+const overlay = document.getElementById("overlay");
+const popup = document.getElementById("popup");
+
+function openPopup(skill, stepKey) {
+  const s = bySlug[skill];
+  const st = stepKey != null ? s.steps.find(x => x.k === stepKey) : null;
+  let pills = pillsFor(s.inv);
+  if (st) {
+    if (st.gate)    pills += '<span class="badge b-gate">&#9208; approval gate</span>';
+    if (st.sub)     pills += '<span class="badge b-sub">subagent</span>';
+    if (st.par)     pills += '<span class="badge b-par">parallel</span>';
+    if (st.commits || (!st && s.commits)) pills += '<span class="badge b-com">commits</span>';
+  } else if (s.commits) {
+    pills += '<span class="badge b-com">commits</span>';
+  }
+  document.getElementById("pop-pills").innerHTML = pills;
+  document.getElementById("pop-skill").textContent =
+    s.slug + (s.inv === "hook" ? " · SessionStart + UserPromptSubmit" : "");
+  document.getElementById("pop-title").textContent = st ? "Step " + st.k + " — " + st.t : s.slug;
+  document.getElementById("pop-desc").textContent = st ? st.d : s.purpose;
+
+  const connBox = document.getElementById("pop-conn");
+  const key = st ? "st-" + skill + "-" + st.k : "card-" + skill;
+  const edges = adj[key] || [];
+  if (edges.length) {
+    const KIND = { call: "calls", chain: "chains", hand: "handover", loop: "loop-back", data: "data" };
+    let items = "";
+    edges.forEach(i => {
+      const e = EDGES[i];
+      const isSrc = (e.f === (st ? skill + "." + st.k : skill));
+      const other = isSrc ? e.t : e.f;
+      items += '<li><span class="ek k-' + e.ty + '">' + KIND[e.ty] + "</span><span>" +
+        (isSrc ? "→ " : "← ") + other + " — " + e.l + "</span></li>";
+    });
+    connBox.innerHTML = "<h4>Connections</h4><ul>" + items + "</ul>";
+  } else {
+    connBox.innerHTML = "";
+  }
+  overlay.classList.add("open");
+  popup.classList.add("open");
+}
+function closePopup() {
+  overlay.classList.remove("open");
+  popup.classList.remove("open");
+}
+overlay.addEventListener("click", closePopup);
+document.getElementById("pop-close").addEventListener("click", closePopup);
+document.addEventListener("keydown", e => { if (e.key === "Escape") closePopup(); });
+
+/* ======================= Overview flow (skills only) ======================= */
+
+const OV_NODES = {{OVERVIEW_NODES}};
+
+/* bend: arc offset in px for same-row edges (negative = arc above) */
+const OV_EDGES = {{OVERVIEW_EDGES}};
+
+const ovbox = document.getElementById("ovbox");
+const ovwires = document.getElementById("ovwires");
+const ovEdgeLayer = document.getElementById("ovEdgeLayer");
+
+OV_NODES.forEach(n => {
+  const s = bySlug[n.slug];
+  const g = GROUPS.find(x => x.id === s.g);
+  const el = document.createElement("div");
+  el.className = "ovnode" + (s.internal ? " internal" : "");
+  el.id = "ov-" + n.slug;
+  el.style.left = n.x + "%";
+  el.style.top = n.y + "px";
+  el.style.setProperty("--ovaccent", g.accent);
+  el.textContent = n.slug;
+  el.title = s.purpose;
+  ovbox.appendChild(el);
+});
+
+const ovAdj = {};
+OV_EDGES.forEach((e, i) => {
+  (ovAdj[e.f] = ovAdj[e.f] || []).push(i);
+  (ovAdj[e.t] = ovAdj[e.t] || []).push(i);
+});
+
+function ovRect(slug) {
+  const r = document.getElementById("ov-" + slug).getBoundingClientRect();
+  const br = ovbox.getBoundingClientRect();
+  return { x: r.left - br.left, y: r.top - br.top, w: r.width, h: r.height };
+}
+
+function drawOverview() {
+  ovwires.setAttribute("width", ovbox.scrollWidth);
+  ovwires.setAttribute("height", ovbox.scrollHeight);
+  let html = "";
+  OV_EDGES.forEach((e, i) => {
+    const a = ovRect(e.f), b = ovRect(e.t);
+    const acx = a.x + a.w / 2, acy = a.y + a.h / 2;
+    const bcx = b.x + b.w / 2, bcy = b.y + b.h / 2;
+    let d, lx, ly;
+    if (e.bend && Math.abs(bcy - acy) < 14) {
+      const top = e.bend < 0;
+      const x1 = acx, y1 = top ? a.y : a.y + a.h;
+      const x2 = bcx, y2 = top ? b.y : b.y + b.h;
+      d = "M" + x1 + "," + y1 + " C" + x1 + "," + (y1 + e.bend) + " " + x2 + "," + (y2 + e.bend) + " " + x2 + "," + y2;
+      lx = (x1 + x2) / 2; ly = y1 + e.bend * 0.75 + (top ? -4 : 14);
+    } else if (Math.abs(bcx - acx) > Math.abs(bcy - acy)) {
+      const dir = bcx > acx ? 1 : -1;
+      const x1 = dir > 0 ? a.x + a.w : a.x, y1 = acy;
+      const x2 = dir > 0 ? b.x : b.x + b.w, y2 = bcy;
+      const k = Math.max(28, Math.abs(x2 - x1) * 0.35);
+      d = "M" + x1 + "," + y1 + " C" + (x1 + dir * k) + "," + y1 + " " + (x2 - dir * k) + "," + y2 + " " + x2 + "," + y2;
+      lx = (x1 + x2) / 2; ly = (y1 + y2) / 2 - 7;
+    } else {
+      const dir = bcy > acy ? 1 : -1;
+      const x1 = acx, y1 = dir > 0 ? a.y + a.h : a.y;
+      const x2 = bcx, y2 = dir > 0 ? b.y : b.y + b.h;
+      const k = Math.max(28, Math.abs(y2 - y1) * 0.3);
+      d = "M" + x1 + "," + y1 + " C" + x1 + "," + (y1 + dir * k) + " " + x2 + "," + (y2 - dir * k) + " " + x2 + "," + y2;
+      lx = (x1 + x2) / 2 + 6; ly = (y1 + y2) / 2;
+    }
+    html += '<path id="ovedge-' + i + '" class="e-' + e.ty + '" d="' + d + '" marker-end="url(#mo-' + e.ty + ')"/>';
+    if (e.l) html += '<text id="ovlabel-' + i + '" class="l-' + e.ty + '" x="' + lx + '" y="' + ly + '" text-anchor="middle">' + e.l + "</text>";
+  });
+  ovEdgeLayer.innerHTML = html;
+}
+
+function ovHover(slug, on) {
+  const edges = ovAdj[slug] || [];
+  document.querySelectorAll("#ovwires .hl, #ovwires .dm").forEach(x => x.classList.remove("hl", "dm"));
+  document.querySelectorAll(".ovnode.dm").forEach(x => x.classList.remove("dm"));
+  if (!on) return;
+  const related = new Set([slug]);
+  edges.forEach(i => { related.add(OV_EDGES[i].f); related.add(OV_EDGES[i].t); });
+  OV_EDGES.forEach((e, i) => {
+    const p = document.getElementById("ovedge-" + i);
+    const t = document.getElementById("ovlabel-" + i);
+    const active = edges.includes(i);
+    if (p) p.classList.add(active ? "hl" : "dm");
+    if (t) t.classList.add(active ? "hl" : "dm");
+  });
+  OV_NODES.forEach(n => {
+    if (!related.has(n.slug)) document.getElementById("ov-" + n.slug).classList.add("dm");
+  });
+}
+
+OV_NODES.forEach(n => {
+  const el = document.getElementById("ov-" + n.slug);
+  el.addEventListener("mouseenter", () => ovHover(n.slug, true));
+  el.addEventListener("mouseleave", () => ovHover(n.slug, false));
+  el.addEventListener("click", () => {
+    const card = document.getElementById("card-" + n.slug);
+    if (card) card.scrollIntoView({ behavior: "smooth", block: "center" });
+  });
+});
+
+/* ======================= Wire up interactions ======================= */
+
+document.querySelectorAll(".step-box").forEach(el => {
+  el.addEventListener("click", () => openPopup(el.dataset.skill, el.dataset.step));
+  el.addEventListener("keydown", e => {
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openPopup(el.dataset.skill, el.dataset.step); }
+  });
+  el.addEventListener("mouseenter", () => setHover(el, true));
+  el.addEventListener("mouseleave", clearHover);
+});
+document.querySelectorAll(".card-head").forEach(el => {
+  el.addEventListener("click", () => openPopup(el.dataset.skill, null));
+  el.addEventListener("mouseenter", () => setHover(el, true));
+  el.addEventListener("mouseleave", clearHover);
+});
+document.querySelectorAll(".callchip").forEach(el => {
+  el.addEventListener("click", e => {
+    e.stopPropagation();
+    const card = document.getElementById("card-" + el.dataset.target);
+    if (card) card.scrollIntoView({ behavior: "smooth", block: "center" });
+  });
+});
+
+let resizeTimer = null;
+window.addEventListener("resize", () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => { drawEdges(); drawOverview(); }, 120);
+});
+drawEdges();
+drawOverview();
+requestAnimationFrame(() => { drawEdges(); drawOverview(); });
+</script>
+</body>
+</html>
