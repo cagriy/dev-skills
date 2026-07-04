@@ -21,7 +21,7 @@ There is no application code, no build step, no test suite. The artifact **is** 
 
 3. Give Claude this prompt:
 
-   > Review this repo for unfamiliar directory paths and amend them for my system. Then install the plugin in this repo.
+   > Review this repo for unfamiliar directory paths and amend them for my system. Then install the plugin for this computer user.
 
 See the [Install](#install) section below for the marketplace-based installation.
 
