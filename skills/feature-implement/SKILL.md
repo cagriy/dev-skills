@@ -1,6 +1,6 @@
 ---
 name: feature-implement
-description: Execute a feature plan from features/feature-v<N>-<description>/ stage-by-stage on the current branch, following the plan's TDD cycle. Use when the user asks to implement, build, execute, or roll out a plan that already exists — typically as a follow-up to /feature-plan. Refuses to start without both the design and plan files on disk (delegated to feature-resolve). Syncs the repo's current branch with remote first, never creates a new branch, never pushes. Establishes a test baseline first; if any tests already fail, it stops and offers to investigate, file a bug, or halt rather than building on a red suite. Before the stage loop, asks the user to pick an execution strategy — direct in the main agent, one subagent per stage, or one subagent per three-stage chunk (all sequential, all committing one-per-stage). After each stage: checks coverage against the stage plan, self-reviews the code for bloat / orphaned-and-superseded code / functional issues / inefficiency / security, runs tests, and commits. At the end, runs a whole-project dead-code sweep (baseline-scoped, so it removes only orphans this feature stranded), updates the per-feature tracker, and surfaces any improvements to this skill itself. Step 0 confirms with the user via AskUserQuestion before doing any work when invoked proactively; the confirmation is skipped when the user explicitly typed /feature-implement. Because this skill writes code and commits, the proactive-invocation confirmation is non-negotiable.
+description: Execute a feature plan from features/feature-v<N>-<description>/ stage-by-stage on the current branch, following the plan's TDD cycle. Use when the user asks to implement, build, execute, or roll out a plan that already exists — typically as a follow-up to /feature-plan. Refuses to start without both the design and plan files on disk (delegated to feature-resolve). Syncs the repo's current branch with remote first, never creates a new branch, never pushes. Establishes a test baseline first; if any tests already fail, it stops and offers to investigate, file a bug, or halt rather than building on a red suite. Before the stage loop, asks the user to pick an execution strategy — direct in the main agent, one subagent per stage, or one subagent per three-stage chunk (all sequential, all committing one-per-stage). After each stage: checks coverage against the stage plan, self-reviews the code for bloat / orphaned-and-superseded code / functional issues / inefficiency / security, runs tests, and commits. At the end, runs a whole-project dead-code sweep (baseline-scoped, so it removes only orphans this feature stranded), updates the per-feature tracker, surfaces any improvements to this skill itself, and closes by offering to run the plugin's two eval skills (evals-code-run + evals-e2e-run) in parallel read-only subagents. Step 0 confirms with the user via AskUserQuestion before doing any work when invoked proactively; the confirmation is skipped when the user explicitly typed /feature-implement. Because this skill writes code and commits, the proactive-invocation confirmation is non-negotiable.
 model: opus
 effort: xhigh
 user-invocable: true
@@ -15,7 +15,7 @@ You are running the `feature-implement` skill. The user may have arrived here by
 
 **Terminology (plugin-wide).** Two words are overloaded; keep them apart. A **step** is a numbered step of *this skill's own procedure* — the `## Step …` headings below (e.g. *Step 4*); the only other "steps" are the **TDD steps** inside a plan stage (write test → confirm fail → implement → confirm pass). A **stage** has two senses: a **chain stage** is one of `storm → design → plan → implement` (it shows up as `stage=…`, `stage_file`, and the tracker's `data-stage`), while a **plan stage** is a committable unit of work *inside* the implementation plan (e.g. `Stage 1`) — `/feature-plan` creates these and `/feature-implement` builds one per commit. A procedure step is never a plan stage, and a plan stage is never a procedure step.
 
-This skill has eleven steps (Steps 0–10). Execute them in order. Do not skip Step 0 (proactive-invocation confirmation), Step 2 (file readiness), Step 3 (repo readiness), Step 5 (strategy choice + TDD loop), Step 7 (final coverage & dead-code sweep), Step 8 (tracker update), or Step 9 (lessons capture) — they are the load-bearing steps.
+This skill has twelve steps (Steps 0–11). Execute them in order. Do not skip Step 0 (proactive-invocation confirmation), Step 2 (file readiness), Step 3 (repo readiness), Step 5 (strategy choice + TDD loop), Step 7 (final coverage & dead-code sweep), Step 8 (tracker update), or Step 9 (lessons capture) — they are the load-bearing steps.
 
 ## Step 0 — Confirm before proceeding (when invoked proactively)
 
@@ -190,7 +190,7 @@ The remaining stages (from the starting stage determined in Step 4 to the last) 
 4. If the unit's subagent times out, crashes on an infrastructure error, or returns no report, do not assume wholesale failure and do not re-run the unit. Reconcile from the main agent: `git log --grep` to identify which of the unit's stages already committed; inspect the working tree for a complete-but-uncommitted stage and, if it verifies green (run `TEST`), commit it from the main agent with the standard message format; then resume only the remaining stages — a fresh subagent with an updated carry-forward note, or directly for a small trailing stage. Never re-run an already-committed stage.
 5. Otherwise continue to the next unit.
 
-Whoever executes, the `5a`–`5i` cycle is identical — nothing about TDD, self-review, coverage, commit format, or the git constraints changes; only the executor does. The final coverage & dead-code sweep (Step 7), tracker update (Step 8), lessons capture (Step 9), and summary (Step 10) **always run in the main agent** after every unit completes, never inside a subagent.
+Whoever executes, the `5a`–`5i` cycle is identical — nothing about TDD, self-review, coverage, commit format, or the git constraints changes; only the executor does. The final coverage & dead-code sweep (Step 7), tracker update (Step 8), lessons capture (Step 9), summary (Step 10), and eval offer (Step 11) **always run in the main agent** after every unit completes, never inside a subagent (the evals a user accepts in Step 11 are themselves delegated to subagents, but the offer and the launch are the main agent's).
 
 #### Subagent contract (per-stage and per-chunk modes)
 
@@ -384,10 +384,34 @@ Tracker: <tracker_file path>
 **Skill-improvement recommendations**
 - <as produced in Step 9>
 
-**Next step:** push when ready (this skill never pushes — run /push when you're satisfied).
+**Next step:** eval offer coming up; push when ready after that (this skill never pushes — run /push when you're satisfied).
 ```
 
 Keep the chat output under ~40 lines. Do not paste diffs or full file contents.
+
+## Step 11 — Offer to run the evals
+
+The run ends with the implementation committed but **not pushed** — exactly the state the plugin's two eval skills score. Offer them now, after the summary, so quality metrics for this run are captured before anything is pushed.
+
+Ask via `AskUserQuestion` exactly once:
+
+- **question**: `"Run the eval suite on this implementation? evals-code-run scores the unpushed commits for duplication/bloat/inefficiency/security (logs to ~/.claude/evals/code.json); evals-e2e-run scores the feature's storm/design/plan artefacts and their consistency with the implementation (logs to ~/.claude/evals/design.json). Both are read-only towards the repo."`
+- **header**: `"Run evals?"`
+- **options**:
+  - `{ "label": "Yes, run both", "description": "Run evals-code-run and evals-e2e-run in two parallel read-only subagents; two eval-log appends, no repo changes." }` (mark this as Recommended)
+  - `{ "label": "No, skip", "description": "Finish without evals; /evals-code-run and /evals-e2e-run can be run manually later." }`
+
+If the user declines (or picks "Other" with decline intent), the skill is done. In a truly headless run with no channel to ask, default to skipping — the evals can always be run by hand later.
+
+If the user accepts, launch **two subagents in parallel** — one message, two `Agent` calls, `subagent_type: general-purpose` — one per eval skill, and wait for both. Parallel is safe by construction: both skills are read-only towards the repo, and they write to different log files. Each subagent starts with a fresh context, so its brief must be self-contained:
+
+- Instruct it to invoke its skill via the `Skill` tool — `evals-code-run` for one, `evals-e2e-run` for the other (plugin-qualified `dev-skills:` form where needed) — and execute it to completion.
+- State explicitly: "You are being run from /feature-implement's eval offer; the user already confirmed via AskUserQuestion — execute the skill without re-asking." This satisfies each eval skill's Step 0 clause for contexts with no user channel.
+- Pass the repo root, the current branch, and the feature version `v<version>` for context. If Step 3 found no remote/upstream for this branch, also pass the base ref the evals should diff against (as the skill argument) — without an upstream, "unpushed" is otherwise undefined for them.
+- Constraint: read-only towards the repo — no edits, no commits, no pushes; the only writes are the eval logs under `~/.claude/evals/`.
+- Return format: the eval skill's own final summary — the score table plus the log-write confirmation — verbatim.
+
+When both return, relay the two score summaries to the user in compact form. If a subagent fails or the `Agent` tool is unavailable in your context, run that eval skill directly in this conversation instead (its own steps handle everything). Never fail the implementation run over an eval error — report it and finish.
 
 ## Constraints (non-negotiable)
 
@@ -398,7 +422,8 @@ Keep the chat output under ~40 lines. Do not paste diffs or full file contents.
 - **TDD as written in the plan is mandatory.** Behavior-changing stages: write test → confirm fail → implement → confirm pass. Scaffolding-only stages may skip the test cycle; the plan must mark them.
 - **Never build on a red test baseline.** If Step 3's `TEST` baseline shows any failing tests, stop before the stage loop and let the user investigate, file a bug (`/bug-submit`), or halt (Step 3 sub-point 9) — implementation never proceeds on top of pre-existing test failures. This gate holds even under autonomous "don't stop to ask" instructions; a truly headless run defaults to halting.
 - **One commit per stage.** No batch commits across stages. No commits mid-stage. The commit-message format is the resume contract for Step 4 — do not deviate from `<type>(plan v<version>): Stage <N> — <title>`.
-- **Execution strategy changes only the executor.** Per-stage / per-chunk subagent modes run the identical `5a`–`5i` cycle and obey every constraint here — current branch only, no new branches, no pushes, one commit per stage with the exact message format. Units run strictly in order, never in parallel. The strategy question **must be asked whenever the user can be prompted** — slash-command, chain-in, and autonomous runs included — and is skipped (defaulting to Direct) only when ≤1 stage remains or the run is truly headless (no interactive channel). Steps 7–10 always run in the main agent, never in a subagent.
+- **Execution strategy changes only the executor.** Per-stage / per-chunk subagent modes run the identical `5a`–`5i` cycle and obey every constraint here — current branch only, no new branches, no pushes, one commit per stage with the exact message format. Units run strictly in order, never in parallel. The strategy question **must be asked whenever the user can be prompted** — slash-command, chain-in, and autonomous runs included — and is skipped (defaulting to Direct) only when ≤1 stage remains or the run is truly headless (no interactive channel). Steps 7–11 always run in the main agent, never in a subagent (Step 11's accepted evals are delegated to subagents by design).
+- **The eval offer never blocks or mutates.** Step 11 runs only with user consent, launches read-only skills, and a declined offer or a failed eval never fails the implementation run. The offer comes before any push because both eval skills score unpushed commits.
 - **Integer versions only.** `v<N>` in commit messages, file references, and tracker tokens — never `v<N>.<M>`.
 - **No silent design or plan drift.** If reality forces a change, update the plan file and record it under *Deviations*. Stop and surface big drifts to the user.
 - **Self-review every stage before commit.** Bloat, superseded/orphaned code, functional issues, inefficiencies, security — fix in the stage, not later.

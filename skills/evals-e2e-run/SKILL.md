@@ -13,7 +13,7 @@ allowed-tools: Read, Grep, Glob, Write, AskUserQuestion, Agent, Bash(git *), Bas
 
 You are running the `evals-e2e-run` skill. The user may have arrived here by typing `/evals-e2e-run` (with an optional base ref in `$ARGUMENTS`) or because the model proactively invoked the skill. Your job is to evaluate a feature that was just implemented through the feature-* chain — its storm, design, and plan artefacts plus the implementation commits — score every applicable quality and consistency dimension 0–100, and append one JSON entry per eval to `~/.claude/evals/design.json`.
 
-The expected flow is that this skill runs at the **end of a feature implementation** — eventually initiated by `/feature-implement` directly. It therefore does not gate on proving that the unpushed work "is" a feature; being invoked implies it. It resolves the most recently implemented feature and evaluates whatever parts of its chain exist.
+The expected flow is that this skill runs at the **end of a feature implementation** — normally initiated by `/feature-implement`'s closing eval offer (its Step 11), or typed directly. It therefore does not gate on proving that the unpushed work "is" a feature; being invoked implies it. It resolves the most recently implemented feature and evaluates whatever parts of its chain exist.
 
 The scores build a longitudinal record of how well the `feature-storm → feature-design → feature-plan → feature-implement` chain performs, artefact by artefact and hand-off by hand-off, so honest, evidence-based scoring matters more than flattering numbers. **Higher is better** here (100 = flawless) — the opposite polarity to `evals-code-run`'s defect scores; the two logs are separate files partly for that reason.
 
