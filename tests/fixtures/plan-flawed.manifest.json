@@ -1,0 +1,50 @@
+{
+  "comment": "Seeded defects in plan-flawed.md. A defect counts as caught when any keyword appears (case-insensitive) in the judge's findings. The score band is the primary assertion; this is a secondary check that the judge names what is actually wrong. min_caught is the number of distinct defects the judge must name.",
+  "min_caught": 5,
+  "defects": [
+    {
+      "name": "coverage-map-gap",
+      "keywords": ["R4", "mute", "empty row", "no stage", "coverage map", "unmapped"]
+    },
+    {
+      "name": "untested-monster-stage",
+      "keywords": ["stage 2", "mixes", "monster", "too large", "unrelated concerns", "single sitting", "one sitting", "everything else"]
+    },
+    {
+      "name": "tests-later-no-label",
+      "keywords": ["stabilise", "stabilize", "if time allows", "no TDD", "category label", "unlabeled", "sanctioned"]
+    },
+    {
+      "name": "vague-expected-failure",
+      "keywords": ["it will fail", "expected failure", "concrete", "failure mode"]
+    },
+    {
+      "name": "ordering-bug",
+      "keywords": ["NotificationStore", "later stage", "not yet", "before it exists", "depends on", "ordering", "stage 1 uses"]
+    },
+    {
+      "name": "insecure-ordering",
+      "keywords": ["auth", "open endpoint", "unauthenticated", "insecure", "window", "before"]
+    },
+    {
+      "name": "missing-stage-fields",
+      "keywords": ["definition of done", "design references", "stage fields", "missing field"]
+    },
+    {
+      "name": "tbd-handwaves",
+      "keywords": ["TBD", "figure out", "should be straightforward", "decided later", "hand-wave", "handwave"]
+    },
+    {
+      "name": "design-level-decision",
+      "keywords": ["Redis", "design-level", "approach", "storage", "planning-level"]
+    },
+    {
+      "name": "boilerplate-risks",
+      "keywords": ["timeline risk", "scope creep", "mitigation", "boilerplate", "generic risk"]
+    },
+    {
+      "name": "junk-verification",
+      "keywords": ["manual poke", "verification", "acceptance criteria"]
+    }
+  ]
+}

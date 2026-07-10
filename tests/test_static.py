@@ -18,6 +18,8 @@ from helpers import (
     cited_sections,
     design_quality_rubric,
     design_template_sections,
+    plan_quality_rubric,
+    plan_template_sections,
     storm_quality_rubric,
     storm_template_sections,
 )
@@ -43,6 +45,21 @@ EXPECTED_DESIGN_SECTIONS = {
     8: "Open questions",
     9: "Rollout plan",
 }
+
+EXPECTED_PLAN_SECTIONS = [
+    "Overview",
+    "Development strategy — Test-Driven Development",
+    "Requirements coverage map",
+    "Stages",
+    "Cross-cutting concerns",
+    "Verification",
+    "Risks and open issues",
+    "Planning decisions taken",
+    "Deviations from the design",
+]
+
+# Per-stage fields of the plan template's Stage blocks that the rubric must judge.
+PLAN_STAGE_FIELDS = ("Design references", "Touches", "Steps (TDD)", "Definition of done")
 
 EVAL_TYPES = {
     "storm_quality",
@@ -104,6 +121,29 @@ class TestDesignRubricTemplateAlignment:
 
     def test_rubric_covers_every_section(self):
         assert cited_sections(design_quality_rubric()) == set(EXPECTED_DESIGN_SECTIONS)
+
+
+class TestPlanRubricTemplateAlignment:
+    """plan_quality must judge the document feature-plan mandates.
+
+    The plan template's sections are named, not numbered, so alignment is
+    checked by verbatim title containment rather than §-number citation; the
+    reverse check (rubric cites no nonexistent section) has no name-based
+    analogue and is covered by review instead.
+    """
+
+    def test_template_has_expected_nine_sections(self):
+        assert plan_template_sections() == EXPECTED_PLAN_SECTIONS
+
+    def test_rubric_names_every_section(self):
+        rubric = plan_quality_rubric()
+        missing = [title for title in EXPECTED_PLAN_SECTIONS if title not in rubric]
+        assert not missing, f"plan_quality rubric never names: {missing}"
+
+    def test_rubric_names_the_per_stage_fields(self):
+        rubric = plan_quality_rubric()
+        missing = [field for field in PLAN_STAGE_FIELDS if field not in rubric]
+        assert not missing, f"plan_quality rubric never names stage fields: {missing}"
 
 
 def test_no_stale_storm_section_references():

@@ -17,7 +17,7 @@ from pathlib import Path
 
 import pytest
 
-from helpers import design_quality_rubric, storm_quality_rubric
+from helpers import design_quality_rubric, plan_quality_rubric, storm_quality_rubric
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
 JUDGE_TIMEOUT_SECONDS = 480
@@ -38,6 +38,12 @@ ARTEFACTS = {
         "kind": "design document",
         "eval_type": "design_quality",
         "rubric": design_quality_rubric,
+        "items_assessed": 15,
+    },
+    "plan": {
+        "kind": "implementation-plan document",
+        "eval_type": "plan_quality",
+        "rubric": plan_quality_rubric,
         "items_assessed": 15,
     },
 }
@@ -118,6 +124,8 @@ CASES = [
     ("storm", "storm-legacy.md", lambda score: score <= 70, "legacy 5-section storm must score <= 70"),
     ("design", "design-flawless.md", lambda score: score >= 95, "flawless design must score >= 95"),
     ("design", "design-flawed.md", lambda score: score <= 60, "seeded-defect design must score <= 60"),
+    ("plan", "plan-flawless.md", lambda score: score >= 95, "flawless plan must score >= 95"),
+    ("plan", "plan-flawed.md", lambda score: score <= 60, "seeded-defect plan must score <= 60"),
 ]
 
 

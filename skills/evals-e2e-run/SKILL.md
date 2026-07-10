@@ -126,7 +126,25 @@ Items 3, 4, 5, and 8 quote `feature-storm`'s own section content rules so produc
 
 Items 2, 5, 6, 10, and 13 quote `feature-design`'s own template and self-review rules so producer and judge share one standard; if those rules change, re-sync this rubric.
 
-**plan_quality** — judge the plan against implementation-planning best practice: (1) stages are small, independently committable, and each leaves the repo green; (2) every stage carries the TDD steps (write test → confirm fail → implement → confirm pass); (3) stage ordering respects dependencies; (4) each stage names the concrete files/interfaces it touches; (5) the design is fully covered — no design element left unplanned; (6) no stage mixes unrelated concerns; (7) stages define verification beyond unit tests where the work warrants it; (8) planning-level choices are recorded in the *Planning decisions taken* section rather than silently assumed.
+**plan_quality** — judge the plan document against this rubric, item by item. The rubric is self-referential: it judges the plan against its own sections and the code it cites — whether the plan honors the actual design is `plan_consistency`'s job. The plan template's sections are named, not numbered; items anchor to those names. Per-stage items are graded majority-rule across stages (met = all stages pass; partial = a minority fail; unmet = a majority fail); "Not applicable"/"None" is met only when explicit and credible, never by silence:
+
+1. **Overview & structural completeness (*Overview* + all sections)** — the overview states what is built, how it is staged, and how it maps to the design; all nine template sections are present with real content or their explicit none-wording.
+2. **Coverage map integrity (*Requirements coverage map*)** — every requirement row maps to at least one stage, every stage cited in the map exists under *Stages*, and no row is empty.
+3. **Stage completeness (*Stages*)** — every stage carries its Goal (one sentence), *Design references*, *Touches* (concrete paths), Steps, *Definition of done* (checkable bullets), and stage risks ("None" allowed).
+4. **TDD discipline (*Steps (TDD)*, per *Development strategy — Test-Driven Development*)** — every behavior-changing, host-testable stage has the four TDD steps in order with a concrete expected initial failure (not "it will fail"); every other stage carries one of the four sanctioned category labels declared in the strategy section, with a one-line justification — an unlabeled or ad-hoc category is unmet.
+5. **Committable increments** — each stage ends with a working, tested, mergeable increment; no stage leaves the system broken between merges.
+6. **Dependency-respecting order** — no stage relies on something a later stage introduces; a stage replacing an existing implementation states coexistence or an atomic swap.
+7. **Right-sized, single-concern stages** — each stage is reviewable in one sitting, no trivial fragment stages, no stage mixes unrelated concerns; a deliberately-atomic large stage carries its recorded rationale.
+8. **Grounded citations** — files, functions, and harnesses the plan cites as already existing resolve in the repo (spot-check with repo access); to-create paths are consistent across stages and follow a named sibling convention or the plan's own greenfield-convention stage. Absent, generic, or invented references are unmet.
+9. **Cross-cutting concerns tracked (*Cross-cutting concerns*)** — security, performance, observability, and compatibility/migration are each tracked across stages or credibly noted as not applicable for this feature.
+10. **Secure staging order** — no ordering window leaves the system insecure between merges (e.g. an endpoint live before its authz is wired); protections land with or before the code they protect; a credible no-security-surface note is met.
+11. **End-to-end verification (*Verification*)** — states how the user confirms the feature against the design's acceptance criteria once all stages are complete, beyond per-stage unit tests where the work warrants it.
+12. **Mitigated implementation risks (*Risks and open issues*)** — each risk is implementation-specific with a mitigation; generic boilerplate ("timeline risk") is unmet; a credible "None" is met.
+13. **Decision-log purity (*Planning decisions taken*)** — exactly the none-line, or a numbered list where every entry is genuinely planning-level (stage order, flags, harness, file paths) with a one-line rationale; any design-level entry (scope, requirements, approach, interfaces) is unmet.
+14. **Deviations discipline (*Deviations from the design*)** — exactly the none-line, or a numbered list with rationale; whether listed deviations are truthful against the design is `plan_consistency`'s job — judge form and explicitness here.
+15. **Closure** — no TBD/TODO/FIXME/hand-wave language ("we'll just…", "should be straightforward") anywhere; open items live in *Risks and open issues* with mitigations.
+
+Items 3, 4, 7, 13, and 14 quote `feature-plan`'s own template and review rules so producer and judge share one standard; if those rules change, re-sync this rubric.
 
 ### Consistency method
 
