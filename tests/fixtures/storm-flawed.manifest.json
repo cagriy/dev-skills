@@ -1,5 +1,6 @@
 {
-  "comment": "Seeded defects in flawed.md. A defect counts as caught when any keyword appears (case-insensitive) in the judge's findings. The score band is the primary assertion; this is a secondary check that the judge names what is actually wrong.",
+  "comment": "Seeded defects in storm-flawed.md. A defect counts as caught when any keyword appears (case-insensitive) in the judge's findings. The score band is the primary assertion; this is a secondary check that the judge names what is actually wrong. min_caught is the number of distinct defects the judge must name.",
+  "min_caught": 4,
   "defects": [
     {
       "name": "generic-users",

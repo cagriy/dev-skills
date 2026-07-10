@@ -175,7 +175,7 @@ Sub-sections as needed:
 - **Testing strategy** — unit, integration, end-to-end coverage; how acceptance criteria are verified. Each component identified in *Architecture / components* must have a corresponding unit-test plan that does not require the rest of the feature to be running.
 
 ## 6. Alternatives considered
-Only include alternatives that were actively evaluated and rejected. For each: one sentence on the alternative and one sentence on why it was rejected. Omit the section if there are none.
+Only include alternatives that were actively evaluated and rejected. For each: one sentence on the alternative and one sentence on why it was rejected. If none were actively evaluated, write "None — <reason>" rather than omitting the section.
 
 ## 7. Risks and issues
 Concrete risks with likelihood/impact and mitigation. Include known issues with the current codebase that this design must work around.

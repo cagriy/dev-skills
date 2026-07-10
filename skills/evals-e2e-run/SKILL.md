@@ -106,7 +106,25 @@ Each subagent knows nothing about this conversation, so its brief must be self-c
 
 Items 3, 4, 5, and 8 quote `feature-storm`'s own section content rules so producer and judge share one standard; if those rules change, re-sync this rubric.
 
-**design_quality** — judge the design against software-design and UX best practice: (1) every stated requirement is covered; (2) component responsibilities and boundaries are clear; (3) data model, interfaces, and contracts are specified concretely; (4) failure modes and error handling are addressed; (5) security is considered at trust boundaries; (6) the design is as simple as the problem allows — no speculative generality — and fits the existing codebase's conventions; (7) user-facing surfaces specify flows and states (empty/loading/error/success); (8) behavior is testable as specified; (9) the open-questions section is resolved or empty; (10) trade-offs of the chosen approach are acknowledged.
+**design_quality** — judge the design document against this rubric, item by item. The rubric is self-referential: it judges the design against its own sections and the code it cites — coverage of the storm's commitments is `design_consistency`'s job. Where an item allows "Not applicable", it is met only by an explicit, credible "Not applicable — <reason>" line (or the section's explicit none-wording), never by silence:
+
+1. **Framing (§1, §2)** — the summary states what the feature is, who it is for, and what problem it solves; goals are concrete outcomes; non-goals name actual exclusions with a brief why, not generic disclaimers.
+2. **Requirement testability (§3)** — each numbered requirement is testable. Met = all pass; partial = a minority fail; unmet = a majority fail.
+3. **Requirements coverage (§3→§5)** — every numbered requirement in §3 maps to concrete design content in §5. Met = all mapped; partial = a minority unmapped; unmet = a majority unmapped.
+4. **Grounded background (§4)** — the design cites real, specific code (`path:line`) and existing structures; with repo access, spot-check that a sample of citations resolves. Absent, generic, or (when checkable) invented references are unmet.
+5. **Component decomposition (§5)** — each component has a single responsibility, a public interface, and named dependencies; a one-unit implementation carries an explicit rationale why splitting would be artificial.
+6. **Implementable contracts (§5)** — data model, interfaces, and control flow are specified so a competent engineer can implement without re-deriving decisions. Partial = isolated re-derivation needed; unmet = wholesale.
+7. **Failure and edge cases (§5)** — concrete behavior for each failure and edge case, not hand-waves.
+8. **Security at trust boundaries (§5)** — authn/authz, input validation, and secret handling addressed where the feature has trust boundaries; a credible "Not applicable — <reason>" is met.
+9. **User-facing flows and states (§5)** — user-facing surfaces specify flows and states (empty/loading/error/success); for a feature with no user-facing surface, a credible "Not applicable" is met.
+10. **Per-component test plan (§5)** — each component named in *Architecture / components* has a unit-test plan that does not require the rest of the feature to be running.
+11. **Trade-offs and simplicity (§6)** — actively-evaluated alternatives are recorded with why each was rejected (or an explicit "None — <reason>"); the chosen design shows no speculative generality.
+12. **Mitigated risks (§7)** — each risk is specific to this feature with likelihood/impact and a mitigation; generic boilerplate ("timeline risk") is unmet; a credible "Not applicable — <reason>" is met.
+13. **Decision closure (§8 + whole document)** — §8 is empty or exactly "None — all decisions closed.", and no TBD/TODO/FIXME/hand-wave language appears anywhere in the document.
+14. **Rollout readiness (§9)** — phasing and rollback are addressed (flags/dark launch where relevant); a credible "Not applicable — <reason>" is met.
+15. **Cross-section consistency (§5–§9)** — any scenario described in more than one section agrees on the same outcome everywhere it appears.
+
+Items 2, 5, 6, 10, and 13 quote `feature-design`'s own template and self-review rules so producer and judge share one standard; if those rules change, re-sync this rubric.
 
 **plan_quality** — judge the plan against implementation-planning best practice: (1) stages are small, independently committable, and each leaves the repo green; (2) every stage carries the TDD steps (write test → confirm fail → implement → confirm pass); (3) stage ordering respects dependencies; (4) each stage names the concrete files/interfaces it touches; (5) the design is fully covered — no design element left unplanned; (6) no stage mixes unrelated concerns; (7) stages define verification beyond unit tests where the work warrants it; (8) planning-level choices are recorded in the *Planning decisions taken* section rather than silently assumed.
 

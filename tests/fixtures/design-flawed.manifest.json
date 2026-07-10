@@ -1,0 +1,46 @@
+{
+  "comment": "Seeded defects in design-flawed.md. A defect counts as caught when any keyword appears (case-insensitive) in the judge's findings. The score band is the primary assertion; this is a secondary check that the judge names what is actually wrong. min_caught is the number of distinct defects the judge must name.",
+  "min_caught": 5,
+  "defects": [
+    {
+      "name": "requirement-not-covered",
+      "keywords": ["R5", "CSV", "export", "unmapped", "not mapped", "never addressed", "no design content", "coverage"]
+    },
+    {
+      "name": "tbd-data-model",
+      "keywords": ["TBD", "schema", "data model", "finalise during implementation", "finalize during implementation", "re-deriv"]
+    },
+    {
+      "name": "open-question-left",
+      "keywords": ["§8", "open question", "read-state", "decisions closed", "not closed", "unresolved"]
+    },
+    {
+      "name": "unmitigated-boilerplate-risks",
+      "keywords": ["timeline risk", "boilerplate", "mitigation", "§7", "generic risk", "scope creep"]
+    },
+    {
+      "name": "monolith-no-rationale",
+      "keywords": ["monolith", "single module", "NotificationManager", "single responsibility", "decomposition", "one component", "god"]
+    },
+    {
+      "name": "missing-ui-states",
+      "keywords": ["empty", "loading", "error state", "states", "§5", "flows and states"]
+    },
+    {
+      "name": "tests-later",
+      "keywords": ["test plan", "tests later", "stabilise", "stabilize", "testing strategy", "no unit-test", "unit test"]
+    },
+    {
+      "name": "ungrounded-background",
+      "keywords": ["path:line", "citation", "cites", "generic", "§4", "grounded", "standard patterns"]
+    },
+    {
+      "name": "missing-security",
+      "keywords": ["security", "trust boundar", "authn", "authz", "not applicable"]
+    },
+    {
+      "name": "handwave-failures",
+      "keywords": ["handled appropriately", "hand-wave", "handwave", "failure", "edge case", "concrete behavior", "concrete behaviour"]
+    }
+  ]
+}

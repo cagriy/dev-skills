@@ -9,6 +9,7 @@ TEMPLATES = REPO / "templates"
 FEATURE_SKILLS = ("feature-storm", "feature-design", "feature-plan", "feature-implement")
 
 STORM_SKILL = SKILLS / "feature-storm" / "SKILL.md"
+DESIGN_SKILL = SKILLS / "feature-design" / "SKILL.md"
 E2E_SKILL = SKILLS / "evals-e2e-run" / "SKILL.md"
 
 
@@ -17,27 +18,49 @@ def fenced_blocks(text: str) -> list[str]:
     return re.findall(r"^```[a-z]*\n(.*?)^```", text, re.DOTALL | re.MULTILINE)
 
 
-def storm_template_sections() -> dict[int, str]:
-    """The `## N. Title` headings of feature-storm's Step 5 document template."""
-    for block in fenced_blocks(STORM_SKILL.read_text()):
+def template_sections(skill_file: Path) -> dict[int, str]:
+    """The `## N. Title` headings of a skill's fenced document template.
+
+    Returns the first fenced block that contains numbered headings — for both
+    feature-storm and feature-design that is the Step 5 document template.
+    """
+    for block in fenced_blocks(skill_file.read_text()):
         headings = re.findall(r"^## (\d+)\. (.+?)\s*$", block, re.MULTILINE)
         if headings:
             return {int(n): title for n, title in headings}
-    raise AssertionError("no fenced template block with '## N.' headings in feature-storm/SKILL.md")
+    raise AssertionError(
+        f"no fenced template block with '## N.' headings in {skill_file}"
+    )
 
 
-def storm_quality_rubric() -> str:
-    """The storm_quality rubric block from evals-e2e-run (up to the design_quality rubric)."""
+def storm_template_sections() -> dict[int, str]:
+    return template_sections(STORM_SKILL)
+
+
+def design_template_sections() -> dict[int, str]:
+    return template_sections(DESIGN_SKILL)
+
+
+def quality_rubric(name: str) -> str:
+    """A quality rubric block from evals-e2e-run (up to the next bold heading)."""
     m = re.search(
-        r"\*\*storm_quality\*\*.*?(?=\n\n\*\*design_quality\*\*)",
+        rf"\*\*{name}\*\*.*?(?=\n\n\*\*)",
         E2E_SKILL.read_text(),
         re.DOTALL,
     )
     if not m:
-        raise AssertionError("storm_quality rubric not found in evals-e2e-run/SKILL.md")
+        raise AssertionError(f"{name} rubric not found in evals-e2e-run/SKILL.md")
     return m.group(0)
 
 
+def storm_quality_rubric() -> str:
+    return quality_rubric("storm_quality")
+
+
+def design_quality_rubric() -> str:
+    return quality_rubric("design_quality")
+
+
 def cited_sections(rubric: str) -> set[int]:
-    """Storm-document section numbers (§N) the rubric cites."""
+    """Artefact-document section numbers (§N) the rubric cites."""
     return {int(n) for n in re.findall(r"§(\d+)", rubric)}

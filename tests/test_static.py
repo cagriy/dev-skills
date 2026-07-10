@@ -16,6 +16,8 @@ from helpers import (
     SKILLS,
     TEMPLATES,
     cited_sections,
+    design_quality_rubric,
+    design_template_sections,
     storm_quality_rubric,
     storm_template_sections,
 )
@@ -28,6 +30,18 @@ EXPECTED_STORM_SECTIONS = {
     5: "Alternatives considered",
     6: "Risks",
     7: "Open questions for design",
+}
+
+EXPECTED_DESIGN_SECTIONS = {
+    1: "Summary",
+    2: "Goals and non-goals",
+    3: "Requirements",
+    4: "Background and context",
+    5: "Design",
+    6: "Alternatives considered",
+    7: "Risks and issues",
+    8: "Open questions",
+    9: "Rollout plan",
 }
 
 EVAL_TYPES = {
@@ -73,6 +87,23 @@ class TestStormRubricTemplateAlignment:
 
     def test_rubric_covers_every_section(self):
         assert cited_sections(storm_quality_rubric()) == set(EXPECTED_STORM_SECTIONS)
+
+
+class TestDesignRubricTemplateAlignment:
+    """design_quality must judge the document feature-design mandates."""
+
+    def test_template_has_expected_nine_sections(self):
+        assert design_template_sections() == EXPECTED_DESIGN_SECTIONS
+
+    def test_rubric_cites_only_existing_sections(self):
+        cited = cited_sections(design_quality_rubric())
+        assert cited, "design_quality rubric cites no template sections"
+        assert cited <= set(design_template_sections()), (
+            "rubric cites sections missing from the design template"
+        )
+
+    def test_rubric_covers_every_section(self):
+        assert cited_sections(design_quality_rubric()) == set(EXPECTED_DESIGN_SECTIONS)
 
 
 def test_no_stale_storm_section_references():
