@@ -1,0 +1,18 @@
+[project]
+name = "dev-skills-tests"
+version = "0.0.0"
+description = "Test suite for the dev-skills plugin: static consistency checks plus on-demand LLM eval fixtures"
+requires-python = ">=3.10"
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "llm: invokes a live LLM judge via the claude CLI; excluded by default, run explicitly with -m llm",
+]
+addopts = "-ra -m 'not llm'"

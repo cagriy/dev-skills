@@ -1,0 +1,25 @@
+{
+  "comment": "Seeded defects in flawed.md. A defect counts as caught when any keyword appears (case-insensitive) in the judge's findings. The score band is the primary assertion; this is a secondary check that the judge names what is actually wrong.",
+  "defects": [
+    {
+      "name": "generic-users",
+      "keywords": ["users/actors", "target user", "persona", "generically", "no specific user", "never identifie", "not identifie", "not named"]
+    },
+    {
+      "name": "untestable-goals",
+      "keywords": ["testab", "measurab", "make notifications better", "§2", "goal"]
+    },
+    {
+      "name": "solution-detail-in-technical-direction",
+      "keywords": ["redis", "websocket", "solution", "altitude", "§4", "implementation detail"]
+    },
+    {
+      "name": "boilerplate-risks",
+      "keywords": ["timeline risk", "boilerplate", "§6", "scope creep", "generic risk"]
+    },
+    {
+      "name": "vague-open-questions",
+      "keywords": ["figure out", "§7", "open question", "concrete decision", "specific decision"]
+    }
+  ]
+}

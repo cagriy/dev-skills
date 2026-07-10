@@ -94,7 +94,7 @@ If the resolver stops with an error, pass the message to the user verbatim and s
 
 **Do this before the first `AskUserQuestion` in Step 4.** Clarifying questions written without grounding are vague and force extra rounds; reading the modules the feature will most likely extend first makes the questions concrete and lets you offer specific options.
 
-**Read the storm first, if one exists for this feature.** Check the resolver-returned `feature_folder` for a file named `feature-storm-v<version>-<description>.md`. If it exists, `Read` it now, before any codebase exploration — it captures the product intent (§1–§4) and, crucially, the open questions §5 that **Step 4's clarification loop must close**. If no storm exists, that's fine — the user chose to design cold; proceed without it. Do not warn or prompt; cold design is a supported path. This mirrors the convention `/feature-plan` and `/feature-implement` use to read sibling artefacts from the same feature folder.
+**Read the storm first, if one exists for this feature.** Check the resolver-returned `feature_folder` for a file named `feature-storm-v<version>-<description>.md`. If it exists, `Read` it now, before any codebase exploration — it captures the product intent (§1–§6) and, crucially, the open questions §7 that **Step 4's clarification loop must close**; the storm's §6 (Risks) also seeds this design's own risks section. If no storm exists, that's fine — the user chose to design cold; proceed without it. Do not warn or prompt; cold design is a supported path. This mirrors the convention `/feature-plan` and `/feature-implement` use to read sibling artefacts from the same feature folder.
 
 Use `Read`, `Grep`, and `Glob` only to understand the parts of the project the feature interacts with — entry points, existing modules the feature must integrate with, data models it must extend, tests that establish current behavior. Cite findings by `path:line` when relevant.
 
@@ -121,7 +121,7 @@ Iteratively use `AskUserQuestion` (1–4 questions per call) to resolve every ma
 - **Data and state** — what is stored, where, with what lifetime, with what migration path if any.
 - **Failure behavior** — how the feature behaves on bad input, partial failure, network errors, race conditions.
 
-If a `/feature-storm` ran first, its §5 (Open questions for design) is the seed list — explicitly close every item there. Do not skip them on the assumption that "the design will figure it out". An item is *closed* either by a user answer **or** by a grounded decision you record in §5/§6 with rationale; reserve `AskUserQuestion` for items with a genuine user-facing trade-off.
+If a `/feature-storm` ran first, its §7 (Open questions for design) is the seed list — explicitly close every item there. Do not skip them on the assumption that "the design will figure it out". An item is *closed* either by a user answer **or** by a grounded decision you record in §5/§6 with rationale; reserve `AskUserQuestion` for items with a genuine user-facing trade-off.
 
 After each round, restate your working understanding internally and ask: *Is there any remaining decision that would meaningfully change the design if it went the other way?* If yes, ask another round. Stop only when the remaining uncertainty would not redirect the design.
 

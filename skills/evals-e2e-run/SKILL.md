@@ -91,7 +91,20 @@ Each subagent knows nothing about this conversation, so its brief must be self-c
 
 ### Quality rubrics
 
-**storm_quality** — judge the storm document against product-design best practice: (1) the problem/goal is stated clearly, with the why; (2) target users/actors are identified; (3) success criteria are concrete and measurable; (4) scope boundaries include explicit non-goals; (5) constraints and technical direction stay at product altitude — no premature implementation detail; (6) risks and open questions are surfaced honestly rather than glossed; (7) alternatives were considered before converging; (8) each requirement is unambiguous enough for a designer to act on without guessing.
+**storm_quality** — judge the storm document against this rubric, item by item:
+
+1. **Problem & motivation (§1)** — the summary states what is being built and why now. Partial = the what without the why.
+2. **Users (§1)** — target users/actors are named specifically (a role, persona, or system — not "users" generically).
+3. **Goal testability (§2)** — each goal bullet is testable: a reasonable person could agree the outcome was or wasn't achieved. Met = all bullets pass; partial = a minority fail; unmet = a majority fail.
+4. **Explicit non-goals (§3)** — out-of-scope names actual deferred things, not generic disclaimers.
+5. **Product altitude (§4)** — technical direction is framed as constraints the design must respect, never solutions ("Must run offline on iOS 16+" yes; "use SwiftData with CloudKit sync" no). Partial = constraints overall with isolated solution-level detail.
+6. **Alternatives recorded (§5)** — at least one alternative is recorded with the reason it lost, or a credible "Not applicable — <reason>". Unmet = section missing, empty, or boilerplate.
+7. **Feature-specific risks (§6)** — each risk names something that could plausibly go wrong with this feature specifically, with impact; generic boilerplate ("timeline risk") is unmet. A credible "Not applicable — <reason>" is met.
+8. **Concrete open questions (§7)** — each item is a specific decision `/feature-design` must close (not "figure out the architecture"), with captured user preferences annotated.
+9. **Structural completeness** — all seven sections present, each with real content or an explicit "Not applicable — <reason>".
+10. **Requirement unambiguity** — for each goal and in-scope bullet: would two competent designers infer the same intended behavior? Met = all pass; partial = a minority fail; unmet = a majority fail.
+
+Items 3, 4, 5, and 8 quote `feature-storm`'s own section content rules so producer and judge share one standard; if those rules change, re-sync this rubric.
 
 **design_quality** — judge the design against software-design and UX best practice: (1) every stated requirement is covered; (2) component responsibilities and boundaries are clear; (3) data model, interfaces, and contracts are specified concretely; (4) failure modes and error handling are addressed; (5) security is considered at trust boundaries; (6) the design is as simple as the problem allows — no speculative generality — and fits the existing codebase's conventions; (7) user-facing surfaces specify flows and states (empty/loading/error/success); (8) behavior is testable as specified; (9) the open-questions section is resolved or empty; (10) trade-offs of the chosen approach are acknowledged.
 

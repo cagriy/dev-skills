@@ -95,6 +95,8 @@ Iteratively use `AskUserQuestion` (1–4 questions per call) to converge on the 
 - **Users & scenarios** — who uses this, in what context, what they're trying to accomplish.
 - **Scope (in / out)** — what's in this feature vs. what's deferred to later iterations.
 - **High-level technical direction** — hard constraints, ecosystem (cloud, platform, runtime), integrations, performance/security ceilings the design must respect. **Stay high-level** — do not solve the design; surface the constraints the design must honour.
+- **Alternatives** — meaningfully different product-level approaches considered, and why the chosen direction wins.
+- **Risks** — what could go wrong with this feature (adoption, data, integration, exposure), at product altitude.
 - **Open questions for design** — the decisions you can already see `/feature-design` will need to close.
 
 After each round, restate your working understanding internally and cross-check the answers for contradictions — when selections conflict (e.g. two mutually-exclusive options picked in one round), immediately re-ask to reconcile rather than relying on inline option warnings to have prevented the pick. Ask another round only if a remaining ambiguity would meaningfully change the brainstorm. Stop when the remaining uncertainty is at the design level, not the requirements level. Don't pad with questions for their own sake — and don't stop early to avoid friction.
@@ -103,7 +105,7 @@ Keep the conversation product-flavoured. If a question would require resolving a
 
 ## Step 4 — Summarise and gate on approval
 
-Produce a single ≤10-bullet summary of where the brainstorm has landed. Each bullet should be a complete, scannable statement (not a fragment). Aim to cover, in roughly this order: what the feature is, who it's for, top 1–2 goals, top 1–2 non-goals, scope boundary, key technical constraint(s), 1–2 open questions for design. Cut bullets rather than overshoot 10.
+Produce a single ≤10-bullet summary of where the brainstorm has landed. Each bullet should be a complete, scannable statement (not a fragment). Aim to cover, in roughly this order: what the feature is, who it's for, top 1–2 goals, top 1–2 non-goals, scope boundary, key technical constraint(s), a notable risk or rejected alternative (when one exists), 1–2 open questions for design. Cut bullets rather than overshoot 10.
 
 Present the summary in chat as a clearly labeled block (e.g. under the heading **Brainstorm summary — for approval**). Immediately afterwards, call `AskUserQuestion` once:
 
@@ -122,7 +124,7 @@ Branching:
 
 ## Step 5 — Write the brainstorm document
 
-Write the file at the `stage_file` path returned by Step 2. Use this 5-section structure exactly — every section is required; if a section has no real content for this feature, write a one-line "Not applicable — <reason>" rather than omitting it.
+Write the file at the `stage_file` path returned by Step 2. Use this 7-section structure exactly — every section is required; if a section has no real content for this feature, write a one-line "Not applicable — <reason>" rather than omitting it.
 
 ```markdown
 # <Human-readable title> — Brainstorm v<N>
@@ -144,7 +146,13 @@ One paragraph: what we're considering building, who it's for, why now.
 - Hard constraints, ecosystem, integrations, performance/security ceilings.
 - Deliberately NOT detailed design — that lives in /feature-design.
 
-## 5. Open questions for design
+## 5. Alternatives considered
+- <Meaningfully different product-level approach> — rejected because <reason>.
+
+## 6. Risks
+- <Risk specific to this feature, with its expected impact>.
+
+## 7. Open questions for design
 - Each item is a specific decision /feature-design must close before planning.
 ```
 
@@ -156,7 +164,9 @@ Section content rules:
 - **§2 Goals**: 2–6 bullets, derived from Step 3 discussion. Each bullet must be testable (a reasonable person could agree the outcome was or wasn't achieved).
 - **§3 Scope**: keep "out of scope" specific — name actual things being deferred, not generic disclaimers.
 - **§4 Technical direction**: framed as constraints the design must respect, not as solutions. "Must run offline on iOS 16+" yes; "use SwiftData with CloudKit sync" no — that's for `/feature-design`.
-- **§5 Open questions**: each item is a concrete decision (not "figure out the architecture"). If a question has any captured user preference, record it as an annotation: "(user leaned toward X, but didn't commit)".
+- **§5 Alternatives considered**: 1–3 entries; each names a genuinely different approach at the product level (different scope, different UX, buy-vs-build, do-nothing) plus why it lost. Product-level alternatives only — tech-stack picks belong to `/feature-design`. "Not applicable — <reason>" requires a real reason (e.g. a mandated change with no product freedom), not a dodge.
+- **§6 Risks**: each risk is specific to this feature (adoption, data, integration, security exposure, delivery — at product altitude) and names its impact. Generic boilerplate ("timeline risk") is not a risk entry.
+- **§7 Open questions**: each item is a concrete decision (not "figure out the architecture"). If a question has any captured user preference, record it as an annotation: "(user leaned toward X, but didn't commit)".
 
 After writing, record the file's absolute path — Step 8 references it.
 
@@ -232,7 +242,7 @@ Tracker: <tracker_file path>
 (up to the 10 approved in Step 4)
 
 **Top open questions for design**
-- <1–3 items lifted from §5>
+- <1–3 items lifted from §7>
 
 **Skill-improvement recommendations**
 - <single item from Step 7, or the line "No skill-improvement recommendations from this run.">
