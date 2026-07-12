@@ -98,7 +98,7 @@ Maps the design 1:1 to a staged, **test-first** implementation plan. Each stage 
 - **Chains into:** `/feature-implement`.
 
 ### `/feature-implement`
-Executes the plan stage-by-stage on the **current branch**. Never creates branches, never pushes; one commit per green stage. After each stage: coverage check → self-review (bloat / functional issues / inefficiency / security) → run tests → commit. Resumes from the last committed stage on re-runs.
+Executes the plan stage-by-stage on the **current branch**. Never creates branches, never pushes; one commit per green stage. After each stage: coverage check → self-review (bloat / duplication / functional issues / inefficiency / security) → run tests → commit. Resumes from the last committed stage on re-runs.
 
 - **Use when:** the plan is approved and you want to actually build the feature.
 - **Outputs:** code, tests, and one commit per stage on the current branch; updates to the tracker's *Implementation* section.

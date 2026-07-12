@@ -128,6 +128,8 @@ Key the blast-radius check to the *kind* of change — raw reference counts misl
 - **New variant on an enum / union / sealed type**: grep for exhaustive switch/match sites over that type; each is a forced same-stage edit — the new variant won't compile (or falls through) until every exhaustive site handles it.
 - **New entry in a registry / list that tests enumerate**: grep for tests that iterate or count that collection (the collection name near a length or equality assertion); the stage adding the entry must update those guards.
 
+When the design scopes work as **mirroring or paralleling an existing path** — a new variant of an existing family, an analogous handler/pipeline/exporter, a per-kind twin of an existing flow — `grep` and read the existing counterpart before staging, and stage the work as generalising/parameterising the shared code (a kind argument, a loop over kinds, an extracted helper) rather than as a field-swapped copy; name the shared helper in the stage's *Touches* and keep the existing path's tests green within the same stage. The same applies to test scaffolding: a stage adding analog test files reuses or hoists shared fixtures/builders via the project's shared-fixture mechanism instead of re-declaring them per file.
+
 The goal is (a) to produce concrete, executable steps in Step 5, and (b) to surface conflicts between the design and current reality that you will raise in Step 7.
 
 ## Step 5 — Draft the staged implementation plan *(subagent)*

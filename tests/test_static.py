@@ -72,6 +72,19 @@ EVAL_TYPES = {
     "code_plan_consistency",
 }
 
+# The Step 5g self-review lens set of feature-implement, in order; mirrored
+# (in shorthand) in the subagent contract's Discipline bullet, the Constraints
+# section, the frontmatter description, and README.md.
+EXPECTED_SELF_REVIEW_LENSES = [
+    "Bloat",
+    "Duplication / reuse",
+    "Supersession / orphans",
+    "Functional issues",
+    "Inefficiencies",
+    "Security issues",
+    "Style/comments",
+]
+
 # Phrases that can only be left-overs of the pre-7-section storm numbering.
 STALE_STORM_REFERENCES = (
     "5-section",
@@ -144,6 +157,66 @@ class TestPlanRubricTemplateAlignment:
         rubric = plan_quality_rubric()
         missing = [field for field in PLAN_STAGE_FIELDS if field not in rubric]
         assert not missing, f"plan_quality rubric never names stage fields: {missing}"
+
+
+class TestSelfReviewLensAlignment:
+    """feature-implement's 5g lens set, and its shorthand mirrors, must agree.
+
+    The lens list appears in full in Step 5g and in shorthand in the subagent
+    contract's Discipline bullet, the Constraints section, the frontmatter
+    description, and README.md — a lens added or removed in one place but not
+    the others is exactly the drift these checks catch.
+    """
+
+    IMPLEMENT_SKILL = SKILLS / "feature-implement" / "SKILL.md"
+
+    def test_5g_has_expected_lenses(self):
+        text = self.IMPLEMENT_SKILL.read_text()
+        assert "### 5g." in text and "### 5h." in text, "5g/5h headings missing"
+        section = text.split("### 5g.")[1].split("### 5h.")[0]
+        lenses = re.findall(r"^- \*\*(.+?)\*\* —", section, re.MULTILINE)
+        assert lenses == EXPECTED_SELF_REVIEW_LENSES
+
+    def test_mirror_sites_name_duplication(self):
+        text = self.IMPLEMENT_SKILL.read_text()
+        lines = text.splitlines()
+
+        discipline = next(
+            (l for l in lines if l.startswith("- **Discipline**")), None
+        )
+        assert discipline, "subagent-contract Discipline bullet not found"
+        assert "duplication" in discipline.lower(), (
+            "Discipline bullet's lens shorthand omits duplication"
+        )
+
+        constraint = next(
+            (l for l in lines if "Self-review every stage before commit" in l), None
+        )
+        assert constraint, "self-review constraint bullet not found"
+        assert "duplicat" in constraint.lower(), (
+            "Constraints self-review bullet omits duplication"
+        )
+
+        description = next(
+            (l for l in lines if l.startswith("description:")), None
+        )
+        assert description, "frontmatter description not found"
+        assert "duplication" in description.lower(), (
+            "frontmatter description's lens list omits duplication"
+        )
+
+        readme_line = next(
+            (
+                l
+                for l in (REPO / "README.md").read_text().splitlines()
+                if "self-review (" in l
+            ),
+            None,
+        )
+        assert readme_line, "README.md self-review lens list not found"
+        assert "duplication" in readme_line.lower(), (
+            "README.md's lens list omits duplication"
+        )
 
 
 def test_no_stale_storm_section_references():
