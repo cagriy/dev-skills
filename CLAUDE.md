@@ -94,7 +94,7 @@ These are spread across the skill files but easy to break with a well-meaning ed
 Each `SKILL.md` starts with YAML frontmatter. The fields that matter for behavior:
 
 - `user-invocable: true|false` — gates whether the user can type `/<slug>`. `feature-resolve` and `lessons-capture` are `false`; `lessons-learn` uses `disable-model-invocation: true` so only the user can trigger it.
-- `model: opus`, `effort: xhigh` — the four user-facing feature skills set these explicitly.
+- `model: opus`, `effort: xhigh` — `feature-implement` sets these explicitly; `feature-storm`, `feature-design`, and `feature-plan` deliberately leave them unset so they run on the user's current session model/effort.
 - `allowed-tools` — narrowly scoped per skill. `feature-implement` needs full `Bash`; the others use `Bash(ls *)`, `Bash(find *)`, `Bash(cp *)`, etc. `feature-resolve` adds `Bash(cp *)` for tracker seeding.
 - `argument-hint` — shown in the slash-command picker.
 

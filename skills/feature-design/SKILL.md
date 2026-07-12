@@ -1,8 +1,6 @@
 ---
 name: feature-design
 description: Produce a reviewed feature design document under features/feature-v<N>-<description>/. Use when the user asks for a feature design, spec, design doc, design review, or to spec/scope a feature — typically as a follow-up to /feature-storm, or starting cold for features that don't need brainstorming. Grounds the design in the existing codebase (and any legacy docs/), asks clarifying questions until all open decisions are closed, writes feature-design-v<N>-<description>.md via feature-resolve, self-reviews for functional/security/efficiency gaps, updates the per-feature tracker, and presents highlights. Step 0 confirms with the user via AskUserQuestion before doing any work when invoked proactively; the confirmation is skipped when the user explicitly typed /feature-design, just chained in from /feature-storm, or just chained in from /feature-dispatch.
-model: opus
-effort: xhigh
 user-invocable: true
 disable-model-invocation: false
 argument-hint: <free-form feature requirements (optionally including v<N>), or omit to be asked / picked up from a just-completed /feature-storm>

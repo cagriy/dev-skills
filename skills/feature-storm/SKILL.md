@@ -1,8 +1,6 @@
 ---
 name: feature-storm
 description: Brainstorm the high-level product / requirements view of a feature before any technical design work. Use when the user wants to think through a feature at the product layer — goals, scope, users, rough technical direction — without committing to a design yet. Typically the first step in the feature-storm → feature-design → feature-plan → feature-implement chain, but optional; /feature-design can start from cold. Establishes initial requirements with the user, calls /feature-resolve to allocate the feature folder, runs a structured brainstorming loop until the user approves a ≤10-bullet summary, writes feature-storm-v<N>-<desc>.md, updates the per-feature tracker (header + storming section + progress bar), captures lessons, and offers to chain into /feature-design. Step 0 confirms with the user via AskUserQuestion before doing any work when invoked proactively; the confirmation is skipped when the user explicitly typed /feature-storm or just chained in from /feature-dispatch.
-model: opus
-effort: xhigh
 user-invocable: true
 disable-model-invocation: false
 argument-hint: <free-form requirements (optionally including v<N> and a short title), or omit to be asked>

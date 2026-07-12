@@ -1,8 +1,6 @@
 ---
 name: feature-plan
 description: Produce a staged, TDD-driven implementation plan that maps 1:1 to an existing feature design under features/feature-v<N>-<description>/. Use when the user asks to plan an implementation, break a feature into stages, or write a plan/roadmap for an existing design — typically as a follow-up to /feature-design. Refuses to plan without a real design file (delegated to feature-resolve). Runs its planning core (design read, codebase grounding, drafting, review, tracker update, lessons capture) inside a single general-purpose subagent; the subagent never asks the user questions — planning-level gaps are decided autonomously and recorded in the plan's "Planning decisions taken" section, and design-level gaps halt back to the main agent with a pointer to /feature-design. Reviews the plan for design coverage, inaccuracies, conflicts, and security issues before presenting staged highlights, then updates the per-feature tracker. Step 0 confirms with the user via AskUserQuestion before doing any work when invoked proactively; the confirmation is skipped when the user explicitly typed /feature-plan or just chained in from /feature-design.
-model: opus
-effort: xhigh
 user-invocable: true
 disable-model-invocation: false
 argument-hint: <optional v<N> to target a specific feature, or omit to use the latest with a design and no plan yet>
