@@ -205,18 +205,10 @@ class TestSelfReviewLensAlignment:
             "frontmatter description's lens list omits duplication"
         )
 
-        readme_line = next(
-            (
-                l
-                for l in (REPO / "README.md").read_text().splitlines()
-                if "self-review (" in l
-            ),
-            None,
-        )
-        assert readme_line, "README.md self-review lens list not found"
-        assert "duplication" in readme_line.lower(), (
-            "README.md's lens list omits duplication"
-        )
+        # The README no longer enumerates the lens list — the per-skill docs
+        # moved to the GitHub wiki (a separate repo this suite can't read).
+        # The wiki's Skills-Reference page mirrors these lenses; keep it
+        # aligned manually when the lens list changes.
 
 
 def test_no_stale_storm_section_references():

@@ -1,8 +1,6 @@
 ---
 name: bug-submit
 description: Submit a bug report as a local entry under bugs/ in the current repo, optionally with image attachments saved alongside the report. Use when the user wants to file a bug, log a defect they've just encountered, or report something broken. Accepts the bug description from $ARGUMENTS (or prompts in chat when missing or thin), accepts images already pasted into the conversation (via `[Image: source: <path>]`) as well as paths passed in arguments, allocates the next bug number by scanning both bugs/ and bugs/archive/, creates a bugs/bug-N-<description>/ folder, copies the images into it, and writes a bug-N-<description>.md report whose triage section is grounded in a quick read of the relevant code paths. Then regenerates a repo-wide bugs/bugs-tracker.html — an HTML Issues view listing all open (bugs/) and closed (bugs/archive/) bugs, each expandable to its full report and screenshots. Step 0 confirms with the user in chat before doing any work when invoked proactively; the confirmation is skipped when the user explicitly typed /bug-submit.
-model: opus
-effort: high
 user-invocable: true
 disable-model-invocation: false
 argument-hint: <bug description (optionally with image paths), or omit to be asked>

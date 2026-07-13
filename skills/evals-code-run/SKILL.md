@@ -1,8 +1,6 @@
 ---
 name: evals-code-run
 description: Evaluate the unpushed commits on the current branch across four quality dimensions — code duplication (checked against the rest of the repo), code bloat, inefficient code, and security issues — and record the results as an eval log. Use when the user wants to evaluate, score, audit, or quality-check recent unpushed changes, "run code evals", or measure duplication/bloat/inefficiency/security of work just committed — typically after /feature-implement or /bug-fix has landed commits that have not been pushed yet. Each dimension gets a 0–100% score (the percentage of the change affected — higher is worse) and, when issues are found, a ≤100-word recommendation for improving the feature-implement skill; one JSON entry per dimension is appended to ~/.claude/evals/code.json. Read-only with respect to the repo — never modifies project files, never commits, never pushes; its only write is the eval log. Step 0 confirms with the user via AskUserQuestion before doing any work when invoked proactively; the confirmation is skipped when the user explicitly typed /evals-code-run.
-model: opus
-effort: xhigh
 user-invocable: true
 disable-model-invocation: false
 argument-hint: <optional base ref to diff against when the branch has no upstream, or omit to use @{u}>
@@ -47,7 +45,7 @@ If the user declines, stop. If you are running in a context with no user channel
 
 ## Step 2 — Run the four evals
 
-Launch **four parallel subagents** (general-purpose, read-only intent), one per dimension, in a single message, and pass `model: opus` explicitly on each launch — the scores form a longitudinal record, so eval quality must not drift with whatever model the surrounding session happens to run. Parallelism matters: the duplication eval is search-heavy and the four analyses are fully independent. If the Agent tool is unavailable in your context, run the same four analyses yourself, sequentially, applying the briefs below verbatim.
+Launch **four parallel subagents** (general-purpose, read-only intent), one per dimension, in a single message; each inherits the session model and effort. Parallelism matters: the duplication eval is search-heavy and the four analyses are fully independent. If the Agent tool is unavailable in your context, run the same four analyses yourself, sequentially, applying the briefs below verbatim.
 
 Each subagent knows nothing about this conversation, so its brief must be self-contained. Include:
 

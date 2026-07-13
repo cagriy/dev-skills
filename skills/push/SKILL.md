@@ -1,8 +1,6 @@
 ---
 name: push
 description: Commit all changes and push to remote repository
-model: sonnet
-effort: high
 disable-model-invocation: true
 argument-hint: "[message]"
 ---

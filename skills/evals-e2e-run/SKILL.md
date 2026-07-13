@@ -1,8 +1,6 @@
 ---
 name: evals-e2e-run
 description: Evaluate a just-implemented feature end-to-end across its whole chain — storm, design, plan, implementation — scoring artefact quality (storm_quality, design_quality, plan_quality) and stage-to-stage consistency (design_consistency, plan_consistency, code_storm_consistency, code_design_consistency, code_plan_consistency), appending one JSON entry per eval to ~/.claude/evals/design.json. Use when the user wants to evaluate a finished feature, "run e2e evals", score the feature pipeline, or measure how well the storm/design/plan/implementation artefacts line up — typically right after /feature-implement has landed its stage commits and before they are pushed; the expected initiator is /feature-implement itself at the end of a run. Every score is 0–100 (higher is better); scores below 80 carry a ≤100-word recommendation for improving the responsible feature-* skill. Read-only with respect to the repo — never modifies project files, never commits, never pushes; its only write is the eval log. Step 0 confirms with the user via AskUserQuestion before doing any work when invoked proactively; the confirmation is skipped when the user explicitly typed /evals-e2e-run.
-model: opus
-effort: xhigh
 user-invocable: true
 disable-model-invocation: false
 argument-hint: <optional base ref to diff against when the branch has no upstream, or omit to use @{u}>
@@ -71,7 +69,7 @@ A chain-produced feature always has a design and a plan, so the usual selection 
 
 ## Step 2 — Run the evals (parallel subagents)
 
-Launch **one subagent per selected eval** (general-purpose, read-only intent), all in a single message, and pass `model: opus` explicitly on each launch — the scores form a longitudinal record, so eval quality must not drift with whatever model the surrounding session happens to run. The evals are fully independent, so parallelism is free wall-clock time. If the Agent tool is unavailable in your context, run the same analyses yourself, sequentially, applying the briefs below verbatim.
+Launch **one subagent per selected eval** (general-purpose, read-only intent), all in a single message; each inherits the session model and effort. The evals are fully independent, so parallelism is free wall-clock time. If the Agent tool is unavailable in your context, run the same analyses yourself, sequentially, applying the briefs below verbatim.
 
 Each subagent knows nothing about this conversation, so its brief must be self-contained. Include:
 

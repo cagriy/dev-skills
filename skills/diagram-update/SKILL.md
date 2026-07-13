@@ -1,8 +1,6 @@
 ---
 name: diagram-update
 description: Regenerate diagram/index.html — a single-file, interactive HTML diagram of the end-to-end workflow provided by this plugin's skills, hooks, and scripts. Use when the user wants to create, update, refresh, or regenerate the plugin workflow diagram, typically after skills have been added or changed. Runs only inside the dev-skills plugin repo itself (manifest name "dev") and refuses anywhere else. Renders the page from templates/workflow-diagram.html by substituting per-run data (groups, skills, steps, edges, overview layout) into the template's tokens — the template owns all presentation; the skill authors data only. Re-derives that data from the files on disk every run and overwrites any existing diagram/index.html wholesale — never merges or patches. Read-only towards everything except diagram/index.html; never commits or pushes. Step 0 confirms with the user before doing any work when invoked proactively; the confirmation is skipped when the user explicitly typed /diagram-update.
-model: opus
-effort: high
 user-invocable: true
 disable-model-invocation: false
 argument-hint: (no arguments)
