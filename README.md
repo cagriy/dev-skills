@@ -2,28 +2,9 @@
 
 A Claude Code plugin that ships a **TDD-driven feature workflow** plus standalone helper skills. Use it to brainstorm a feature, design it, plan it as a sequence of test-first stages, execute the plan stage-by-stage, and score the result — all from inside Claude Code.
 
-There is no application code, no build step, no test suite. The artifact **is** the set of `SKILL.md` files under `skills/`, the HTML templates under `templates/`, and the one bit of executable code the plugin carries: the `hooks/` remote-readiness check.
+There is no application code and no build step. The artifact **is** the set of `SKILL.md` files under `skills/`, the HTML templates under `templates/`, and the one bit of executable code the plugin carries: the `hooks/` remote-readiness check. A small test suite under `tests/` (uv-managed) keeps the skill files consistent with each other: `uv run pytest` runs free static cross-file checks, and `uv run pytest -m llm` additionally runs golden-fixture judge tests through the `claude` CLI (token cost, on demand).
 
-## Notes
-
-1. Clone the repo:
-
-   ```bash
-   git clone git@github.com:cagriy/dev-skills.git
-   ```
-
-2. Go into the repo folder and start Claude Code:
-
-   ```bash
-   cd dev-skills
-   claude
-   ```
-
-3. Give Claude this prompt:
-
-   > Review this repo for unfamiliar directory paths and amend them for my system. Then install the plugin for this computer user.
-
-See the [Install](#install) section below for the marketplace-based installation.
+See the [Install](#install) section below for installation.
 
 ## What it gives you
 
@@ -107,6 +88,7 @@ Executes the plan stage-by-stage on the **current branch**. Never creates branch
 - **Execution strategy:** asks up front whether to run every stage directly, one subagent per stage, or one subagent per three-stage chunk — always sequential, always one commit per stage.
 - **Closes by offering the eval suite:** on consent, runs `evals-code-run` and `evals-e2e-run` in two parallel read-only subagents and relays their scores.
 - **Step 0 confirmation is non-negotiable** because this skill writes code and creates commits.
+- **Runs on Opus** (`model: opus`, `effort: xhigh` in its frontmatter) — you need a plan with Opus access for this skill; the other feature-* skills inherit your session model.
 
 ### `/bug-submit`  *(standalone — not part of the feature chain)*
 Files a bug report as a local folder under `bugs/` in the current repo, with a triage section in the report grounded in a quick read of the relevant code paths.
@@ -180,16 +162,16 @@ This is a Claude Code plugin and is installed via the plugin system. Inside Clau
 
 ```
 /plugin marketplace add cagriy/dev-skills
-/plugin install dev-skills@cagri-tools
+/plugin install dev-skills@ai-tools
 ```
 
-The first command adds this repo as a marketplace (named `cagri-tools` inside its `marketplace.json`); the second installs the `dev-skills` plugin from it.
+The first command adds this repo as a marketplace (named `ai-tools` inside its `marketplace.json`); the second installs the `dev-skills` plugin from it.
 
 Or use `/plugin` interactively and pick `dev-skills` from the list.
 
-Once installed, the user-facing slash commands listed above are available in any project. The skills write artefacts into the **target project's** cwd (under `features/` and `bugs/`); the per-skill lessons logs and eval logs live under `~/.claude/`.
+Once installed, the user-facing slash commands listed above are available in any project. The skills write artefacts into the **target project's** cwd (under `features/` and `bugs/`); the per-skill lessons logs and eval logs live under `~/.claude/`. That location is fixed — the skills always write to `~/.claude/` even if you run Claude Code with a different profile via `CLAUDE_CONFIG_DIR`.
 
-To update later, re-run `/plugin install dev-skills@cagri-tools`. To remove, use `/plugin uninstall dev-skills`.
+To update later, re-run `/plugin install dev-skills@ai-tools`. To remove, use `/plugin uninstall dev-skills`.
 
 ## Typical session
 
@@ -235,7 +217,13 @@ templates/workflow-diagram.html  HTML template /diagram-update renders the archi
 diagram/index.html               the generated interactive architecture diagram
 hooks/hooks.json                 hook registration (SessionStart + UserPromptSubmit)
 hooks/remote-check.sh            the remote-readiness warning script — the only executable code here
+tests/                           static cross-file consistency checks + optional LLM judge tests (uv run pytest)
 CLAUDE.md                        contributor notes for working inside this repo
+LICENSE                          MIT
 ```
 
 There is no build step. Changes ship as edits to the markdown skill definitions, the templates, and the hook script.
+
+## License
+
+[MIT](LICENSE)

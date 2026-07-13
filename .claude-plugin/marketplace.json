@@ -1,5 +1,5 @@
 {
-  "name": "cagri-tools",
+  "name": "ai-tools",
   "description": "TDD-driven feature workflow plus standalone helper skills for Claude Code.",
   "owner": {
     "name": "Cagri Yucel"

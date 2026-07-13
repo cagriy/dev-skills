@@ -146,5 +146,4 @@ If a language's procedure ever outgrows a section (e.g. a full store-submission 
 
 ## Notes
 
-- The user has standing authorisation for `/release` to run end-to-end (no extra approval prompts), but the skill itself must still have been invoked — never release, tag, or push on the user's behalf without `/release` being run.
-- A copy of this skill also lives globally at `~/.claude/skills/release/SKILL.md` (shared by both profiles via symlink). When editing either copy, apply the same change to the other.
+- An explicit `/release` invocation is the user's authorisation for the skill to run end-to-end (no extra approval prompts mid-run) — but never release, tag, or push on the user's behalf without `/release` having been run.
