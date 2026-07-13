@@ -1,4 +1,5 @@
 ---
+name: release
 description: Release the current project — version bump, changelog update, commit, tag, push. Detects the project language (Python, Swift, or generic manifest) and applies the language-specific concerns inline; one shared procedure for everything else.
 model: sonnet
 effort: high
