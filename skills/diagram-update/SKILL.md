@@ -1,6 +1,6 @@
 ---
 name: diagram-update
-description: Regenerate diagram/index.html — a single-file, interactive HTML diagram of the end-to-end workflow provided by this plugin's skills, hooks, and scripts. Use when the user wants to create, update, refresh, or regenerate the plugin workflow diagram, typically after skills have been added or changed. Runs only inside the dev-skills plugin repo itself (manifest name "dev-skills") and refuses anywhere else. Renders the page from templates/workflow-diagram.html by substituting per-run data (groups, skills, steps, edges, overview layout) into the template's tokens — the template owns all presentation; the skill authors data only. Re-derives that data from the files on disk every run and overwrites any existing diagram/index.html wholesale — never merges or patches. Read-only towards everything except diagram/index.html; never commits or pushes. Step 0 confirms with the user before doing any work when invoked proactively; the confirmation is skipped when the user explicitly typed /diagram-update.
+description: Regenerate diagram/index.html — a single-file, interactive HTML diagram of the end-to-end workflow provided by this plugin's skills, hooks, and scripts. Use when the user wants to create, update, refresh, or regenerate the plugin workflow diagram, typically after skills have been added or changed. Runs only inside the dev-skills plugin repo itself (manifest name "dev") and refuses anywhere else. Renders the page from templates/workflow-diagram.html by substituting per-run data (groups, skills, steps, edges, overview layout) into the template's tokens — the template owns all presentation; the skill authors data only. Re-derives that data from the files on disk every run and overwrites any existing diagram/index.html wholesale — never merges or patches. Read-only towards everything except diagram/index.html; never commits or pushes. Step 0 confirms with the user before doing any work when invoked proactively; the confirmation is skipped when the user explicitly typed /diagram-update.
 model: opus
 effort: high
 user-invocable: true
@@ -31,7 +31,7 @@ On anything other than an explicit yes, stop without touching the filesystem.
 ## Step 1 — Gate: dev-skills repo only
 
 - `git rev-parse --show-toplevel` → `repo_root`. If it fails, stop: this skill only runs inside the dev-skills plugin repo.
-- `jq -r .name "<repo_root>/.claude-plugin/plugin.json"` must output exactly `dev-skills`. If the file is missing or the name differs, stop with one line: `diagram-update: refused — this skill only runs inside the dev-skills plugin repo (manifest name "dev-skills").`
+- `jq -r .name "<repo_root>/.claude-plugin/plugin.json"` must output exactly `dev`. If the file is missing or the name differs, stop with one line: `diagram-update: refused — this skill only runs inside the dev-skills plugin repo (manifest name "dev").`
 - Record `plugin_version` (`jq -r .version`) and `generated_at` (`date -u +"%Y-%m-%d %H:%M UTC"`) for the page header.
 - `template_file` = `<repo_root>/templates/workflow-diagram.html`. Verify it exists (`test -f`); if it is missing, stop with one line: `diagram-update: refused — templates/workflow-diagram.html is missing; restore it from git history before regenerating.` Do not fall back to authoring the page by hand.
 

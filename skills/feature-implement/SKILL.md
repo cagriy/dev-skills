@@ -408,7 +408,7 @@ If the user declines (or picks "Other" with decline intent), the skill is done. 
 
 If the user accepts, launch **two subagents in parallel** — one message, two `Agent` calls, `subagent_type: general-purpose` — one per eval skill, and wait for both. Parallel is safe by construction: both skills are read-only towards the repo, and they write to different log files. Each subagent starts with a fresh context, so its brief must be self-contained:
 
-- Instruct it to invoke its skill via the `Skill` tool — `evals-code-run` for one, `evals-e2e-run` for the other (plugin-qualified `dev-skills:` form where needed) — and execute it to completion.
+- Instruct it to invoke its skill via the `Skill` tool — `evals-code-run` for one, `evals-e2e-run` for the other (plugin-qualified `dev:` form where needed) — and execute it to completion.
 - State explicitly: "You are being run from /feature-implement's eval offer; the user already confirmed via AskUserQuestion — execute the skill without re-asking." This satisfies each eval skill's Step 0 clause for contexts with no user channel.
 - Pass the repo root, the current branch, and the feature version `v<version>` for context. If Step 3 found no remote/upstream for this branch, also pass the base ref the evals should diff against (as the skill argument) — without an upstream, "unpushed" is otherwise undefined for them.
 - Constraint: read-only towards the repo — no edits, no commits, no pushes; the only writes are the eval logs under `~/.claude/evals/`.

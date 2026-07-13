@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this repo is
 
-A Claude Code **plugin** (`.claude-plugin/plugin.json`, name `dev-skills`) that ships a TDD-driven feature workflow plus a few standalone helper skills under `skills/`. There is no build step — the artifact is mostly the SKILL.md content itself. A small test suite lives under `tests/` (uv-managed): `uv run pytest` runs free static cross-file consistency checks; `uv run pytest -m llm` additionally runs golden-fixture judge tests through the `claude` CLI (token cost, on demand). Changes ship as edits to the markdown skill definitions, the `templates/feature-tracker.html` template, and the one bit of executable code the plugin carries: the `hooks/` remote-readiness check.
+A Claude Code **plugin** (`.claude-plugin/plugin.json`, manifest name `dev` — kept deliberately short because it namespaces every slash command, e.g. `/dev:feature-design`; the plugin is distributed as `dev-skills` via the `ai-tools` marketplace repo) that ships a TDD-driven feature workflow plus a few standalone helper skills under `skills/`. There is no build step — the artifact is mostly the SKILL.md content itself. A small test suite lives under `tests/` (uv-managed): `uv run pytest` runs free static cross-file consistency checks; `uv run pytest -m llm` additionally runs golden-fixture judge tests through the `claude` CLI (token cost, on demand). Changes ship as edits to the markdown skill definitions, the `templates/feature-tracker.html` template, and the one bit of executable code the plugin carries: the `hooks/` remote-readiness check.
 
 The skills divide into these groups:
 
@@ -42,7 +42,7 @@ A procedure step is never a plan stage, and a plan stage is never a procedure st
                             │
               ~/.claude/dev-skills/lessons/<slug>.md
                             ↑
-       /dev-skills:lessons-learn <slug> (user-invoked, periodic)
+       /dev:lessons-learn <slug> (user-invoked, periodic)
 ```
 
 Per-feature output structure (in the **target project's** cwd):
@@ -109,7 +109,7 @@ Each `SKILL.md` starts with YAML frontmatter. The fields that matter for behavio
 
 ## Editing workflow
 
-Edits to a `SKILL.md` are usually applied via `/dev-skills:lessons-learn <slug>` after the log accumulates signal — that path keeps changes traceable to captured runs. Manual edits are fine when fixing wording, fixing broken cross-references between skills (e.g. Step numbers in the chain, chain-in opt-in checks, tracker token names), or shipping a structural change that the lessons system can't drive.
+Edits to a `SKILL.md` are usually applied via `/dev:lessons-learn <slug>` after the log accumulates signal — that path keeps changes traceable to captured runs. Manual edits are fine when fixing wording, fixing broken cross-references between skills (e.g. Step numbers in the chain, chain-in opt-in checks, tracker token names), or shipping a structural change that the lessons system can't drive.
 
 When changing one feature-* skill, scan the other three for mirrored sections — the `feature-resolve` invocation block, the chain-in opt-in checks in Step 0, the tracker update step, and the lessons-capture call all appear in all four. Keep them aligned.
 
