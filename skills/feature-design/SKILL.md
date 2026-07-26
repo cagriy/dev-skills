@@ -88,6 +88,8 @@ Parse the resolver's output block. Record these fields verbatim — every later 
 
 If the resolver stops with an error, pass the message to the user verbatim and stop. Do not retry with invented arguments.
 
+**`feature-resolve` runs inline in this turn — do not end your turn when its result block appears.** The `Skill` tool loads it into your own context rather than delegating to a subagent, so the block is a checkpoint in the middle of *your* run, not a hand-off that returns control anywhere. Once you've recorded the fields above, continue straight into Step 3 in the same turn. Stopping here strands the user with a seeded folder, an empty tracker, and no design.
+
 ## Step 3 — Ground the design in the codebase
 
 **Do this before the first `AskUserQuestion` in Step 4.** Clarifying questions written without grounding are vague and force extra rounds; reading the modules the feature will most likely extend first makes the questions concrete and lets you offer specific options.

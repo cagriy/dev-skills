@@ -82,6 +82,8 @@ Parse the resolver's output block. Record these fields verbatim — every later 
 
 If the resolver stops with an error (e.g. plan/implement prereq missing — shouldn't happen for storm, but other error paths exist), pass the message to the user verbatim and stop. Do not retry with invented arguments.
 
+**`feature-resolve` runs inline in this turn — do not end your turn when its result block appears.** The `Skill` tool loads it into your own context rather than delegating to a subagent, so the block is a checkpoint in the middle of *your* run, not a hand-off that returns control anywhere. Once you've recorded the fields above, continue straight into Step 3 in the same turn. Stopping here strands the user with a seeded folder, an empty tracker, and no brainstorm.
+
 ## Step 3 — Discuss specifics
 
 **This step is mandatory even in auto / non-interactive mode.** If the user or the harness has told you to "work without stopping" or "skip clarifying questions", that instruction does **not** apply here — converging on product intent before writing the brainstorm document is the entire purpose of this skill. Ask the questions anyway.

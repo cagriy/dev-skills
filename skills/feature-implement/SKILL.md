@@ -58,6 +58,8 @@ Parse the resolver's output block. Record `mode`, `version`, `description`, `fea
 
 If the resolver stops with an error, pass the message to the user verbatim and stop. Do not retry with invented arguments.
 
+**`feature-resolve` runs inline in this turn — do not end your turn when its result block appears.** The `Skill` tool loads it into your own context rather than delegating to a subagent, so the block is a checkpoint in the middle of *your* run, not a hand-off that returns control anywhere. Once you've recorded the fields above, continue straight into Step 2 in the same turn. Stopping here strands the user with a resolved plan path and nothing built.
+
 ## Step 2 — Read the plan, read the design, sanity-check both
 
 The resolver returned `prereq_file` = the plan. Construct the design path from `feature_folder` + `version` + `description`:

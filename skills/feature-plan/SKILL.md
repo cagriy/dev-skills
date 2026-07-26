@@ -58,6 +58,8 @@ Parse the resolver's output block. Record `mode`, `version`, `description`, `fea
 
 If the resolver stops with an error, pass the message to the user verbatim and stop. Do not retry with invented arguments.
 
+**`feature-resolve` runs inline in this turn — do not end your turn when its result block appears.** The `Skill` tool loads it into your own context rather than delegating to a subagent, so the block is a checkpoint in the middle of *your* run, not a hand-off that returns control anywhere. Once you've recorded the fields above, continue straight into Step 2 in the same turn and launch the planning subagent. Stopping here strands the user with a seeded folder, an empty tracker, and no plan. (The Step 2 subagent is the one real delegation in this skill; the resolver is not.)
+
 ## Step 2 — Launch the planning subagent *(main agent)*
 
 Everything from reading the design to composing the final summary (Steps 3–10) runs inside one subagent. This keeps the main conversation lean; the cost is that the subagent cannot talk to the user, which Steps 3–10 are written to respect.

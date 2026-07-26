@@ -9,6 +9,8 @@ allowed-tools: Read, Glob, Write, AskUserQuestion, Bash(ls *), Bash(find *), Bas
 
 Invoked as the resolution step of another feature-* skill in this plugin. Computes which `features/feature-v<N>-<description>/` folder the caller should write into, ensures the folder and tracker file exist, and returns the resolution as a structured block for the caller to parse.
 
+**You are running inline, inside the calling skill's own turn.** The `Skill` tool loads these instructions into the caller's context — it does not delegate to a subagent. There is no second agent on the other side of this: the model reading this text is the same model that will carry on with the caller's remaining steps once the resolution block is out. Read every "the caller" below as "you, a few steps from now".
+
 The point of externalising this is that all four feature skills need identical answers to "what folder, what version, what stage file?". Putting the procedure here means the four skills stay perfectly aligned and a rule change lands in exactly one place.
 
 ## Input
@@ -142,7 +144,9 @@ The `stage_file` is the path the caller will write to. The file itself **must no
 
 `prereq_file` is set when the caller is `plan` or `implement` — it points at the design (for plan) or plan (for implement) file the caller should read. For `storm` and `design`, set `prereq_file: n/a`.
 
-After the block, stop. The caller resumes with the block in context.
+**Do not end your turn here.** Nothing is waiting to pick this block up — you were loaded inline, so emitting the block is not a hand-off and there is no "return" to make. Emit it, then continue immediately, in the same turn, with the calling skill's next step: `feature-storm` Step 3, `feature-design` Step 3, `feature-plan` Step 2, `feature-implement` Step 2. The block stays in context as the record every later step reads its paths from.
+
+The only paths that do end the turn are the explicit failure exits above: a missing or invalid `stage=`, a non-contiguous `version=`, a missing prerequisite stage file, an invalid description, or a user cancelling the overwrite prompt in Step 3. A successful resolution never ends the turn.
 
 ## Constraints (non-negotiable)
 
@@ -152,4 +156,5 @@ After the block, stop. The caller resumes with the block in context.
 - **Versions are contiguous.** No gaps allowed when creating new — `N` must equal `N_max + 1`. No minor versioning (`v1.0`, `v1.1`) under any circumstances.
 - **No symlinks.** When copying the tracker template, always copy — never `ln -s`.
 - **Stop and ask, don't invent.** Any ambiguity (overwrite vs. new feature, multiple template matches, description mismatch on continue) goes through `AskUserQuestion`. Never silently pick a path the caller didn't authorise.
-- **Output format is the contract.** The block in Step 7 is read programmatically by the calling skill; do not add prose, headers, or extra fields. The exact keys and order matter.
+- **Output format is the contract.** The block in Step 7 is read back verbatim by the caller's later steps — which are your own later steps, since you run inline; do not add prose, headers, or extra fields. The exact keys and order matter.
+- **A successful resolution never ends the turn.** Emitting the Step 7 block is a checkpoint, not a stopping point. Carry straight on into the calling skill's next step in the same turn. Only the explicit failure exits (bad `stage=`, version gap, missing prerequisite, invalid description, user cancel) stop the run.
