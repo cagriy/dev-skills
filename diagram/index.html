@@ -347,8 +347,8 @@
 <div id="page">
   <header class="top">
     <div class="chiprow">
-      <span class="vchip">dev-skills v0.3.24</span>
-      <span class="vchip">generated 2026-07-12 08:17 UTC</span>
+      <span class="vchip">dev-skills v0.3.30</span>
+      <span class="vchip">generated 2026-07-26 12:46 UTC</span>
       <span class="vchip">by /diagram-update</span>
     </div>
     <h1>dev-skills — end-to-end workflow</h1>
@@ -515,14 +515,14 @@ const SKILLS = [
 
 { slug: "feature-implement", g: "chain", inv: "both", commits: true,
   purpose: "Builds the plan stage-by-stage on the current branch — one commit per green stage, never pushes.",
-  wraps: { loop: "stage loop 5a–5i · direct or subagents, per strategy" },
+  wraps: { loop: "stage loop 5a–5i · chunked subagents by default, direct when small" },
   steps: [
     { k: "0", t: "Confirm invocation", gate: true, d: "Strictly enforced because this skill writes code and commits: skipped only on the slash command or a fresh chain-in from /feature-plan's offer; any other arrival asks one AskUserQuestion first." },
     { k: "1", t: "Resolve folder", d: "Invokes feature-resolve with stage=implement. The resolver picks the latest folder with a plan but no implementation, asks about overwrites, and errors if no plan exists anywhere. Its returned paths are used verbatim." },
     { k: "2", t: "Read plan+design", gate: true, d: "Reads the plan and the design in full and builds the internal model of stages, requirements, and constraints. Unresolved “Deviations from the design” trigger an AskUserQuestion — proceed as-is or pause for a design refresh — never a silent override." },
     { k: "3", t: "Repo readiness", gate: true, d: "Verifies a clean tree and a synced current branch (never creating branches), detects the project's TEST / LINT / FORMAT_CHECK / TYPE_CHECK / BUILD / DEADCODE commands from manifests and CI, and records test, lint, and dead-code baselines. Any pre-existing test failure halts the skill: Investigate now, File a bug (hands over to /bug-submit), or Stop — it never builds on a red suite." },
     { k: "4", t: "Find starting stage", d: "Detects prior stage commits for this feature version via git log --grep on the exact commit-message format, resuming at the first uncommitted stage. A fully committed plan skips straight to the final sweep with no new commits." },
-    { k: "5", t: "Choose strategy", gate: true, d: "Asks who drives each stage's TDD cycle — Direct in this conversation, one general-purpose subagent per stage, or one per consecutive three-stage chunk. All three run the identical 5a–5i cycle strictly in order and commit one-per-stage; the question is asked whenever the user can be prompted and skipped (defaulting to Direct) only when one stage remains or the run is truly headless. In subagent modes the main agent verifies each unit's commits and re-runs the tests itself before launching the next unit." },
+    { k: "5", t: "Resolve strategy", d: "Resolves who drives each stage's TDD cycle by rule rather than by asking: consecutive three-stage subagent chunks by default, or Direct in this conversation when the user asked for that, when two or fewer stages remain, or when the pre-scan leaves nothing worth delegating. Both run the identical 5a–5i cycle strictly in order and commit one-per-stage, and the resolved strategy is announced in one line carrying the stage count and the partition — the run's only checkpoint before code lands. A unit that hit a deviation, a stop condition, or failed verification shrinks the next unit to a single stage; stages needing live verification, main-conversation tools, or network provisioning are pulled back into the main agent at their position in the order. In chunked mode the main agent verifies each unit's commits and re-runs the tests itself before launching the next unit." },
     { k: "5a", t: "Re-read stage", wrap: "loop", d: "Re-reads the stage block in the plan rather than trusting memory: goal, design references, files to touch, TDD steps, definition of done, risks. Pre-flight scans check for missing dependency-injection seams, type-identity mismatches across loaders, the caller blast radius of signature changes, time-dependent fixtures, and existing helpers or fixtures the stage should reuse instead of rewriting. Stages the plan flagged as non-TDD scaffolding skip the test cycle." },
     { k: "5b", t: "Write test", wrap: "loop", d: "Creates or modifies the stage's test files with concrete cases describing the new behaviour. No production code is written yet." },
     { k: "5c", t: "Confirm fail", wrap: "loop", d: "Runs the targeted test and checks the failure matches the expected initial failure the plan recorded. A pass at this point means the test exercises nothing new — or the behaviour already exists — and the stage stops until that is resolved." },
@@ -542,7 +542,7 @@ const SKILLS = [
 
 /* ------------------------------- shared services ------------------------------- */
 { slug: "feature-resolve", g: "services", inv: "agent", internal: true,
-  purpose: "Single source of pathing: computes the feature folder, version, and stage file every feature-* skill must use.",
+  purpose: "Single source of pathing: computes the feature folder, version, and stage file every feature-* skill must use — inline, inside the caller's own turn.",
   steps: [
     { k: "1", t: "Locate features/", d: "Ensures a features/ directory exists at the project root, creating it on first use. Artefacts never live anywhere else — docs/ is read-only legacy." },
     { k: "2", t: "Scan folders", d: "Globs features/ for feature-v<N>-* folders and parses each one's integer version (numeric compare, so v10 beats v9), authoritative description, and which stage files are already present." },
@@ -550,7 +550,7 @@ const SKILLS = [
     { k: "4", t: "Validate description", d: "For new folders only: the description must be ten words or fewer, filename-safe after hyphenation, and non-empty. Nothing is silently truncated." },
     { k: "5", t: "Create folder", d: "Creates features/feature-v<N>-<description>/ when the mode is create-new; continuing runs reuse the existing folder untouched." },
     { k: "6", t: "Seed tracker", d: "Copies the plugin's feature-tracker.html template into the folder if no tracker exists yet — always a copy, never a symlink. A missing template degrades to a note rather than failing the caller." },
-    { k: "7", t: "Output block", d: "Echoes the fixed parseable resolution block — mode, version, description, folder, stage file, tracker file, prerequisite file, notes — and stops. Callers parse it line-by-line and never reconstruct paths themselves." }
+    { k: "7", t: "Output block", d: "Echoes the fixed parseable resolution block — mode, version, description, folder, stage file, tracker file, prerequisite file, notes — then continues straight into the calling skill's next step in the same turn. Because it runs inline rather than in a subagent, a successful resolution never ends the turn; only its explicit failure exits stop the run. Callers read the block back from context and never reconstruct paths themselves." }
   ]},
 
 { slug: "lessons-capture", g: "services", inv: "agent", internal: true,
