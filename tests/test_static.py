@@ -211,6 +211,83 @@ class TestSelfReviewLensAlignment:
         # aligned manually when the lens list changes.
 
 
+class TestFeatureListContract:
+    """feature-list reports on the chain without being part of it.
+
+    It reads two producer-owned artefacts — the stage `.md` filenames minted by
+    feature-resolve and the tracker's per-stage `data-stage`/`data-state`
+    attributes flipped by the four feature-* skills — so a rename on either side
+    silently breaks the report. It is also strictly read-only: it must never
+    acquire a write tool or call feature-resolve (which creates folders and
+    seeds trackers) — the same reason evals-e2e-run globs by hand.
+    """
+
+    LIST_SKILL = SKILLS / "feature-list" / "SKILL.md"
+    STAGE_SLUGS = ("storm", "design", "plan", "implement")
+
+    def frontmatter(self):
+        m = re.match(r"---\n(.*?)\n---\n", self.LIST_SKILL.read_text(), re.DOTALL)
+        assert m, "feature-list: missing frontmatter"
+        return m.group(1)
+
+    def allowed_tools(self):
+        line = next(
+            (
+                l
+                for l in self.frontmatter().splitlines()
+                if l.startswith("allowed-tools:")
+            ),
+            None,
+        )
+        assert line, "feature-list: no allowed-tools in frontmatter"
+        return line
+
+    def test_is_user_invocable_and_documents_the_all_argument(self):
+        frontmatter = self.frontmatter()
+        assert re.search(r"^user-invocable:\s*true\s*$", frontmatter, re.MULTILINE)
+        hint = re.search(r"^argument-hint:\s*(.+)$", frontmatter, re.MULTILINE)
+        assert hint, "feature-list: no argument-hint"
+        assert "all" in hint.group(1), "argument-hint never mentions the `all` argument"
+
+    def test_is_read_only(self):
+        allowed = self.allowed_tools()
+        for tool in ("Write", "Edit", "NotebookEdit", "Skill", "Agent"):
+            assert not re.search(rf"\b{tool}\b", allowed), (
+                f"feature-list must stay read-only: {tool} in allowed-tools"
+            )
+
+    def test_does_not_delegate_to_feature_resolve_or_lessons_capture(self):
+        text = self.LIST_SKILL.read_text()
+        for line in text.splitlines():
+            if line.lstrip().startswith(("- **Never", "- **Read-only", ">")):
+                continue
+            assert "Skill` tool" not in line, (
+                "feature-list must not invoke other skills"
+            )
+
+    def test_stage_slugs_match_the_tracker_template(self):
+        text = self.LIST_SKILL.read_text()
+        template_text = (TEMPLATES / "feature-tracker.html").read_text()
+        for slug in self.STAGE_SLUGS:
+            assert f'data-stage="{slug}"' in template_text, (
+                f"tracker template lost data-stage={slug!r}"
+            )
+            assert f'data-stage="{slug}"' in text, (
+                f"feature-list never reads data-stage={slug!r}"
+            )
+        assert 'data-state="complete"' in text, (
+            "feature-list never reads the tracker's complete state"
+        )
+
+    def test_stage_file_naming_matches_feature_resolve(self):
+        pattern = "feature-<stage>-v<N>-<description>.md"
+        resolver = (SKILLS / "feature-resolve" / "SKILL.md").read_text()
+        assert pattern in resolver, "feature-resolve no longer states the stage-file pattern"
+        assert pattern in self.LIST_SKILL.read_text(), (
+            "feature-list must derive stage files from the same documented pattern"
+        )
+
+
 def test_no_stale_storm_section_references():
     files = all_skill_files() + [REPO / "CLAUDE.md"]
     offenders = [

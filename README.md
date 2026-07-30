@@ -36,6 +36,8 @@ A typical session:
                                                    #    the result with the eval suite
 ```
 
+Run `/dev:feature-list` at any point to see which features are still open and which stage each of them reached, or `/dev:feature-list all` to include the finished ones.
+
 ### Let the skills improve themselves
 
 The skills record improvement observations as they run. Occasionally, around every 15–20 features, run `/dev:lessons-learn <skill-name>` to review the accumulated lessons and apply the high-signal ones to the skill itself.
