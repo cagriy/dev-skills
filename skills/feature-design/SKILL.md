@@ -1,6 +1,6 @@
 ---
 name: feature-design
-description: Produce a reviewed feature design document under features/feature-v<N>-<description>/. Use when the user asks for a feature design, spec, design doc, design review, or to spec/scope a feature — typically as a follow-up to /feature-storm, or starting cold for features that don't need brainstorming. Grounds the design in the existing codebase (and any legacy docs/), asks clarifying questions until all open decisions are closed, mocks up the user-visible surface via feature-mockup and folds the user's chosen direction into the design — fired only when the feature has a user-visible surface whose appearance is not already settled, and skipped by a named rule when there is no surface, when the user already supplied a screenshot / design link / precise spec, when the change is a mechanical delta, or when the user declined, writes feature-design-v<N>-<description>.md via feature-resolve, self-reviews for functional/security/efficiency gaps, updates the per-feature tracker, and presents highlights. Step 0 confirms with the user via AskUserQuestion before doing any work when invoked proactively; the confirmation is skipped when the user explicitly typed /feature-design, just chained in from /feature-storm, or just chained in from /feature-dispatch.
+description: Produce a reviewed feature design document under features/feature-v<N>-<description>/. Use when the user asks for a feature design, spec, design doc, design review, or to spec/scope a feature — typically as a follow-up to /feature-storm, or starting cold for features that don't need brainstorming. Grounds the design in the existing codebase (and any legacy docs/), interviews the user across as many rounds as it takes — ending not on a question count but on a readiness test: it could draft the whole design with no guesses, no hedges, every storm open question closed, and an empty open-questions section, mocks up the user-visible surface via feature-mockup and folds the user's chosen direction into the design — fired whenever the feature has a user-visible surface whose appearance is not already settled, and skipped only by a named rule when there is no surface, when the user supplied a screenshot / design link / precise spec up front, when the change is a mechanical delta, or when the user declined — the clarification loop deliberately does not close appearance decisions, so a UI-heavy feature always reaches the mockup, writes feature-design-v<N>-<description>.md via feature-resolve, self-reviews for functional/security/efficiency gaps, updates the per-feature tracker, and presents highlights. Step 0 confirms with the user via AskUserQuestion before doing any work when invoked proactively; the confirmation is skipped when the user explicitly typed /feature-design, just chained in from /feature-storm, or just chained in from /feature-dispatch.
 user-invocable: true
 disable-model-invocation: false
 argument-hint: <free-form feature requirements (optionally including v<N>), or omit to be asked / picked up from a just-completed /feature-storm>
@@ -13,7 +13,7 @@ You are running the `feature-design` skill. The user may have arrived here by ty
 
 **Terminology (plugin-wide).** Two words are overloaded; keep them apart. A **step** is a numbered step of *this skill's own procedure* — the `## Step …` headings below (e.g. *Step 4*); the only other "steps" are the **TDD steps** inside a plan stage (write test → confirm fail → implement → confirm pass). A **stage** has two senses: a **chain stage** is one of `storm → design → plan → implement` (it shows up as `stage=…`, `stage_file`, and the tracker's `data-stage`), while a **plan stage** is a committable unit of work *inside* the implementation plan (e.g. `Stage 1`) — `/feature-plan` creates these and `/feature-implement` builds one per commit. A procedure step is never a plan stage, and a plan stage is never a procedure step.
 
-This skill has twelve steps (Steps 0–11). Execute them in order. Do not skip Step 0 (proactive-invocation confirmation), Step 4 (clarification loop), Step 7 (self-review), Step 8 (tracker update), or Step 9 (lessons capture) — they are the load-bearing steps. Step 5 (mockup) runs whenever the feature has a user-visible surface, and is skipped only when it genuinely has none.
+This skill has twelve steps (Steps 0–11). Execute them in order. Do not skip Step 0 (proactive-invocation confirmation), Step 4 (clarification loop), Step 5 (mockup), Step 7 (self-review), Step 8 (tracker update), or Step 9 (lessons capture) — they are the load-bearing steps. Step 5 is load-bearing in the same sense as the others: it runs whenever the feature has a user-visible surface whose appearance is not already settled, and it may be skipped only via one of the four *named* exits in Step 5a — never by judgement. Step 4 is an **interview that runs until the design is fully determined**, not a fixed handful of questions: it ends on its readiness test (Step 4's exit condition), never on a question count.
 
 ## Step 0 — Confirm before proceeding (when invoked proactively)
 
@@ -112,18 +112,49 @@ If the feature integrates with a third-party platform (cloud provider, API, fram
 
 **This step is mandatory even in auto / non-interactive mode.** If the user or the harness has told you to "work without stopping", "skip clarifying questions", or otherwise run autonomously, that instruction does **not** apply here — closing material ambiguity before the design is written is the entire purpose of this skill. Ask the questions anyway; a design produced from guesses is worse than a brief pause.
 
-Iteratively use `AskUserQuestion` (1–4 questions per call) to resolve every material ambiguity. Cover at minimum:
+**This is an interview, not a quiz.** One `AskUserQuestion` call of four questions closes a genuinely trivial feature and nothing else. Anything with a data model, an integration, a user flow, or a migration takes **several rounds**, and that is the expected shape of this step — treat your first round as the opening of the interview rather than the whole of it. The loop ends on the readiness test below, never on a question count and never on a feeling that you have asked enough.
+
+Iteratively use `AskUserQuestion` (1–4 questions per call) to resolve every material ambiguity. Every area below must be **resolved** before the loop ends — by a user answer where the choice is theirs, or by a grounded decision you record with rationale where it is not:
 
 - **Scope** — what is explicitly in and out of scope for this feature.
 - **Acceptance criteria** — what "done" concretely means; how the user verifies the feature works.
+- **Behaviour per requirement** — for each numbered requirement that will land in §3, the specific observable behaviour, including what happens at its boundaries. A requirement two engineers could implement differently is not yet closed.
 - **Approach choices** — when multiple viable paths exist, present them as options for the user to pick. When an option differs from the others on a **measurable dimension** (cost, latency, storage, memory, quota/request usage), compute that quantity from the Step 3 grounding and state it inside the option description rather than offering an abstract trade-off — quantified options close the decision in one round and ground your recommendation in numbers the user can verify.
 - **Constraints** — performance, security, dependencies, deadlines, compatibility, platform.
 - **Data and state** — what is stored, where, with what lifetime, with what migration path if any.
+- **Interfaces and integration points** — the contract with existing code and with anything external: what this feature calls, what calls it, what it must not break, and what happens to existing callers and existing data.
 - **Failure behavior** — how the feature behaves on bad input, partial failure, network errors, race conditions.
+- **Scale and concurrency** — expected volumes and rates, what happens at the top of that range, and whether concurrent use is possible.
+- **Permissions and trust boundaries** — who may do this, what is untrusted input, what secrets or credentials are involved. Skip only when the feature genuinely has no trust boundary, and record that as the finding.
+- **Operability** — how anyone will know it is working or broken (logging, metrics, user-visible errors), and whether it needs a flag or staged rollout.
+
+**Ask, or decide and record — but never guess.** Route each open item deliberately:
+
+- **Ask the user** when the choice is theirs to make: product behaviour, anything they would notice or care about, anything trading cost / risk / effort against value, anything irreversible, and anything where your grounding gives two defensible answers.
+- **Decide yourself** when the answer follows from the Step 3 grounding, an existing convention in the repo, or a plain best practice with no user-visible consequence — then record it in §5/§6 with its rationale, which is what makes it a closed decision rather than an assumption.
+- Never self-decide something merely to save a round-trip. If you would feel the need to write "assuming …" in the design, that is a question you have not asked.
+- Bundle up to four questions per call so depth costs rounds, not round-trips — thoroughness is measured in decisions closed, not in messages sent.
 
 If a `/feature-storm` ran first, its §7 (Open questions for design) is the seed list — explicitly close every item there. Do not skip them on the assumption that "the design will figure it out". An item is *closed* either by a user answer **or** by a grounded decision you record in §5/§6 with rationale; reserve `AskUserQuestion` for items with a genuine user-facing trade-off.
 
-After each round, restate your working understanding internally and ask: *Is there any remaining decision that would meaningfully change the design if it went the other way?* If yes, ask another round. Stop only when the remaining uncertainty would not redirect the design.
+**Appearance is not closed here — it routes to Step 5.** When the feature has a user-visible surface, this loop closes *behaviour* — everything on the coverage list above, including the surface's flows, states and error handling. It does **not** close how the surface looks — placement, hierarchy, information density, which components carry it, type or colour treatment. Those are Step 5's decisions, and they are settled by a rendered mockup the user can accept or redirect, not by prose options in an `AskUserQuestion`. This carve-out exists because closing them here inverts the mockup rule: the more visual unknowns a feature has, the more of them this loop would absorb, and the more Step 5a's *Appearance already settled* exit would (wrongly) appear to apply. Concretely:
+
+- A storm §7 item that is a **visual** question is closed *by Step 5*, not by an answer collected here. Record it as routed-to-mockup and carry it into Step 5b's `feature=` statement; it is still closed before the design is written, just one step later.
+- Ask here only the visual questions that **bound** the mockup rather than decide it — which platform or breakpoint it targets, whether an existing surface is being modified or a new one added, whether the user already has a reference to follow. Those shape the `kind=` and `references=` slots.
+- The one exception is the ambiguity question named in Step 5a (whether to mock up at all); fold that in here when it applies.
+
+### The readiness test — the exit condition
+
+After each round, restate your working understanding internally, then run this test. **The loop ends only when every check passes; a single failure means another round.**
+
+1. **Dry-draft §5.** Sketch the design document's §5 in note form — data model, interfaces, control flow, failure and edge cases, security at trust boundaries, user-facing flows and states (*behaviour*, not appearance), per-component test plan. Every place you would write a guess, a hedge, or "assuming X" is an unclosed decision.
+2. **No hedge language survives.** Nothing you intend to write contains "TBD", "TODO", "to be decided during implementation", "either … or …", "as appropriate", "something like", or a list of options presented as if it were a decision.
+3. **§8 would be empty.** The design's *Open questions* section would read "None — all decisions closed." Any item you would otherwise park in §8 is a question you have not asked yet — `/feature-plan` refuses to plan against a non-empty §8, so parking it does not defer the cost, it stalls the chain.
+4. **Every storm §7 item is closed** — by a user answer, by a recorded grounded decision, or (for visual items only) by routing to Step 5.
+5. **Two-engineer test.** Two competent engineers implementing from this design without access to you would produce functionally equivalent behaviour — same data written, same failure handling, same contract with existing code.
+6. **A dry round.** The most recent round surfaced nothing that changed the design. If your last round moved something, there is at least one more round to run.
+
+The only uncertainty permitted past this test is **appearance**, which Step 5 closes with a rendered mockup, per the carve-out above.
 
 Three rules keep the rounds efficient and honest:
 
@@ -131,7 +162,7 @@ Three rules keep the rounds efficient and honest:
 - **Verified claims only.** Before presenting options whose descriptions or previews assert a specific technical or behavioural outcome, validate the claim against the Step 3 grounding (or a throwaway prototype). Never put an unverified behavioural guarantee in an option.
 - **Cross-check the answers.** After the loop ends, re-scan all collected answers for cross-answer contradictions (one answer forbidding what another requires); surface and resolve any before writing the design, and note the reconciliation in the doc.
 
-Do not pad with questions for their own sake. Equally, do not stop early to avoid friction — under-clarification is the failure mode this skill exists to prevent. The final design must have **no points that require further decisions**.
+Do not pad with questions for their own sake — a question whose answer cannot change the design is noise, and the ask-or-decide rule above keeps mechanical detail off the user's plate. But when the two failure modes are weighed against each other, **under-clarification is the far more expensive one and the one this skill exists to prevent**: a padded round costs the user thirty seconds, while a design written over a guess costs a plan and an implementation built on it. Never stop early to avoid friction, to seem efficient, or because the user has answered several rounds already — the user asked for a design they can build from, and rounds are the price of one. The final design must have **no points that require further decisions**.
 
 ## Step 5 — Mock up the user-visible surface
 
@@ -147,14 +178,23 @@ A mockup costs the user a round of attention, so this is a rule with named exits
 Skip when any of these four conditions is met. Each is a *named* exit: record which one applied in one line of chat and in §5 of the design, so the absence of a mockup is a visible decision rather than a silent omission.
 
 - **No user-visible surface** — a library or API-only change, a background job, a schema migration, an infrastructure, CI or tooling change, a pure refactor. Nothing to draw.
-- **Appearance already settled** — the user supplied the surface: a screenshot, image, wireframe, design-tool link or existing page to copy; a field-by-field / label-by-label / value-by-value description precise enough to implement without a visual decision; or an accepted mockup already exists for this exact surface (in this feature's `mockups/`, or in a prior feature version's whose surface this feature does not change). Their artefact **is** the accepted direction — cite it in §5 by path or URL instead of drawing over it. Do not "confirm" a decision the user has already made.
+- **Appearance already settled** — the user supplied the surface *of their own accord, independently of this skill's clarification round*: a screenshot, image, wireframe, design-tool link or existing page to copy; a field-by-field / label-by-label / value-by-value description precise enough to implement without a visual decision; or an accepted mockup already exists for this exact surface (in this feature's `mockups/`, or in a prior feature version's whose surface this feature does not change). Their artefact **is** the accepted direction — cite it in §5 by path or URL instead of drawing over it. Do not "confirm" a decision the user has already made.
+
+  **Answers you collected in Step 4 do not settle appearance.** This exit is about material the user brought — in `$ARGUMENTS`, in the conversation before this skill ran, or in the storm — not about visual choices you elicited yourself a few minutes ago by listing options in an `AskUserQuestion`. A picked option is a direction, not a rendered surface, and Step 4 is explicitly carved out from closing appearance for exactly this reason. If the only thing making the surface "settled" is your own Step 4 round, this exit does not apply — fire the mockup and pass what the user said through as the direction to render.
 - **Mechanical delta** — the change follows an existing pattern one-for-one with no visual decision inside it: a label or copy fix, one more field on an existing form, one more column in an existing table, one more row in an existing settings list, a value swap the user already specified exactly.
 - **User declined** — the user said, in this conversation, that they don't want a mockup, or asked to go straight to the design or the code for this feature.
+
+**The fire trip-wire — checked before any exit.** The four exits are a filter on a decision that defaults to *fire*, so run this check first and let it win. If the feature has a user-visible surface **and** either of the following holds, Step 5 fires and **no exit applies**:
+
+- the storm's §7 contained a visual question (one you routed to Step 5 under the Step 4 carve-out), or
+- Step 4 touched appearance at all — any question, option or answer about placement, hierarchy, density, which components carry the surface, or type/colour treatment.
+
+Both are positive evidence that a real visual decision exists and that the user has opinions about it — which is the fire condition, not the skip condition. The trip-wire is deliberately one-way: it can force a fire, never a skip. Note what it rules out — a feature with many UI unknowns cannot reach *Appearance already settled*, because the unknowns are what tripped it.
 
 Two rules keep this cheap and honest:
 
 - **Don't skip because the UI "seems obvious" to you.** Obvious-to-you is exactly where your picture and the user's diverge. Only the four conditions above license a skip.
-- **When it's genuinely ambiguous — the surface exists but you can't tell whether the appearance is settled — fold one question into the Step 4 clarification round** ("Want me to mock this up first, or is your description enough to design from?") rather than spending a standalone round-trip on it or drawing speculatively. If Step 4 has already closed and the ambiguity remains, ask that one question here via `AskUserQuestion` with "Mock it up first" recommended.
+- **When it's genuinely ambiguous — the surface exists, the trip-wire did not fire, and you can't tell whether the appearance is settled — fold one question into the Step 4 clarification round** rather than spending a standalone round-trip on it or drawing speculatively. Ask it as a single choice, not as a bundled either/or: question `"Mock up <the surface> before writing the design?"`, options `"Yes, mock it up first"` (Recommended — a rendered page settles placement and density in one round) and `"No, my description is enough"`. If Step 4 has already closed and the ambiguity remains, ask that same question here via `AskUserQuestion`.
 
 **Partially supplied references are a fire, not a skip.** When the user gave a reference that covers only part of the surface (one screen of three, the desktop layout but not the mobile one, the palette but not the layout), fire the mockup and pass the reference through — the mockup's job is then to extend the user's own direction, not to reinvent it.
 
@@ -368,6 +408,7 @@ Do not skip this step or substitute the AskUserQuestion with prose. The offer is
 - **Output path comes from `feature-resolve` only.** Never write to `docs/`, never construct `features/...` paths by hand. Step 2 is the single source of pathing.
 - **Integer versions only.** `v<N>` everywhere — no `v<N>.<M>` minor versions. No "next available version" math in this skill; the resolver decides.
 - **No open decisions.** §8 must be empty or "None — all decisions closed." before Step 8 begins.
+- **Clarify to exhaustion, not to a quota.** Step 4 is an interview that runs until the readiness test passes — a dry-drafted §5 with no guesses, no hedge language, an empty §8, every storm §7 item closed, the two-engineer test met, and a round that surfaced nothing new. Question count, elapsed rounds, and the user having already answered a few are not exit conditions. The one uncertainty allowed past it is appearance, which Step 5 closes with a rendered mockup.
 - **Self-review is mandatory.** Step 7 must run even if the draft looks clean — security and efficiency gaps are usually invisible on the first pass.
 - **UI decisions come from the user, via the mockup.** When the feature has a user-visible surface, Step 5 runs and the design records the direction the user accepted — never a surface you invented and never one the user has not seen. `feature-mockup` owns the mockup files under `<feature_folder>/mockups/`; this skill only reads them and cites them.
 - **Tracker edits are defensive.** Substitute only tokens still literal `{{...}}`; never overwrite content placed by `/feature-storm` or any other skill. The progress bar's `data-stage="design"` entry is this skill's alone to touch.

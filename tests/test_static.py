@@ -400,6 +400,50 @@ class TestFeatureMockupContract:
                 f"feature-design's fire/skip rule never names {condition!r}"
             )
 
+    def test_step_4_does_not_close_appearance_decisions(self):
+        # The failure this guards: Step 4 runs before Step 5 and is told to close
+        # *every* material ambiguity (including a storm §7 full of UI questions).
+        # Without a carve-out, a UI-heavy feature arrives at 5a with its
+        # appearance "already settled" by answers this skill itself harvested —
+        # so the more visual unknowns a feature has, the more likely the mockup
+        # is skipped. The rule must invert back.
+        design = DESIGN_SKILL.read_text()
+        step_4 = design.split("## Step 4 —")[1].split("## Step 5 —")[0]
+        assert re.search(r"appearance", step_4, re.I), (
+            "feature-design Step 4 has no appearance carve-out — visual decisions "
+            "closed here silently license the Step 5a 'Appearance already settled' skip"
+        )
+        assert "Step 5" in step_4, (
+            "feature-design Step 4 must route appearance decisions to Step 5"
+        )
+
+    def test_step_5a_excludes_own_clarification_answers(self):
+        design = DESIGN_SKILL.read_text()
+        step_5 = design.split("## Step 5 —")[1].split("## Step 6 —")[0]
+        assert re.search(r"Step 4.{0,200}(do not|never|does not) settle", step_5, re.S | re.I), (
+            "feature-design 5a must state that its own Step 4 answers do not "
+            "settle appearance — otherwise the skip exit swallows the fire case"
+        )
+
+    def test_step_5a_has_a_positive_fire_trip_wire(self):
+        design = DESIGN_SKILL.read_text()
+        step_5 = design.split("## Step 5 —")[1].split("## Step 6 —")[0]
+        assert re.search(r"trip-wire", step_5, re.I), (
+            "feature-design 5a has only skip exits and no condition that forces a "
+            "fire; the rule needs one so UI-heavy features cannot be reasoned out of it"
+        )
+
+    def test_step_5_is_listed_as_load_bearing(self):
+        # The intro used to state a *different* rule from 5a ("skipped only when
+        # it genuinely has none"), and left Step 5 out of the do-not-skip list.
+        intro = DESIGN_SKILL.read_text().split("## Step 0")[0]
+        assert re.search(r"Step 5 \(mockup", intro), (
+            "feature-design intro must name Step 5 among the load-bearing steps"
+        )
+        assert "skipped only when it genuinely has none" not in intro, (
+            "feature-design intro restates a looser rule than Step 5a's four named exits"
+        )
+
     def test_supplied_references_outrank_the_grounded_digest(self):
         # A user-supplied screenshot / design link / exact spec is the strongest
         # evidence of what they want; the mockup must not quietly override it.

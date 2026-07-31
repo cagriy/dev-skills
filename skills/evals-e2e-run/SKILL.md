@@ -101,8 +101,9 @@ Each subagent knows nothing about this conversation, so its brief must be self-c
 8. **Concrete open questions (§7)** — each item is a specific decision `/feature-design` must close (not "figure out the architecture"), with captured user preferences annotated.
 9. **Structural completeness** — all seven sections present, each with real content or an explicit "Not applicable — <reason>".
 10. **Requirement unambiguity** — for each goal and in-scope bullet: would two competent designers infer the same intended behavior? Met = all pass; partial = a minority fail; unmet = a majority fail.
+11. **Scope decisiveness (§3)** — the in/out boundary is decided, not hedged: no "maybe", "probably", "possibly", "TBD", "depending on", or "we may also" qualifiers on scope items, and no capability mentioned elsewhere in the document (a goal, a risk, an alternative, an open question) that is left unplaced on the boundary. Product-level scope only — a §7 open question about *how* something is built is design-level uncertainty and does not count against this item. Partial = one hedged or unplaced item; unmet = several.
 
-Items 3, 4, 5, and 8 quote `feature-storm`'s own section content rules so producer and judge share one standard; if those rules change, re-sync this rubric.
+Items 3, 4, 5, 8, and 11 quote `feature-storm`'s own section content rules so producer and judge share one standard; if those rules change, re-sync this rubric.
 
 **design_quality** — judge the design document against this rubric, item by item. The rubric is self-referential: it judges the design against its own sections and the code it cites — coverage of the storm's commitments is `design_consistency`'s job. Where an item allows "Not applicable", it is met only by an explicit, credible "Not applicable — <reason>" line (or the section's explicit none-wording), never by silence:
 

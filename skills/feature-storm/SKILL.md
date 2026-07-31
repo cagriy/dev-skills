@@ -1,6 +1,6 @@
 ---
 name: feature-storm
-description: Brainstorm the high-level product / requirements view of a feature before any technical design work. Use when the user wants to think through a feature at the product layer — goals, scope, users, rough technical direction — without committing to a design yet. Typically the first step in the feature-storm → feature-design → feature-plan → feature-implement chain, but optional; /feature-design can start from cold. Establishes initial requirements with the user, calls /feature-resolve to allocate the feature folder, runs a structured brainstorming loop until the user approves a ≤10-bullet summary, writes feature-storm-v<N>-<desc>.md, updates the per-feature tracker (header + storming section + progress bar), captures lessons, and offers to chain into /feature-design. Step 0 confirms with the user via AskUserQuestion before doing any work when invoked proactively; the confirmation is skipped when the user explicitly typed /feature-storm or just chained in from /feature-dispatch.
+description: Brainstorm the high-level product / requirements view of a feature before any technical design work. Use when the user wants to think through a feature at the product layer — goals, scope, users, rough technical direction — without committing to a design yet. Typically the first step in the feature-storm → feature-design → feature-plan → feature-implement chain, but optional; /feature-design can start from cold. Establishes initial requirements with the user, calls /feature-resolve to allocate the feature folder, then runs a structured brainstorming loop that generates ideas the brief did not contain — adjacent capabilities, alternative product approaches, smaller cuts, unconsidered users — and offers them alongside its clarifying questions, converging only once the scope is fully settled (every capability explicitly in or deferred) and the user approves a ≤10-bullet summary, writes feature-storm-v<N>-<desc>.md, updates the per-feature tracker (header + storming section + progress bar), captures lessons, and offers to chain into /feature-design. Step 0 confirms with the user via AskUserQuestion before doing any work when invoked proactively; the confirmation is skipped when the user explicitly typed /feature-storm or just chained in from /feature-dispatch.
 user-invocable: true
 disable-model-invocation: false
 argument-hint: <free-form requirements (optionally including v<N> and a short title), or omit to be asked>
@@ -13,7 +13,7 @@ You are running the `feature-storm` skill. The user may have arrived here by typ
 
 **Terminology (plugin-wide).** Two words are overloaded; keep them apart. A **step** is a numbered step of *this skill's own procedure* — the `## Step …` headings below (e.g. *Step 4*); the only other "steps" are the **TDD steps** inside a plan stage (write test → confirm fail → implement → confirm pass). A **stage** has two senses: a **chain stage** is one of `storm → design → plan → implement` (it shows up as `stage=…`, `stage_file`, and the tracker's `data-stage`), while a **plan stage** is a committable unit of work *inside* the implementation plan (e.g. `Stage 1`) — `/feature-plan` creates these and `/feature-implement` builds one per commit. A procedure step is never a plan stage, and a plan stage is never a procedure step.
 
-This skill has ten steps (Steps 0–9). Execute them in order. Do not skip Step 0 (proactive-invocation confirmation), Step 3 (clarification loop), Step 4 (approval gate), Step 6 (tracker update), or Step 7 (lessons capture) — they are the load-bearing steps.
+This skill has ten steps (Steps 0–9). Execute them in order. Do not skip Step 0 (proactive-invocation confirmation), Step 3 (brainstorm + clarification loop), Step 4 (approval gate), Step 6 (tracker update), or Step 7 (lessons capture) — they are the load-bearing steps. Step 3 has two halves and **both** are load-bearing: generating ideas the user did not bring (Step 3a) and closing the ones they did (Step 3b).
 
 ## Step 0 — Confirm before proceeding (when invoked proactively)
 
@@ -84,9 +84,32 @@ If the resolver stops with an error (e.g. plan/implement prereq missing — shou
 
 **`feature-resolve` runs inline in this turn — do not end your turn when its result block appears.** The `Skill` tool loads it into your own context rather than delegating to a subagent, so the block is a checkpoint in the middle of *your* run, not a hand-off that returns control anywhere. Once you've recorded the fields above, continue straight into Step 3 in the same turn. Stopping here strands the user with a seeded folder, an empty tracker, and no brainstorm.
 
-## Step 3 — Discuss specifics
+## Step 3 — Brainstorm and discuss specifics
 
 **This step is mandatory even in auto / non-interactive mode.** If the user or the harness has told you to "work without stopping" or "skip clarifying questions", that instruction does **not** apply here — converging on product intent before writing the brainstorm document is the entire purpose of this skill. Ask the questions anyway.
+
+**This is a brainstorm, not an intake interview.** Clarifying what the user already said is only half the job; the other half is putting ideas on the table they have not had yet. A round that only asks "what did you mean by X?" has under-delivered. Run both halves — **Step 3a generates**, **Step 3b converges** — and interleave them: each round should carry at least one proposal of your own alongside its clarifying questions, until there is nothing left worth proposing.
+
+### Step 3a — Generate (diverge)
+
+Before the first `AskUserQuestion` round, and again whenever an answer opens new ground, produce ideas the brief does not contain. Draw on the Step 1 grounding read, prior art in comparable products, and the shape of the problem itself. Aim for **3–6 candidates per generating round**, spread across these angles (not all will apply to every feature):
+
+- **Adjacent capability** — the thing a user will obviously want next once this exists, worth deciding on now even if the decision is "deferred".
+- **Different product approach** — a materially different way to meet the same goal (different UX, different workflow, buy-vs-build, do-nothing-and-change-a-default).
+- **Smaller cut** — the version that delivers most of the value for a fraction of the work, so the user gets to choose the trade rather than inherit it.
+- **Bigger frame** — the more valuable feature this one is a special case of, when the brief looks like it is solving a symptom.
+- **Unconsidered user or scenario** — a second audience, an admin/support path, first-run or empty state, the offline / degraded / high-volume case.
+- **Something to deliberately not build** — a capability the brief implies but that would be better left out of this version, named so it can be recorded rather than silently assumed in.
+
+Rules for generated ideas:
+
+- **Product altitude only.** Generate capabilities, scope cuts, audiences and workflows — never schemas, algorithms, or library picks. A tempting technical idea becomes a §7 open question for `/feature-design`, not a proposal here.
+- **Offer, never assume.** An idea reaches the storm document only if the user adopted it. Put ideas in front of the user as `AskUserQuestion` options (or as a short numbered list in prose when a round has more candidates than options allow), with your recommendation marked and a one-line reason. Silence is not adoption.
+- **Cheap to say no to.** One line each, no build-up. The user should be able to dismiss five ideas in one click and keep the sixth.
+- **A rejected idea is still an output.** A rejected *approach* becomes a §5 alternative with the reason it lost; a rejected *capability* becomes a §3 out-of-scope entry by name. Never drop a considered idea without a trace — the record of what was considered and declined is half the value of the storm.
+- **Stop when the well runs dry.** After a round where nothing you proposed survives and nothing new comes to mind, stop generating and finish converging. Do not pad rounds with ideas for their own sake.
+
+### Step 3b — Converge (clarify)
 
 Iteratively use `AskUserQuestion` (1–4 questions per call) to converge on the product picture. **Always present options with a recommendation** rather than open-ended prompts — the user can still pick "Other" to redirect. **Pace the bundle size to the user's footing:** for technically-uncertain or feasibility-gated features, open with the single highest-leverage question (or a short feasibility note) and expand to 3–4 question rounds only once the user is answering decisions rather than clarifying what's possible. **Sequence by dependency:** ask the foundational decisions whose answers constrain later questions first (e.g. where a component runs relative to its clients before how they communicate or authenticate), so a late-surfacing upstream fact doesn't invalidate answers already given. Cover at minimum:
 
@@ -103,7 +126,20 @@ After each round, restate your working understanding internally and cross-check 
 
 Keep the conversation product-flavoured. If a question would require resolving a deep technical decision (specific algorithm, schema shape, library choice), defer it to design and record it as an open question instead.
 
+### Scope certainty — the exit condition for Step 3
+
+**Do not proceed to Step 4 until you are 100% clear on the scope.** Before drafting the summary, write the in/out boundary out for yourself and test it item by item: for every capability discussed — including every idea generated in Step 3a and every one the user brought — you must be able to state plainly whether it is **in this feature version** or **deferred**. "Probably", "we could also", "maybe later", and "depending on how it goes" are not scope decisions; each one is a question for the next round, not a caveat to smuggle into the summary.
+
+Exactly two kinds of open item are allowed through:
+
+- **Design-level uncertainty** — *how* something gets built. That is `/feature-design`'s to close; record it in §7.
+- **An explicitly deferred capability** — the user decided it is out for this version. Record it in §3 out-of-scope by name, not as a generic disclaimer.
+
+Anything else must be closed before the gate. If the same item is still unsettled after three rounds, force the decision: ask the user directly whether it is **in or out for v`<N>`**, with "out for now, revisit in a later version" as an explicit option, and record whichever answer comes back. An item carried into `/feature-design` as an unstated maybe is the exact failure this rule exists to prevent — a design built on scope the user never agreed to.
+
 ## Step 4 — Summarise and gate on approval
+
+You may only arrive here with the scope check at the end of Step 3 passed — every capability discussed is either in this version or explicitly deferred. If drafting the summary surfaces an item you cannot place on that boundary, go back to Step 3 and close it; do not present it as a hedge.
 
 Produce a single ≤10-bullet summary of where the brainstorm has landed. Each bullet should be a complete, scannable statement (not a fragment). Aim to cover, in roughly this order: what the feature is, who it's for, top 1–2 goals, top 1–2 non-goals, scope boundary, key technical constraint(s), a notable risk or rejected alternative (when one exists), 1–2 open questions for design. Cut bullets rather than overshoot 10.
 
@@ -162,9 +198,9 @@ Section content rules:
 
 - **§1 Summary** is single-paragraph prose, no bullets.
 - **§2 Goals**: 2–6 bullets, derived from Step 3 discussion. Each bullet must be testable (a reasonable person could agree the outcome was or wasn't achieved).
-- **§3 Scope**: keep "out of scope" specific — name actual things being deferred, not generic disclaimers.
+- **§3 Scope**: keep "out of scope" specific — name actual things being deferred, not generic disclaimers. This is where Step 3a capabilities the user declined for this version are recorded, by name.
 - **§4 Technical direction**: framed as constraints the design must respect, not as solutions. "Must run offline on iOS 16+" yes; "use SwiftData with CloudKit sync" no — that's for `/feature-design`.
-- **§5 Alternatives considered**: 1–3 entries; each names a genuinely different approach at the product level (different scope, different UX, buy-vs-build, do-nothing) plus why it lost. Product-level alternatives only — tech-stack picks belong to `/feature-design`. "Not applicable — <reason>" requires a real reason (e.g. a mandated change with no product freedom), not a dodge.
+- **§5 Alternatives considered**: 1–4 entries; each names a genuinely different approach at the product level (different scope, different UX, buy-vs-build, do-nothing) plus why it lost. Include the approaches *you* proposed in Step 3a and the user declined — not only the ones they arrived with. Product-level alternatives only — tech-stack picks belong to `/feature-design`. "Not applicable — <reason>" requires a real reason (e.g. a mandated change with no product freedom), not a dodge.
 - **§6 Risks**: each risk is specific to this feature (adoption, data, integration, security exposure, delivery — at product altitude) and names its impact. Generic boilerplate ("timeline risk") is not a risk entry.
 - **§7 Open questions**: each item is a concrete decision (not "figure out the architecture"). If a question has any captured user preference, record it as an annotation: "(user leaned toward X, but didn't commit)".
 
@@ -276,6 +312,8 @@ Do not skip this step or substitute the AskUserQuestion with prose. The offer is
 - **No technical design decisions.** Storm captures *constraints* the design must respect, *not* the design itself. If a discussion drifts into specific schemas / algorithms / libraries, redirect to "this is a question for /feature-design" and record it as an open question.
 - **Approval gate is mandatory.** Step 4 must produce a user-approved summary before any file is written. A "Stop" decision means no files written — do not partial-write.
 - **Mandatory clarification step.** Step 3 runs even when the harness instructs autonomous operation. Closing material product ambiguity is the whole point.
+- **Generate, don't just interview.** Step 3a is not optional politeness — the skill must put ideas on the table the user did not bring (adjacent capabilities, alternative approaches, smaller cuts, unconsidered users) and offer them for adoption. Ideas are offered, never assumed in; adopted ones shape §2/§3, rejected approaches land in §5 and rejected capabilities in §3's out-of-scope list.
+- **Scope must be 100% settled before Step 4.** Every capability discussed is either in this version or explicitly deferred by name. The only uncertainty allowed past the gate is design-level (recorded in §7). An unsettled item is a question for another round, never a hedge in the summary — and if it survives three rounds, force an in/out decision rather than carrying it forward.
 - **Description is authoritative from `feature-resolve`.** When continuing into an existing folder, the folder's description wins — even if the user's `$ARGUMENTS` suggested a different title. Surface the resolver's `notes` to the user if it flagged a description conflict.
 - **No minor versions.** This plugin uses integer feature versions only. Pass `version=<N>` to the resolver, never `<N>.<M>`.
 - **Self-contained tracker edits.** Substitute only tokens that are still literal `{{...}}`; never overwrite content placed by another skill. The progress bar's `data-stage="storm"` entry is this skill's alone to touch.
