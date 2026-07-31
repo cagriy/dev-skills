@@ -1,6 +1,6 @@
 ---
 name: feature-design
-description: Produce a reviewed feature design document under features/feature-v<N>-<description>/. Use when the user asks for a feature design, spec, design doc, design review, or to spec/scope a feature — typically as a follow-up to /feature-storm, or starting cold for features that don't need brainstorming. Grounds the design in the existing codebase (and any legacy docs/), asks clarifying questions until all open decisions are closed, writes feature-design-v<N>-<description>.md via feature-resolve, self-reviews for functional/security/efficiency gaps, updates the per-feature tracker, and presents highlights. Step 0 confirms with the user via AskUserQuestion before doing any work when invoked proactively; the confirmation is skipped when the user explicitly typed /feature-design, just chained in from /feature-storm, or just chained in from /feature-dispatch.
+description: Produce a reviewed feature design document under features/feature-v<N>-<description>/. Use when the user asks for a feature design, spec, design doc, design review, or to spec/scope a feature — typically as a follow-up to /feature-storm, or starting cold for features that don't need brainstorming. Grounds the design in the existing codebase (and any legacy docs/), asks clarifying questions until all open decisions are closed, mocks up the user-visible surface via feature-mockup and folds the user's chosen direction into the design — fired only when the feature has a user-visible surface whose appearance is not already settled, and skipped by a named rule when there is no surface, when the user already supplied a screenshot / design link / precise spec, when the change is a mechanical delta, or when the user declined, writes feature-design-v<N>-<description>.md via feature-resolve, self-reviews for functional/security/efficiency gaps, updates the per-feature tracker, and presents highlights. Step 0 confirms with the user via AskUserQuestion before doing any work when invoked proactively; the confirmation is skipped when the user explicitly typed /feature-design, just chained in from /feature-storm, or just chained in from /feature-dispatch.
 user-invocable: true
 disable-model-invocation: false
 argument-hint: <free-form feature requirements (optionally including v<N>), or omit to be asked / picked up from a just-completed /feature-storm>
@@ -13,7 +13,7 @@ You are running the `feature-design` skill. The user may have arrived here by ty
 
 **Terminology (plugin-wide).** Two words are overloaded; keep them apart. A **step** is a numbered step of *this skill's own procedure* — the `## Step …` headings below (e.g. *Step 4*); the only other "steps" are the **TDD steps** inside a plan stage (write test → confirm fail → implement → confirm pass). A **stage** has two senses: a **chain stage** is one of `storm → design → plan → implement` (it shows up as `stage=…`, `stage_file`, and the tracker's `data-stage`), while a **plan stage** is a committable unit of work *inside* the implementation plan (e.g. `Stage 1`) — `/feature-plan` creates these and `/feature-implement` builds one per commit. A procedure step is never a plan stage, and a plan stage is never a procedure step.
 
-This skill has eleven steps (Steps 0–10). Execute them in order. Do not skip Step 0 (proactive-invocation confirmation), Step 4 (clarification loop), Step 6 (self-review), Step 7 (tracker update), or Step 8 (lessons capture) — they are the load-bearing steps.
+This skill has twelve steps (Steps 0–11). Execute them in order. Do not skip Step 0 (proactive-invocation confirmation), Step 4 (clarification loop), Step 7 (self-review), Step 8 (tracker update), or Step 9 (lessons capture) — they are the load-bearing steps. Step 5 (mockup) runs whenever the feature has a user-visible surface, and is skipped only when it genuinely has none.
 
 ## Step 0 — Confirm before proceeding (when invoked proactively)
 
@@ -82,8 +82,8 @@ Parse the resolver's output block. Record these fields verbatim — every later 
 - `version` (integer `N`)
 - `description` (authoritative hyphenated description; use this everywhere downstream even if your input differed)
 - `feature_folder` (absolute path)
-- `stage_file` (absolute path — this is where Step 5 writes)
-- `tracker_file` (absolute path — Step 7 edits this)
+- `stage_file` (absolute path — this is where Step 6 writes)
+- `tracker_file` (absolute path — Step 8 edits this)
 - `notes` (surface to the user only if non-trivial — e.g. description conflict, tracker seed skipped)
 
 If the resolver stops with an error, pass the message to the user verbatim and stop. Do not retry with invented arguments.
@@ -133,7 +133,52 @@ Three rules keep the rounds efficient and honest:
 
 Do not pad with questions for their own sake. Equally, do not stop early to avoid friction — under-clarification is the failure mode this skill exists to prevent. The final design must have **no points that require further decisions**.
 
-## Step 5 — Write the design document
+## Step 5 — Mock up the user-visible surface
+
+Run this after the clarification loop has closed and **before** the design document is written — a UI decision settled in prose is a decision nobody actually took, and re-deciding it after §5 is drafted means rewriting the design.
+
+### 5a. Decide whether to mock up at all
+
+A mockup costs the user a round of attention, so this is a rule with named exits, not a matter of taste. Fire `feature-mockup` when **both** hold:
+
+1. The feature has a **user-visible surface** — a GUI screen or component, a web page, a terminal UI, the shape of CLI output, a report or document layout, a notification / email template.
+2. That surface's **appearance is not already settled** — there is at least one real visual decision left (placement, hierarchy, density, which components carry it, type or colour treatment).
+
+Skip when any of these four conditions is met. Each is a *named* exit: record which one applied in one line of chat and in §5 of the design, so the absence of a mockup is a visible decision rather than a silent omission.
+
+- **No user-visible surface** — a library or API-only change, a background job, a schema migration, an infrastructure, CI or tooling change, a pure refactor. Nothing to draw.
+- **Appearance already settled** — the user supplied the surface: a screenshot, image, wireframe, design-tool link or existing page to copy; a field-by-field / label-by-label / value-by-value description precise enough to implement without a visual decision; or an accepted mockup already exists for this exact surface (in this feature's `mockups/`, or in a prior feature version's whose surface this feature does not change). Their artefact **is** the accepted direction — cite it in §5 by path or URL instead of drawing over it. Do not "confirm" a decision the user has already made.
+- **Mechanical delta** — the change follows an existing pattern one-for-one with no visual decision inside it: a label or copy fix, one more field on an existing form, one more column in an existing table, one more row in an existing settings list, a value swap the user already specified exactly.
+- **User declined** — the user said, in this conversation, that they don't want a mockup, or asked to go straight to the design or the code for this feature.
+
+Two rules keep this cheap and honest:
+
+- **Don't skip because the UI "seems obvious" to you.** Obvious-to-you is exactly where your picture and the user's diverge. Only the four conditions above license a skip.
+- **When it's genuinely ambiguous — the surface exists but you can't tell whether the appearance is settled — fold one question into the Step 4 clarification round** ("Want me to mock this up first, or is your description enough to design from?") rather than spending a standalone round-trip on it or drawing speculatively. If Step 4 has already closed and the ambiguity remains, ask that one question here via `AskUserQuestion` with "Mock it up first" recommended.
+
+**Partially supplied references are a fire, not a skip.** When the user gave a reference that covers only part of the surface (one screen of three, the desktop layout but not the mobile one, the palette but not the layout), fire the mockup and pass the reference through — the mockup's job is then to extend the user's own direction, not to reinvent it.
+
+### 5b. Invoke `feature-mockup`
+
+Invoke it via the `Skill` tool with the argument string:
+
+```
+feature_folder=<feature_folder>, version=<version>, feature=<one-line statement of what the user will see>[, kind=<new|modify>][, references=<path-or-URL>[; <path-or-URL>…]]
+```
+
+Use the `feature_folder` and `version` recorded in Step 2 verbatim. Pass `kind=modify` when the Step 3 grounding shows the surface already exists in the codebase, `kind=new` when it does not, and omit the slot when you are unsure — the mockup skill classifies it. Pass `references=` whenever the user supplied a partial visual reference (an image path from the conversation, a design-tool or documentation URL, or a path to an existing page in the repo to follow); omit it otherwise.
+
+### 5c. Fold the outcome into the design
+
+Parse the returned result block and record `status`, `kind`, `mockup_dir`, `chosen_mockup`, `alternatives`, `design_language`, `decisions`, and `open_ui_questions`. Then:
+
+- **`status: accepted`** — carry `decisions` into the design: each item becomes concrete content in §5 (*Interfaces* for the surface itself, *Architecture / components* for the components it reuses or adds), and the accepted mockup is referenced from §5 by relative path (`./mockups/<chosen_mockup>`). Record each rejected entry in `alternatives` in §6 as one line plus why it lost. Any `open_ui_questions` must be closed by looping back to Step 4 for one more round — they may **not** be parked in §8, which has to stay empty.
+- **`status: declined` or `not-applicable`** — note it in one line and continue to Step 6. Neither blocks the design; §5 then describes the surface in prose as it always did.
+- **Skipped at 5a** — §5 records which named condition applied in one line, and for *Appearance already settled* also cites the user's artefact (path, URL, or the prior feature's accepted mockup) as the source of the surface's appearance. A skipped mockup is not an excuse for a vaguer §5: the surface still gets flows, states and placement specified.
+
+**`feature-mockup` runs inline in this turn — do not end your turn when its result block appears.** The `Skill` tool loads it into your own context rather than delegating to a subagent, so the block is a checkpoint in the middle of *your* run. Continue straight into Step 6 in the same turn.
+
+## Step 6 — Write the design document
 
 **Guiding principle:** the design must always prefer a **modular, separately testable** structure over a monolithic one. Decompose the feature into small components with clear single responsibilities and explicit interfaces. Each component should be unit-testable in isolation (no hidden global state, no implicit coupling, no requirement to spin up the whole feature to test one piece). When there is a viable modular approach, choose it over the monolithic one even if the modular approach takes more files. If a monolithic approach is genuinely warranted (e.g. the seam would be artificial and add no testability), record the rationale explicitly under §6 *Alternatives considered*.
 
@@ -165,7 +210,7 @@ The single recommended approach, in enough detail that a competent engineer can 
 Sub-sections as needed:
 - **Architecture / components** — what is added, modified, removed. Show the modular decomposition: each component's single responsibility, its public interface, and which other components it depends on. If the feature is implemented as one cohesive unit rather than several, explain why splitting would be artificial.
 - **Data model** — schemas, migrations, storage, lifetimes.
-- **Interfaces** — APIs, function signatures, message shapes, CLI flags, UI surfaces.
+- **Interfaces** — APIs, function signatures, message shapes, CLI flags, UI surfaces. When Step 5 produced an accepted mockup, describe the surface as that mockup shows it and link it: `[<name>](./mockups/<chosen_mockup>)`.
 - **Control flow** — happy path step-by-step; key alternative flows.
 - **Failure and edge cases** — concrete behavior for each.
 - **Security** — authn/authz, input validation, secret handling, trust boundaries.
@@ -189,7 +234,7 @@ Phasing, feature flags, dark launches, rollback strategy, communication.
 
 Compute `<YYYY-MM-DD>` from `date -u +%Y-%m-%d`. Use `v<N>` (integer) in the header — never `v<N>.<M>`.
 
-## Step 6 — Self-review and fix
+## Step 7 — Self-review and fix
 
 Re-read the draft critically through these lenses, and fix what you find via `Edit` directly in the design file. Do not produce a separate review document.
 
@@ -200,6 +245,7 @@ Re-read the draft critically through these lenses, and fix what you find via `Ed
 - **Modularity and testability** — is the feature decomposed into small components with single responsibilities and explicit interfaces? Can each component be unit-tested in isolation without standing up the rest of the feature? Flag any "god module" / monolithic blob that mixes responsibilities, and split it (or record an explicit rationale in §6 if the split would be artificial). Modularity for its own sake is not the goal — testability and clear seams are.
 - **Reference integrity** — every `path:line` citation, function name, library, or API named in the design must actually exist. Verify the non-obvious ones with `Read`/`Grep`. Remove or correct anything invented.
 - **Grounded-behaviour integrity** — existence is not enough: verify the design's *claims about* existing code against the Step 3 grounding. For any function the design leans on for an error-handling or degradation path, read its failure contract (raises vs returns empty vs no-op) rather than assuming graceful degradation. Confirm the proposed flow honours the documented preconditions and ordering/state invariants of any function or data structure it reuses or sits adjacent to. Every field or distinction the design derives must be obtainable from the grounded interface/response shapes — never promise data the integrated system cannot provide. If the feature touches a path served by an existing incremental-redraw, diff, cache, or index optimization, state whether the design preserves or consciously replaces it (with the cost). And for any requirement that changes a constant, default, or config value, confirm the current value from the codebase and flag already-satisfied no-op changes explicitly.
+- **Mockup fidelity** — if Step 5 returned `status: accepted`, every item in its `decisions` list must appear as concrete design content (placement, reused components, states, palette/typography deltas), the accepted mockup must be cited by relative path, and no section may describe a surface that contradicts it. A design that quietly drifts from the mockup the user approved is the failure this lens exists to catch. Skip the lens when Step 5 was skipped or returned `declined` / `not-applicable`.
 - **Cross-section consistency** — for any scenario the design describes in more than one place (§5.4 + §5.5 + §5.9), trace it through ALL sections and check they agree on the same outcome. Contradictions between sections are the most common review failure.
 
 Update §1–§9 in place. Do not append a "review notes" section — the design is the artifact, not the review.
@@ -211,9 +257,9 @@ After the edits, do a final read-through to confirm:
 3. Every requirement is addressed.
 4. Risks in §7 each have a mitigation.
 
-If any of these still fail, loop on Step 6 until they pass. Do not proceed to Step 7 with an unresolved design.
+If any of these still fail, loop on Step 7 until they pass. Do not proceed to Step 8 with an unresolved design.
 
-## Step 7 — Update the tracker
+## Step 8 — Update the tracker
 
 The tracker file at `tracker_file` already exists (seeded by `feature-resolve` in Step 2, and you flipped its `design` step to `current` then). If the file is somehow missing (resolver `notes` flagged `tracker_seed: skipped`), defensively copy the plugin template:
 
@@ -222,7 +268,7 @@ find ~ -path "*/dev-skills/templates/feature-tracker.html" 2>/dev/null
 # cp the match (prefer ~/.claude/plugins/ if multiple) to <tracker_file>
 ```
 
-If no template can be located, skip the tracker update and note it in Step 9 — do **not** fail the whole skill.
+If no template can be located, skip the tracker update and note it in Step 10 — do **not** fail the whole skill.
 
 First `Read` the tracker file once — `feature-resolve` seeded it via a shell copy, so the `Edit` tool has no read-state for it and every edit below would otherwise fail its first attempt. Then apply these edits via the `Edit` tool. For each `{{TOKEN}}`, check it is still literal text in the file (so you never overwrite content from `/feature-storm` or any other prior stage). If a token is already substituted, skip that edit silently. Note: the seeded tracker opens with an HTML documentation comment that lists every token name literally, so a bare `{{TOKEN}}` match is non-unique — scope each Edit to the rendered body occurrence (the chip span, bullets `<ul>`, details block, or `<h1>` title), never the comment-block token.
 
@@ -237,7 +283,7 @@ First `Read` the tracker file once — `feature-resolve` seeded it via a shell c
 
 - `{{DESIGN_AT}}` → `Updated <YYYY-MM-DD HH:MM UTC>` (the timestamp chip text — no surrounding HTML).
 - `{{DESIGN_BULLETS}}` → an `<ul>` of 5–10 design highlights, one `<li>` per bullet, plain text content (no markdown — convert any markdown to HTML).
-- `{{DESIGN_DETAILS}}` → free-form HTML rendering the design in increasing detail, drawn from the design file written in Step 5. Cover §1 (Summary) → §2 (Goals & Non-goals) → §5 (Architecture / data / interfaces / failure / security / performance / testing — pick the sub-sections that matter most for this feature) → §7 (Risks) → §9 (Rollout). Use `<h3>` for top-level section titles, `<h4>` for sub-sections, `<p>` / `<ul>` / `<table>` for content. Order content from highest-level to most detailed so a reader can stop reading at any depth. Skip §6 if empty and skip §8 (it's always "None").
+- `{{DESIGN_DETAILS}}` → free-form HTML rendering the design in increasing detail, drawn from the design file written in Step 6. When Step 5 produced an accepted mockup, include a relative-path `<a href="./mockups/<chosen_mockup>">` link to it near the top of this block so the tracker doubles as the way back to the approved visual. Cover §1 (Summary) → §2 (Goals & Non-goals) → §5 (Architecture / data / interfaces / failure / security / performance / testing — pick the sub-sections that matter most for this feature) → §7 (Risks) → §9 (Rollout). Use `<h3>` for top-level section titles, `<h4>` for sub-sections, `<p>` / `<ul>` / `<table>` for content. Order content from highest-level to most detailed so a reader can stop reading at any depth. Skip §6 if empty and skip §8 (it's always "None").
 
 **Storm and future-stage placeholders** — substitute with the empty placeholder *only if still literal*. If `/feature-storm` ran, `{{BRAINSTORMING_*}}` will already be content and you skip them:
 
@@ -262,19 +308,20 @@ If the Edit fails because no `pending` match exists, the design step is already 
 
 Do **not** touch other skills' tokens (storm content, plan, implementation) beyond the empty-placeholder fallback above. Do **not** touch other skills' progress steps.
 
-## Step 8 — Capture lessons
+## Step 9 — Capture lessons
 
-Invoke the `lessons-capture` skill in this plugin via the `Skill` tool with the single argument `feature-design`. It runs the reflection protocol, appends a dated entry to `~/.claude/dev-skills/lessons/feature-design.md`, and returns the entry body (a single recommendation in three lines, or the "No skill-improvement recommendations from this run." line) for you to paste under the *Skill-improvement recommendations* heading in Step 9.
+Invoke the `lessons-capture` skill in this plugin via the `Skill` tool with the single argument `feature-design`. It runs the reflection protocol, appends a dated entry to `~/.claude/dev-skills/lessons/feature-design.md`, and returns the entry body (a single recommendation in three lines, or the "No skill-improvement recommendations from this run." line) for you to paste under the *Skill-improvement recommendations* heading in Step 10.
 
 Do not run the reflection inline — `lessons-capture` is the single source of the protocol for all skills in this plugin.
 
-## Step 9 — Present highlights
+## Step 10 — Present highlights
 
 In chat, output a short, scannable summary so the user does not need to open the file to get the gist:
 
 ```
 Saved: <stage_file path>
 Tracker: <tracker_file path>
+Mockup: <path to the accepted mockup> (<its name>)   ← omit this line when Step 5 was skipped or returned declined / not-applicable
 
 **Feature:** v<N> — <human-readable title>
 
@@ -291,12 +338,12 @@ Tracker: <tracker_file path>
 - <How the user will verify the feature works, one or two bullets>
 
 **Skill-improvement recommendations**
-- <single item from Step 8, or the line "No skill-improvement recommendations from this run.">
+- <single item from Step 9, or the line "No skill-improvement recommendations from this run.">
 ```
 
 Keep the chat output under ~30 lines. The file is the artifact; the chat is the pointer.
 
-## Step 10 — Offer to chain into /feature-plan
+## Step 11 — Offer to chain into /feature-plan
 
 After presenting the highlights, give the user a one-click way to continue into the planning skill. Call `AskUserQuestion` exactly once:
 
@@ -320,10 +367,11 @@ Do not skip this step or substitute the AskUserQuestion with prose. The offer is
 
 - **Output path comes from `feature-resolve` only.** Never write to `docs/`, never construct `features/...` paths by hand. Step 2 is the single source of pathing.
 - **Integer versions only.** `v<N>` everywhere — no `v<N>.<M>` minor versions. No "next available version" math in this skill; the resolver decides.
-- **No open decisions.** §8 must be empty or "None — all decisions closed." before Step 7 begins.
-- **Self-review is mandatory.** Step 6 must run even if the draft looks clean — security and efficiency gaps are usually invisible on the first pass.
+- **No open decisions.** §8 must be empty or "None — all decisions closed." before Step 8 begins.
+- **Self-review is mandatory.** Step 7 must run even if the draft looks clean — security and efficiency gaps are usually invisible on the first pass.
+- **UI decisions come from the user, via the mockup.** When the feature has a user-visible surface, Step 5 runs and the design records the direction the user accepted — never a surface you invented and never one the user has not seen. `feature-mockup` owns the mockup files under `<feature_folder>/mockups/`; this skill only reads them and cites them.
 - **Tracker edits are defensive.** Substitute only tokens still literal `{{...}}`; never overwrite content placed by `/feature-storm` or any other skill. The progress bar's `data-stage="design"` entry is this skill's alone to touch.
-- **`docs/` is read-only legacy.** Step 3 may read legacy designs for context but never writes there. The empty-placeholder pattern in `feature-resolve` + Step 7 ensures the tracker renders cleanly regardless of whether prior stages ran.
-- **No symlinks.** If a defensive tracker template copy is needed in Step 7, always copy — never link.
-- **Lessons capture runs every time.** Step 8 always invokes `lessons-capture`; whether it produces a recommendation or "none this run" is decided by that skill.
-- **Never paste the entire design into chat.** Step 9 is highlights only; the user opens the file for full content.
+- **`docs/` is read-only legacy.** Step 3 may read legacy designs for context but never writes there. The empty-placeholder pattern in `feature-resolve` + Step 8 ensures the tracker renders cleanly regardless of whether prior stages ran.
+- **No symlinks.** If a defensive tracker template copy is needed in Step 8, always copy — never link.
+- **Lessons capture runs every time.** Step 9 always invokes `lessons-capture`; whether it produces a recommendation or "none this run" is decided by that skill.
+- **Never paste the entire design into chat.** Step 10 is highlights only; the user opens the file for full content.

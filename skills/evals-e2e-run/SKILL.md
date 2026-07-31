@@ -114,7 +114,7 @@ Items 3, 4, 5, and 8 quote `feature-storm`'s own section content rules so produc
 6. **Implementable contracts (§5)** — data model, interfaces, and control flow are specified so a competent engineer can implement without re-deriving decisions. Partial = isolated re-derivation needed; unmet = wholesale.
 7. **Failure and edge cases (§5)** — concrete behavior for each failure and edge case, not hand-waves.
 8. **Security at trust boundaries (§5)** — authn/authz, input validation, and secret handling addressed where the feature has trust boundaries; a credible "Not applicable — <reason>" is met.
-9. **User-facing flows and states (§5)** — user-facing surfaces specify flows and states (empty/loading/error/success); for a feature with no user-facing surface, a credible "Not applicable" is met.
+9. **User-facing flows and states (§5)** — user-facing surfaces specify flows and states (empty/loading/error/success); for a feature with no user-facing surface, a credible "Not applicable" is met. When the feature folder contains a `mockups/` directory, §5 must also cite the accepted mockup by relative path and describe the surface as that mockup shows it — an uncited or contradicted mockup is unmet. When there is no `mockups/` directory but the feature has a user-visible surface, §5 must record which named skip condition applied (and, for an already-settled appearance, cite the user's own artefact); silence about a missing mockup is unmet.
 10. **Per-component test plan (§5)** — each component named in *Architecture / components* has a unit-test plan that does not require the rest of the feature to be running.
 11. **Trade-offs and simplicity (§6)** — actively-evaluated alternatives are recorded with why each was rejected (or an explicit "None — <reason>"); the chosen design shows no speculative generality.
 12. **Mitigated risks (§7)** — each risk is specific to this feature with likelihood/impact and a mitigation; generic boilerplate ("timeline risk") is unmet; a credible "Not applicable — <reason>" is met.
@@ -122,7 +122,7 @@ Items 3, 4, 5, and 8 quote `feature-storm`'s own section content rules so produc
 14. **Rollout readiness (§9)** — phasing and rollback are addressed (flags/dark launch where relevant); a credible "Not applicable — <reason>" is met.
 15. **Cross-section consistency (§5–§9)** — any scenario described in more than one section agrees on the same outcome everywhere it appears.
 
-Items 2, 5, 6, 10, and 13 quote `feature-design`'s own template and self-review rules so producer and judge share one standard; if those rules change, re-sync this rubric.
+Items 2, 5, 6, 9, 10, and 13 quote `feature-design`'s own template and self-review rules so producer and judge share one standard; if those rules change, re-sync this rubric. Item 9's mockup clause mirrors `feature-design` Step 5 and its *Mockup fidelity* self-review lens.
 
 **plan_quality** — judge the plan document against this rubric, item by item. The rubric is self-referential: it judges the plan against its own sections and the code it cites — whether the plan honors the actual design is `plan_consistency`'s job. The plan template's sections are named, not numbered; items anchor to those names. Per-stage items are graded majority-rule across stages (met = all stages pass; partial = a minority fail; unmet = a majority fail); "Not applicable"/"None" is met only when explicit and credible, never by silence:
 

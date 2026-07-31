@@ -10,6 +10,7 @@ literals must stay consistent with their consumers.
 import re
 
 from helpers import (
+    DESIGN_SKILL,
     E2E_SKILL,
     FEATURE_SKILLS,
     REPO,
@@ -285,6 +286,127 @@ class TestFeatureListContract:
         assert pattern in resolver, "feature-resolve no longer states the stage-file pattern"
         assert pattern in self.LIST_SKILL.read_text(), (
             "feature-list must derive stage files from the same documented pattern"
+        )
+
+
+class TestFeatureMockupContract:
+    """feature-mockup is an inline, model-only helper of feature-design.
+
+    Its result block is a machine-read contract: feature-design parses the keys
+    and folds them into the design document, so a key renamed on one side
+    silently drops UI decisions. It is also deliberately *not* a chain skill —
+    it takes its pathing as input rather than calling feature-resolve (which
+    would allocate folders), and its reflection belongs to feature-design's own
+    lessons step, so it holds no `Skill` tool at all.
+    """
+
+    MOCKUP_SKILL = SKILLS / "feature-mockup" / "SKILL.md"
+    RESULT_KEYS = (
+        "status",
+        "kind",
+        "mockup_dir",
+        "chosen_mockup",
+        "alternatives",
+        "design_language",
+        "decisions",
+        "open_ui_questions",
+        "notes",
+    )
+    # Keys feature-design must consume when it folds the mockup into the design.
+    CONSUMED_KEYS = ("status", "chosen_mockup", "alternatives", "decisions",
+                     "open_ui_questions")
+    INPUT_SLOTS = ("feature_folder=", "version=", "feature=", "references=")
+    # The named skip conditions of feature-design's fire/skip rule. A mockup is
+    # not free — it costs the user a round of attention — so the decision must
+    # be a rule with named exits, not one prose sentence a run can reinterpret.
+    SKIP_CONDITIONS = (
+        "No user-visible surface",
+        "Appearance already settled",
+        "Mechanical delta",
+        "User declined",
+    )
+
+    def frontmatter(self):
+        m = re.match(r"---\n(.*?)\n---\n", self.MOCKUP_SKILL.read_text(), re.DOTALL)
+        assert m, "feature-mockup: missing frontmatter"
+        return m.group(1)
+
+    def test_is_model_only(self):
+        frontmatter = self.frontmatter()
+        assert re.search(r"^user-invocable:\s*false\s*$", frontmatter, re.MULTILINE), (
+            "feature-mockup must not be user-invocable — it is a helper of feature-design"
+        )
+        assert not re.search(
+            r"^disable-model-invocation:\s*true\s*$", frontmatter, re.MULTILINE
+        ), "feature-mockup must stay model-invocable"
+
+    def test_cannot_invoke_other_skills(self):
+        allowed = next(
+            (
+                l
+                for l in self.frontmatter().splitlines()
+                if l.startswith("allowed-tools:")
+            ),
+            None,
+        )
+        assert allowed, "feature-mockup: no allowed-tools in frontmatter"
+        for tool in ("Skill", "Agent"):
+            assert not re.search(rf"\b{tool}\b", allowed), (
+                f"feature-mockup must not delegate to other skills: {tool} in allowed-tools"
+            )
+
+    def test_result_block_declares_every_key(self):
+        text = self.MOCKUP_SKILL.read_text()
+        assert "feature-mockup result" in text, "result block header missing"
+        for key in self.RESULT_KEYS:
+            assert f"{key}: <" in text, f"result block never declares {key!r}"
+
+    def test_writes_only_under_the_feature_folder(self):
+        text = self.MOCKUP_SKILL.read_text()
+        assert "<feature_folder>/mockups/" in text, (
+            "feature-mockup must document its output directory as <feature_folder>/mockups/"
+        )
+        assert "feature-resolve" in text, (
+            "feature-mockup must state that it never calls feature-resolve"
+        )
+
+    def test_does_not_end_its_turn_on_success(self):
+        # Same inline-helper invariant feature-resolve and lessons-capture carry:
+        # the Skill tool loads this into the caller's own turn.
+        assert "do not end your turn" in self.MOCKUP_SKILL.read_text().lower(), (
+            "feature-mockup: missing the inline do-not-end-your-turn guard"
+        )
+
+    def test_feature_design_invokes_it_with_the_documented_slots(self):
+        design = DESIGN_SKILL.read_text()
+        assert "feature-mockup" in design, "feature-design never invokes feature-mockup"
+        for slot in self.INPUT_SLOTS:
+            assert slot in design, f"feature-design never passes {slot!r}"
+            assert slot in self.MOCKUP_SKILL.read_text(), (
+                f"feature-mockup never documents the {slot!r} input slot"
+            )
+
+    def test_feature_design_consumes_the_result_keys(self):
+        design = DESIGN_SKILL.read_text()
+        for key in self.CONSUMED_KEYS:
+            assert f"`{key}`" in design, (
+                f"feature-design never reads the result block's {key!r}"
+            )
+
+    def test_feature_design_names_every_skip_condition(self):
+        design = DESIGN_SKILL.read_text()
+        for condition in self.SKIP_CONDITIONS:
+            assert condition in design, (
+                f"feature-design's fire/skip rule never names {condition!r}"
+            )
+
+    def test_supplied_references_outrank_the_grounded_digest(self):
+        # A user-supplied screenshot / design link / exact spec is the strongest
+        # evidence of what they want; the mockup must not quietly override it.
+        text = self.MOCKUP_SKILL.read_text()
+        assert "references=" in text, "feature-mockup: references= slot undocumented"
+        assert re.search(r"references.{0,200}(precedence|outrank)", text, re.S | re.I), (
+            "feature-mockup never states that supplied references take precedence"
         )
 
 

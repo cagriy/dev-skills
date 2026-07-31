@@ -348,7 +348,7 @@
   <header class="top">
     <div class="chiprow">
       <span class="vchip">dev-skills v0.3.31</span>
-      <span class="vchip">generated 2026-07-30 18:19 UTC</span>
+      <span class="vchip">generated 2026-07-31 08:15 UTC</span>
       <span class="vchip">by /diagram-update</span>
     </div>
     <h1>dev-skills — end-to-end workflow</h1>
@@ -436,324 +436,1359 @@
 /* ======================= DATA (derived from skills/, hooks/) ======================= */
 
 const GROUPS = [
-  { id: "chain", name: "Feature chain", accent: "#6366f1",
-    desc: "dispatch → storm → design → plan → implement — one folder per feature under features/feature-v<N>-<desc>/" },
-  { id: "services", name: "Shared services (internal)", accent: "#64748b",
-    desc: "invoked by other skills only — pathing and reflection live in exactly one place" },
-  { id: "report", name: "Reporting", accent: "#e11d48",
-    desc: "read-only status reporting over features/ — reads the trackers the chain writes, writes nothing itself" },
-  { id: "bugs", name: "Bug workflow", accent: "#0d9488",
-    desc: "file, fix, and close bugs tracked as folders under bugs/ — bug-tracker-render regenerates the HTML tracker" },
-  { id: "evals", name: "Eval scorers", accent: "#a855f7",
-    desc: "read-only quality scoring of unpushed work — offered by /feature-implement's closing step" },
-  { id: "reflect", name: "Reflection", accent: "#d97706",
-    desc: "periodic consolidation of captured lessons into SKILL.md edits" },
-  { id: "utils", name: "Utilities", accent: "#10b981",
-    desc: "standalone helpers: ship changes, cut releases, regenerate this diagram" },
-  { id: "hooks", name: "Hooks", accent: "#0891b2",
-    desc: "harness-fired scripts — the plugin's only executable code" }
+  {
+    "id": "chain",
+    "name": "Feature chain",
+    "accent": "#5b5bd6",
+    "desc": "storm \u2192 design \u2192 plan \u2192 implement, each stage chaining into the next"
+  },
+  {
+    "id": "entry",
+    "name": "Routing & reporting",
+    "accent": "#0ea5e9",
+    "desc": "gets you into the chain, and tells you where every feature got to"
+  },
+  {
+    "id": "helpers",
+    "name": "Internal services",
+    "accent": "#64748b",
+    "desc": "single sources of pathing, mockups, reflection and bug-tracker rendering \u2014 loaded inline by their callers"
+  },
+  {
+    "id": "bugs",
+    "name": "Bug workflow",
+    "accent": "#c026d3",
+    "desc": "file a bug under bugs/, then diagnose, fix and close it test-first"
+  },
+  {
+    "id": "evals",
+    "name": "Quality evals",
+    "accent": "#0d9488",
+    "desc": "score the unpushed work and the artefacts that produced it; read-only, logging to ~/.claude/evals/"
+  },
+  {
+    "id": "util",
+    "name": "Maintenance & utilities",
+    "accent": "#d97706",
+    "desc": "apply captured lessons, regenerate this diagram, push and release"
+  },
+  {
+    "id": "hooks",
+    "name": "Hooks",
+    "accent": "#7c3aed",
+    "desc": "fired by the harness, not invoked \u2014 the plugin's only executable code"
+  }
 ];
 
 const SKILLS = [
-
-/* ------------------------------- feature chain ------------------------------- */
-{ slug: "feature-dispatch", g: "chain", inv: "agent", internal: true,
-  purpose: "Model-only router: watches for non-trivial feature prompts and offers the right entry into the chain.",
-  steps: [
-    { k: "1", t: "Scope check", d: "Re-reads the user's latest message and silently stops if it is a bug, a small change, an explicit slash command, or work already in flight inside a feature or bug skill. Only genuinely feature-shaped prompts continue, and a skip produces no output at all." },
-    { k: "2", t: "Estimate size", d: "Silently estimates how many lines of code a first-cut implementation would take. Under ~75 LOC the dispatcher stops without a word; at or above, it picks /feature-storm (vague, product-level gaps) or /feature-design (clear but undesigned) as its recommendation." },
-    { k: "3", t: "Offer routing", gate: true, d: "Asks exactly one AskUserQuestion with three options: the recommended entry skill first, the alternative second, and “Continue without dispatch” third. It never asks twice — a decline ends the skill silently." },
-    { k: "4", t: "Hand over", d: "Invokes the chosen skill via the Skill tool with the user's original request as the argument, then stops. The target skill owns the conversation from here; the dispatcher never chains past the handover." }
-  ]},
-
-{ slug: "feature-storm", g: "chain", inv: "both",
-  purpose: "Product-layer brainstorm: goals, users, scope, constraints — before any technical design.",
-  steps: [
-    { k: "0", t: "Confirm invocation", gate: true, d: "Checks for the /feature-storm slash command or a fresh chain-in from /feature-dispatch; otherwise asks one AskUserQuestion before doing anything. A “No” stops the skill with no files written." },
-    { k: "1", t: "Initial requirements", d: "Parses the arguments for an explicit version token, a short title, and free-form requirements, asking once if nothing substantive was given. Brownfield references (prior versions, existing symbols, linked specs) get a quick grounding read so later questions are fact-based." },
-    { k: "2", t: "Resolve folder", d: "Settles the short folder title (confirming derived ones with the user) and invokes feature-resolve with stage=storm. The resolver allocates features/feature-v<N>-<desc>/, seeds the tracker from the template, and returns the authoritative paths every later step uses." },
-    { k: "3", t: "Clarification loop", gate: true, d: "Iterative AskUserQuestion rounds covering goals, non-goals, users and scenarios, scope, high-level technical constraints, product-level alternatives, risks, and open questions for design. Mandatory even under autonomous instructions; it stops only when the remaining uncertainty is design-level, not requirements-level." },
-    { k: "4", t: "Approval gate", gate: true, d: "Presents a ≤10-bullet summary and asks Approve / Revise / Stop. Revise loops back into the discussion (at most three passes before forcing a decision); Stop abandons the brainstorm with no files written; only Approve unlocks the document write." },
-    { k: "5", t: "Write storm", d: "Writes feature-storm-v<N>-<desc>.md with the fixed seven-section structure: summary, goals, scope in/out, high-level technical direction, alternatives considered, risks, and open questions for design. Technical direction stays at constraint altitude — solutions belong to /feature-design." },
-    { k: "6", t: "Update tracker", d: "Substitutes the storm-owned tokens in the per-feature tracker (header, timestamp chip, bullets, details), fills future-stage placeholders, and flips the storm progress step from pending to complete. It never touches another skill's tokens or progress entry." },
-    { k: "7", t: "Capture lessons", d: "Invokes lessons-capture with the slug feature-storm. That internal skill reflects on the run, appends at most one dated recommendation to ~/.claude/dev-skills/lessons/feature-storm.md, and returns the entry for the chat summary." },
-    { k: "8", t: "Present highlights", d: "Outputs a short scannable chat summary: saved file paths, the approved bullets, and the top open questions for design. Kept under ~30 lines — the file is the artifact, the chat is the pointer." },
-    { k: "9", t: "Offer design", gate: true, d: "One AskUserQuestion offering to chain straight into /feature-design. Acceptance invokes the design skill via the Skill tool with the feature version as argument; declining prints a one-line hint for running it later." }
-  ]},
-
-{ slug: "feature-design", g: "chain", inv: "both",
-  purpose: "Produces a decision-closed, self-reviewed technical design document for the feature.",
-  steps: [
-    { k: "0", t: "Confirm invocation", gate: true, d: "Skipped when the user typed /feature-design, chained in from /feature-storm or /feature-dispatch, or just affirmed a proposal that named this skill. Otherwise one AskUserQuestion runs before any work, and a “No” stops everything." },
-    { k: "1", t: "Capture requirements", d: "Resolves the requirements from the arguments, a just-completed storm, or the recent conversation — asking only as a last resort. It states which source it picked up so the user can redirect with one word." },
-    { k: "2", t: "Resolve folder", d: "Confirms the folder title where needed (skipping when a storm already established it) and invokes feature-resolve with stage=design. The returned folder, stage file, and tracker paths are authoritative; paths are never built by hand." },
-    { k: "3", t: "Ground in codebase", d: "Reads the storm first if one exists, then the modules the feature touches, legacy docs/, and prior related feature designs. For third-party integrations it grounds in official documentation, preferring docs-MCP servers (context7) over web fetches. Nothing about external surfaces is invented." },
-    { k: "4", t: "Clarify decisions", gate: true, d: "AskUserQuestion rounds until every material decision is closed: scope, acceptance criteria, approach choices (quantified where measurable), constraints, data and state, failure behaviour. Every open question the storm recorded must be explicitly closed. Mandatory even in autonomous mode." },
-    { k: "5", t: "Write design", d: "Writes the nine-section design document at the resolver-returned path, preferring a modular, separately-testable decomposition over a monolith. Section 8 (Open questions) must end empty — a design with open decisions is not allowed to ship." },
-    { k: "6", t: "Self-review & fix", d: "Re-reads the draft through eight lenses — requirement coverage, decision closure, security, efficiency, modularity, reference integrity, grounded-behaviour integrity, cross-section consistency — and fixes findings in place, looping until every check passes. The design is the artifact; no separate review doc." },
-    { k: "7", t: "Update tracker", d: "Fills the design panel (timestamp chip, bullets, details), overwriting the placeholders the storm left, sets remaining future-stage placeholders, and flips the design progress step to complete. Edits are anchored in surrounding markup so the template's doc-comment is never touched." },
-    { k: "8", t: "Capture lessons", d: "Invokes lessons-capture with slug feature-design; the returned entry (one recommendation or “none this run”) is pasted into the Step 9 summary." },
-    { k: "9", t: "Present highlights", d: "Short chat summary: approach, key data/interface decisions, top risks, and how acceptance will be verified. Under ~30 lines; the full design lives in the file." },
-    { k: "10", t: "Offer plan", gate: true, d: "One AskUserQuestion offering to chain into /feature-plan. Acceptance invokes the plan skill with the feature version; the resolver then continues into the same folder with no context guessing." }
-  ]},
-
-{ slug: "feature-plan", g: "chain", inv: "both",
-  purpose: "Turns the design into a staged, TDD-driven implementation plan — planning core runs in a subagent.",
-  wraps: { core: "single subagent · steps 3–10" },
-  steps: [
-    { k: "0", t: "Confirm invocation", gate: true, d: "Skipped on the slash command or a fresh chain-in from /feature-design's closing offer; otherwise one AskUserQuestion before any work." },
-    { k: "1", t: "Resolve folder", d: "Parses only a version token and invokes feature-resolve with stage=plan. The resolver refuses to plan without a design and asks any overwrite / older-version questions here, in the main agent, before the question-less subagent launches." },
-    { k: "2", t: "Launch subagent", d: "Runs in the main agent: launches one general-purpose subagent briefed with the resolver block plus the verbatim text of Steps 3–10 and a strict no-questions contract. On return it verifies the plan file exists; a message starting BLOCKED: is relayed verbatim and ends the run — design-level gaps point back to /feature-design." },
-    { k: "3", t: "Read design", sub: true, wrap: "core", d: "Reads the design end-to-end (and the storm, if present) and builds a map of requirements, components, and interfaces. A non-empty Open-questions section halts the run with BLOCKED rather than planning around ambiguity." },
-    { k: "4", t: "Ground plan", sub: true, wrap: "core", d: "Verifies the design's claims against the actual codebase: cited files exist, test directory conventions, build registration, environment needs, and the blast radius of any shared-symbol change (keyed to the kind of change, not raw grep counts). Work the design scopes as mirroring an existing path is staged as generalising the shared helper rather than pasting a field-swapped copy." },
-    { k: "5", t: "Draft stages", sub: true, wrap: "core", d: "Writes the staged plan: every behaviour-changing stage carries the four TDD steps (write test → confirm fail → implement → confirm pass) with a concrete expected failure; other stages carry a sanctioned category label. Includes a requirements coverage map, cross-cutting concerns, and verification." },
-    { k: "6", t: "Decide autonomously", sub: true, wrap: "core", d: "The subagent has no user channel, so planning-level gaps — stage ordering, feature flags, harness choice, file locations — are decided by convention and recorded in the plan's “Planning decisions taken” section. Design-level gaps are never decided: they halt with BLOCKED." },
-    { k: "7", t: "Review plan", sub: true, wrap: "core", d: "Checks design coverage, TDD discipline, invented references, cross-stage conflicts, intermediate working states, silent design deviations, security ordering, and stage size — editing the plan until all checks pass." },
-    { k: "8", t: "Update tracker", sub: true, wrap: "core", d: "Fills the plan panel tokens and flips the plan progress step to complete — never on a BLOCKED run." },
-    { k: "9", t: "Capture lessons", sub: true, wrap: "core", d: "Invokes lessons-capture with slug feature-plan from inside the subagent; if the Skill tool is unavailable there, the main agent runs it during verification instead." },
-    { k: "10", t: "Compose summary", sub: true, wrap: "core", d: "The subagent's final message is exactly the staged summary block — stages, coverage, planning decisions, deviations, risks — and nothing else. The main agent relays it to the user unmodified." },
-    { k: "11", t: "Offer implement", gate: true, d: "First relays the subagent's summary verbatim, then offers /feature-implement via one AskUserQuestion. The recommended option flips to “Not now” when the plan recorded deviations from the design, suggesting a design refresh first." }
-  ]},
-
-{ slug: "feature-implement", g: "chain", inv: "both", commits: true,
-  purpose: "Builds the plan stage-by-stage on the current branch — one commit per green stage, never pushes.",
-  wraps: { loop: "stage loop 5a–5i · chunked subagents by default, direct when small" },
-  steps: [
-    { k: "0", t: "Confirm invocation", gate: true, d: "Strictly enforced because this skill writes code and commits: skipped only on the slash command or a fresh chain-in from /feature-plan's offer; any other arrival asks one AskUserQuestion first." },
-    { k: "1", t: "Resolve folder", d: "Invokes feature-resolve with stage=implement. The resolver picks the latest folder with a plan but no implementation, asks about overwrites, and errors if no plan exists anywhere. Its returned paths are used verbatim." },
-    { k: "2", t: "Read plan+design", gate: true, d: "Reads the plan and the design in full and builds the internal model of stages, requirements, and constraints. Unresolved “Deviations from the design” trigger an AskUserQuestion — proceed as-is or pause for a design refresh — never a silent override." },
-    { k: "3", t: "Repo readiness", gate: true, d: "Verifies a clean tree and a synced current branch (never creating branches), detects the project's TEST / LINT / FORMAT_CHECK / TYPE_CHECK / BUILD / DEADCODE commands from manifests and CI, and records test, lint, and dead-code baselines. Any pre-existing test failure halts the skill: Investigate now, File a bug (hands over to /bug-submit), or Stop — it never builds on a red suite." },
-    { k: "4", t: "Find starting stage", d: "Detects prior stage commits for this feature version via git log --grep on the exact commit-message format, resuming at the first uncommitted stage. A fully committed plan skips straight to the final sweep with no new commits." },
-    { k: "5", t: "Resolve strategy", d: "Resolves who drives each stage's TDD cycle by rule rather than by asking: consecutive three-stage subagent chunks by default, or Direct in this conversation when the user asked for that, when two or fewer stages remain, or when the pre-scan leaves nothing worth delegating. Both run the identical 5a–5i cycle strictly in order and commit one-per-stage, and the resolved strategy is announced in one line carrying the stage count and the partition — the run's only checkpoint before code lands. A unit that hit a deviation, a stop condition, or failed verification shrinks the next unit to a single stage; stages needing live verification, main-conversation tools, or network provisioning are pulled back into the main agent at their position in the order. In chunked mode the main agent verifies each unit's commits and re-runs the tests itself before launching the next unit." },
-    { k: "5a", t: "Re-read stage", wrap: "loop", d: "Re-reads the stage block in the plan rather than trusting memory: goal, design references, files to touch, TDD steps, definition of done, risks. Pre-flight scans check for missing dependency-injection seams, type-identity mismatches across loaders, the caller blast radius of signature changes, time-dependent fixtures, and existing helpers or fixtures the stage should reuse instead of rewriting. Stages the plan flagged as non-TDD scaffolding skip the test cycle." },
-    { k: "5b", t: "Write test", wrap: "loop", d: "Creates or modifies the stage's test files with concrete cases describing the new behaviour. No production code is written yet." },
-    { k: "5c", t: "Confirm fail", wrap: "loop", d: "Runs the targeted test and checks the failure matches the expected initial failure the plan recorded. A pass at this point means the test exercises nothing new — or the behaviour already exists — and the stage stops until that is resolved." },
-    { k: "5d", t: "Implement", wrap: "loop", d: "Makes the minimum change needed to satisfy the test, touching only the files the stage names or their direct consequences. If the planned files turn out wrong, the plan file is updated and the change recorded under Deviations from plan — never silent drift." },
-    { k: "5e", t: "Confirm pass", wrap: "loop", d: "Re-runs the targeted test, then the wider suite, comparing failures against the Step 3 baseline: pre-existing failures are not stage regressions, but any new failure must be fixed before commit. Baseline entries that start passing are dropped — the list only shrinks." },
-    { k: "5f", t: "Coverage check", wrap: "loop", d: "Point-by-point check of the implementation against the stage's promises: every file touched or justified, every behaviour tested, the definition of done satisfied, the coverage map's requirements exercised. Gaps are filled within the same stage by looping back to the test step — never papered over with TODOs." },
-    { k: "5g", t: "Self-review", wrap: "loop", d: "Reviews the stage's new code through seven lenses — bloat, duplication/reuse and superseded/orphaned code (the two lenses that look beyond the diff), functional issues, inefficiencies, security, comment style — fixing findings in the same stage. A third near-identical sibling block is a hard trigger to extract a shared helper, and a fix that changes behaviour gets a test to lock it in." },
-    { k: "5h", t: "Commit stage", wrap: "loop", commits: true, d: "One final TEST run after self-review edits, then exactly one commit in the resume-contract format <type>(plan v<N>): Stage <M> — <title>, staging only the files this stage touched. Deviation notes and side artifacts go in a separate docs: commit so the resume grep never matches them." },
-    { k: "5i", t: "Next stage", wrap: "loop", d: "Confirms a clean tree and loops back to 5a for the following stage. Between stages: no pushes, no branch switches, no plan or design edits beyond recorded deviations." },
-    { k: "6", t: "Stop conditions", gate: true, d: "Mid-loop halts: an undiagnosable failure, a decision the plan and design do not cover, an externally dirtied tree, an oversized security issue, or a plan wrong at the design level — the last recommends a new feature version via /feature-design. Partial work stays uncommitted; nothing is invented." },
-    { k: "7", t: "Coverage & dead-code", d: "After the last stage: every design requirement must have a verifying test, every component must exist and be tested, and a whole-project dead-code sweep (scoped against the Step 3 baseline) removes only orphans this feature stranded. Gaps become one more lightweight committed stage." },
-    { k: "8", t: "Update tracker", commits: true, d: "Fills the implementation panel (stages, tests, coverage, deviations), flips the implement progress step to complete, and commits the tracker plus any docs edits as a docs commit whose subject never matches the stage-resume grep." },
-    { k: "9", t: "Capture lessons", d: "Invokes lessons-capture with slug feature-implement; the entry lands in the final summary." },
-    { k: "10", t: "Final summary", d: "Scannable chat summary: stages and commit SHAs, test results, baseline exclusions, design coverage, dead-code outcome, deviations. Under ~40 lines, no diffs pasted." },
-    { k: "11", t: "Offer evals", gate: true, par: ["evals-code-run", "evals-e2e-run"], d: "Offers the eval suite via one AskUserQuestion while the work is still unpushed. On consent it launches evals-code-run and evals-e2e-run in two parallel read-only subagents — safe because they write different log files — and relays both score summaries. A declined offer or a failed eval never fails the implementation run." }
-  ]},
-
-/* ------------------------------- shared services ------------------------------- */
-{ slug: "feature-resolve", g: "services", inv: "agent", internal: true,
-  purpose: "Single source of pathing: computes the feature folder, version, and stage file every feature-* skill must use — inline, inside the caller's own turn.",
-  steps: [
-    { k: "1", t: "Locate features/", d: "Ensures a features/ directory exists at the project root, creating it on first use. Artefacts never live anywhere else — docs/ is read-only legacy." },
-    { k: "2", t: "Scan folders", d: "Globs features/ for feature-v<N>-* folders and parses each one's integer version (numeric compare, so v10 beats v9), authoritative description, and which stage files are already present." },
-    { k: "3", t: "Resolve mode", gate: true, d: "Applies four priority rules to pick create-new vs continue-existing: explicit version wins, first-ever feature starts at v1, an in-progress latest folder is continued, and a completed stage forces either a new version or a user-authorised overwrite. Every ambiguity is asked via AskUserQuestion, never guessed." },
-    { k: "4", t: "Validate description", d: "For new folders only: the description must be ten words or fewer, filename-safe after hyphenation, and non-empty. Nothing is silently truncated." },
-    { k: "5", t: "Create folder", d: "Creates features/feature-v<N>-<description>/ when the mode is create-new; continuing runs reuse the existing folder untouched." },
-    { k: "6", t: "Seed tracker", d: "Copies the plugin's feature-tracker.html template into the folder if no tracker exists yet — always a copy, never a symlink. A missing template degrades to a note rather than failing the caller." },
-    { k: "7", t: "Output block", d: "Echoes the fixed parseable resolution block — mode, version, description, folder, stage file, tracker file, prerequisite file, notes — then continues straight into the calling skill's next step in the same turn. Because it runs inline rather than in a subagent, a successful resolution never ends the turn; only its explicit failure exits stop the run. Callers read the block back from context and never reconstruct paths themselves." }
-  ]},
-
-{ slug: "lessons-capture", g: "services", inv: "agent", internal: true,
-  purpose: "The reflection protocol, in one place: appends at most one improvement recommendation per run to a per-skill log.",
-  steps: [
-    { k: "1", t: "Reflect on run", d: "Reviews the calling skill's run for reactive friction (ambiguous steps, wrong guidance) and proactive gains (heuristics, tighter templates, better lenses). At most one recommendation per run — and none is the common, correct outcome." },
-    { k: "2", t: "Format entry", d: "A real recommendation becomes three lines: Observation, Proposed change (naming the concrete SKILL.md edit), and Expected benefit. Otherwise the entry is the single no-recommendations line." },
-    { k: "3", t: "Append log", d: "Appends the dated entry to ~/.claude/dev-skills/lessons/<slug>.md via a single atomic shell append — never read-and-rewrite, so prior entries can never be clobbered." },
-    { k: "4", t: "Return entry", d: "Echoes the entry body back so the calling skill can paste it under its own “Skill-improvement recommendations” heading. This skill never edits any SKILL.md itself." }
-  ]},
-
-/* ------------------------------- reporting ------------------------------- */
-{ slug: "feature-list", g: "report", inv: "both",
-  purpose: "Read-only report over features/: which features are still open, how far each one got, newest activity first.",
-  steps: [
-    { k: "1", t: "Validate argument", d: "Takes one optional argument whose only legal value is all: absent lists just the open features, all lists every feature including the finished ones. Anything else stops with a one-line usage error rather than guessing at a version or a search term. There is deliberately no confirmation gate — the run writes nothing and costs nothing beyond a few file reads." },
-    { k: "2", t: "Find folders", d: "Globs features/ from the repo root for feature-v<N>-* folders and parses each one's integer version (numeric, so v10 beats v9) and description, then lists the stage files present. It deliberately never calls feature-resolve, which would create folders and seed trackers as a side effect of merely listing. A missing features/ folder is reported in one line, never created." },
-    { k: "3", t: "Resolve status", d: "Reads each feature's tracker for the four data-stage / data-state progress entries and corroborates them against the stage .md files on disk, flagging a disagreement rather than hiding it. Because /feature-implement writes no stage file, implementation completion comes from the tracker alone, and an in-progress implementation is detected from that feature's plan-stage commits on the current branch." },
-    { k: "4", t: "Date & sort", d: "Takes each feature's last activity from the newest “Updated …” timestamp chip across its tracker panels, falling back to the last commit touching the folder, then to file modification time. Features sort newest-first — the required reverse date order — with version descending as the tie-break and unknown dates last." },
-    { k: "5", t: "Render table", d: "Filters to the open features (implementation not complete) unless all was passed, then prints exactly one markdown table: the feature, a column per chain stage, last activity, and the next slash command to run — including where to resume a part-implemented feature. A legend covers only the symbols actually used, and a closing note carries anything else worth saying." },
-    { k: "6", t: "Empty cases", d: "No features/ folder or no feature folders prints a single line pointing at /feature-storm or /feature-design. An open-scope run where everything is already implemented prints no table, just the pointer to /feature-list all. A folder with no stage files and no tracker is still listed — a stranded feature is exactly what the report should surface." }
-  ]},
-
-/* ------------------------------- bug workflow ------------------------------- */
-{ slug: "bug-submit", g: "bugs", inv: "both",
-  purpose: "Files a triaged bug as a local folder under bugs/, with screenshots, and regenerates the bug tracker.",
-  steps: [
-    { k: "0", t: "Confirm invocation", gate: true, d: "On proactive invocation, asks a plain-chat yes/no before doing anything — deliberately not AskUserQuestion, because images attached to its answers lose their filesystem paths. Typing /bug-submit skips the check." },
-    { k: "1", t: "Parse args & images", d: "Splits the arguments into description text and image path tokens, and scans recent messages for [Image: source: …] annotations from pasted screenshots. Every candidate path is validated on disk." },
-    { k: "2", t: "Locate bugs root", d: "Anchors everything at <repo_root>/bugs/ via git. Outside a work tree it stops — bug numbering needs a stable, canonical location." },
-    { k: "3", t: "Clarify bug", gate: true, d: "One plain-chat round when the description is thin or a visual bug arrived without screenshots. Mandatory even under autonomous instructions; if the user declines to elaborate, the skill stops with nothing created." },
-    { k: "4", t: "Allocate number", d: "Scans both bugs/ and bugs/archive/ for the numeric maximum and adds one, so a number is never reused after a bug is resolved. Builds the folder slug from the symptom." },
-    { k: "5", t: "Save images", gate: true, d: "Copies each screenshot into the bug folder with collision-safe names. Attachments that look sensitive (credentials, .env-adjacent paths) require an explicit “proceed” before being copied into the repo." },
-    { k: "6", t: "Triage bug", d: "A bounded grounding pass — up to three greps and two file reads — producing a summary of understanding, probable affected area, severity estimate, initial hypothesis, and next steps. Triaging, not fixing." },
-    { k: "7", t: "Write report", d: "Writes bug-N-<slug>.md from the fixed template: description, expected behaviour, repro steps, screenshots by relative path, and the grounded triage section." },
-    { k: "8", t: "Render tracker", d: "Invokes bug-tracker-render, which regenerates bugs/bugs-tracker.html wholesale from the template plus the filesystem. A skipped render (missing template) is surfaced as one line and never fails the filing." },
-    { k: "9", t: "Present highlights", d: "Short chat pointer: report path, tracker path, title, triage highlights, and attachment count. This skill never commits, pushes, or creates anything remote — and deliberately never calls lessons-capture." }
-  ]},
-
-{ slug: "bug-fix", g: "bugs", inv: "both", commits: true,
-  purpose: "Diagnoses one open bug with an evidence-backed root cause, fixes it test-first, archives it, and commits once.",
-  steps: [
-    { k: "0", t: "Select bug", d: "Picks the bug numbered in the arguments or the lowest-numbered open folder under bugs/. With no open bugs it reports cleanly and hands over to /bug-submit rather than inventing work. The report is read fully into context." },
-    { k: "1", t: "Confirm invocation", gate: true, d: "Strictly enforced because this skill modifies code and commits: proactive arrival asks Proceed / Pick a different bug / Cancel, naming the selected bug. Typing /bug-fix skips it." },
-    { k: "2", t: "Ground & baseline", d: "Reads the implicated code paths end-to-end, the last feature's docs, and recent git history around the affected files; detects the project's TEST/LINT/BUILD commands and records a baseline so pre-existing failures are never mistaken for regressions." },
-    { k: "3", t: "Clarify report", gate: true, d: "Closes material ambiguity in the report via AskUserQuestion with concrete options and a recommendation — expected behaviour, environment, interpretation. Mandatory even in autonomous mode; skipped in one line when nothing is ambiguous." },
-    { k: "4", t: "Root-cause gate", gate: true, d: "The hard gate: no production change until the root cause is established with observed evidence — a reproduction, a failing assertion, a traced path. Triage hypotheses are tested, not trusted. An evidence-backed no-fix disposition (works-as-intended, duplicate) closes via its own confirmation instead." },
-    { k: "5", t: "Approve fix", gate: true, d: "Explains root cause, proposed fix, and verification plan in a few lines, then asks Proceed / Adjust approach / Cancel. The fix stays scoped to the root cause — no bundled refactors." },
-    { k: "6", t: "TDD fix", d: "Red: a regression test that fails for the expected reason (stubbing first if a missing symbol would mask the assertion). Green: the minimal change at the root cause. Then the full suite against the Step 2 baseline — nothing green before may break." },
-    { k: "7", t: "Verify resolution", gate: true, d: "Automated coverage verifies where it can; for UI or external behaviour the user gets precise steps and confirms via Confirmed fixed / Still broken / Partially fixed. Success is never assumed." },
-    { k: "8", t: "Loop if unresolved", d: "A failed verification returns to diagnosis with the new evidence in hand — what the attempt ruled out is itself a fact. The loop is bounded: repeated non-convergence stops with an honest account rather than patch-on-patch." },
-    { k: "9", t: "Close & commit", commits: true, d: "Appends an evidence-backed ## Resolution (with lessons learned) to the report, moves the folder to bugs/archive/, invokes bug-tracker-render, and makes exactly one commit on the current branch — never pushing." },
-    { k: "10", t: "Capture lessons", d: "Invokes lessons-capture with slug bug-fix and closes with a short summary: root cause, fix, verification, and the commit SHA." }
-  ]},
-
-{ slug: "bug-tracker-render", g: "bugs", inv: "agent", internal: true,
-  purpose: "Regenerates bugs/bugs-tracker.html wholesale from the template plus the filesystem — no state of its own.",
-  steps: [
-    { k: "1", t: "Locate template", d: "Finds the repo root and the plugin's feature-tracker.html template. Not in a repo, or no template found: it emits a one-line skip note and returns — it never fails its caller." },
-    { k: "2", t: "Copy template", d: "Copies the template over bugs/bugs-tracker.html unconditionally. The tracker holds no state, so create and update are the same operation." },
-    { k: "3", t: "Set chrome", d: "Switches the page to the bug view (data-tracker-kind=“bugs”), sets the title, and blanks every feature-panel token so no literal {{…}} remains." },
-    { k: "4", t: "Gather bugs", d: "Scans bugs/ (open) and bugs/archive/ (closed), parsing each report's number, title, severity, filed date, body, and image files. Sorted newest first." },
-    { k: "5", t: "Render cards", d: "Builds one expandable details card per bug — number, title, severity badge, date, report body, and screenshots referenced by relative path only." },
-    { k: "6", t: "Write regions", d: "Replaces the content between the three ISSUES_* comment-marker pairs — timestamp, open list, closed list — leaving the markers in place. Open/closed counts are computed by the page's own JS, never written." },
-    { k: "7", t: "Report status", d: "Returns a single status line to the caller: updated with N open and M closed, or the skip reason." }
-  ]},
-
-/* ------------------------------- evals ------------------------------- */
-{ slug: "evals-code-run", g: "evals", inv: "both",
-  purpose: "Scores the unpushed commits for duplication, bloat, inefficiency, and security — appends four entries to code.json.",
-  steps: [
-    { k: "0", t: "Confirm invocation", gate: true, d: "The slash command (or an initiating agent's explicit brief, as in /feature-implement's eval offer) skips the check; any other proactive arrival asks one AskUserQuestion first." },
-    { k: "1", t: "Resolve change set", d: "Determines the base ref (upstream, origin/HEAD, or an explicit argument), collects the unpushed commits and diff, and computes the added-lines denominator excluding lockfiles and generated output. Zero unpushed commits means stop — nothing evaluated, nothing written." },
-    { k: "2", t: "Four parallel evals", sub: true, par: ["duplication", "bloat", "inefficiency", "security"], d: "Launches four read-only subagents (inheriting the session model) in a single message, one per dimension, each with a self-contained brief: the change set, the counting rules, and the strict output contract. Duplication actively greps the rest of the repo, not just the diff." },
-    { k: "3", t: "Validate results", d: "Recomputes each score from its numerator and denominator, checks findings and scores agree, re-runs an unreliable block once, and trims recommendations to 100 words (forced empty at score 0). A twice-failed dimension is analysed directly rather than left as a hole." },
-    { k: "4", t: "Append log", d: "Appends exactly four five-field entries sharing one UTC timestamp to ~/.claude/evals/code.json via an atomic temp-file replace. A corrupt existing log is moved aside to a .corrupt-<ts> backup, never silently discarded." },
-    { k: "5", t: "Summarize", d: "Reports what was evaluated, the score table (higher is worse), evidence-cited findings per nonzero dimension, and the log-write confirmation. Deliberately does not call lessons-capture — the JSON log is its home for recommendations." }
-  ]},
-
-{ slug: "evals-e2e-run", g: "evals", inv: "both",
-  purpose: "Scores a chain-built feature end-to-end: artefact quality and stage-to-stage consistency, into design.json.",
-  steps: [
-    { k: "0", t: "Confirm invocation", gate: true, d: "Same gate as evals-code-run: the slash command or an initiating agent's explicit brief proceeds; other proactive arrivals ask once. There is deliberately no gate proving the work “is” a feature — the initiator implies it." },
-    { k: "1", t: "Resolve feature & evals", d: "Identifies the feature version from stage-format commits in the unpushed range (falling back to the highest-versioned features/ folder), locates artefacts by read-only globbing — deliberately never via feature-resolve, which would create folders — and selects up to eight evals by input presence." },
-    { k: "2", t: "Parallel eval subagents", sub: true, par: ["storm_quality", "design_quality", "plan_quality", "design_consistency", "plan_consistency", "code_storm_consistency", "code_design_consistency", "code_plan_consistency"], d: "One read-only subagent (inheriting the session model) per selected eval, all launched in a single message. Quality evals judge rubric criteria; consistency evals classify each upstream commitment as honored, partially honored, or silently dropped." },
-    { k: "3", t: "Validate results", d: "Verifies each eval_type is one of the eight literal names, recomputes scores from items met/assessed, checks sub-80 scores carry recommendations (and ≥80 carry none), and re-runs unreliable blocks once." },
-    { k: "4", t: "Append log", d: "One atomic append of one five-field entry per eval actually run — entry count varies, so consumers key on eval-type, never position — to ~/.claude/evals/design.json, with the same corrupt-log backup discipline." },
-    { k: "5", t: "Summarize", d: "Reports the resolved feature, which evals ran or were skipped, the score table (higher is better), findings for anything under 80, and the log-write confirmation. Does not call lessons-capture." }
-  ]},
-
-/* ------------------------------- reflection ------------------------------- */
-{ slug: "lessons-learn", g: "reflect", inv: "user",
-  purpose: "Consolidates a skill's accumulated lessons log into user-approved SKILL.md edits, then archives the log.",
-  steps: [
-    { k: "0", t: "Pick target", gate: true, d: "Takes the target skill's slug from the argument; without one, lists the logs that contain real recommendations and asks which to process. Nothing to learn from means a clean stop." },
-    { k: "1", t: "Locate SKILL.md", d: "Finds the target skills/<slug>/SKILL.md on disk (the plugin can be installed anywhere) and reads it in full, so suggestions already addressed drop out naturally." },
-    { k: "2", t: "Read log", d: "Parses every dated entry in ~/.claude/dev-skills/lessons/<slug>.md and discards the no-recommendation ones." },
-    { k: "3", t: "Group & filter", d: "Clusters entries targeting the same behaviour, then filters hard: already addressed, one-off quirks, language-specific bias (rewritten generically or dropped), complexity without payoff, unsound reasoning. A typical run keeps 0–3 improvements." },
-    { k: "4", t: "Present proposals", gate: true, d: "Each survivor becomes an AskUserQuestion proposal — what, where, the concrete edit, why — with Apply / Skip / Defer options, batched up to four per call." },
-    { k: "5", t: "Apply edits", d: "Applies each approved change to the target SKILL.md one Edit at a time; a stale match stops and asks rather than being patched around. Never auto-commits — the diff is the user's to review." },
-    { k: "6", t: "Archive log", d: "Snapshots the whole active log to <slug>.archive-<UTC>.md and rebuilds a fresh active log containing only deferred entries. Archives are immutable once written." },
-    { k: "7", t: "Summarize", d: "Reports entries reviewed, applied, skipped, and deferred, plus the archive path — and reminds that this skill never commits or feeds its own reflections back into a log." }
-  ]},
-
-/* ------------------------------- utilities ------------------------------- */
-{ slug: "push", g: "utils", inv: "user", commits: true,
-  purpose: "Commits all working-tree changes with a style-matched message and pushes to the remote.",
-  steps: [
-    { k: "1", t: "Check status", d: "Runs git status to find staged and unstaged changes across the tree." },
-    { k: "2", t: "Stop if clean", d: "With nothing to commit, informs the user and ends — no empty commits." },
-    { k: "3", t: "Review changes", d: "Reads the actual diff and the last five commit subjects so the new message matches the repository's established style." },
-    { k: "4", t: "Commit message", d: "Uses the message passed as the argument, or derives a concise one focused on the what and why. First line under 72 characters; never any attribution." },
-    { k: "5", t: "Update gitignore", d: "New files or directories that should not ship (local workspaces, generated noise) are added to .gitignore before staging." },
-    { k: "6", t: "Stage all", d: "Stages everything with git add -A — this skill's contract is to ship the whole working tree." },
-    { k: "7", t: "Commit", commits: true, d: "Creates the commit with the chosen message." },
-    { k: "8", t: "Push", d: "Pushes to the remote; a failure (needs pull, protected branch) is reported with suggested next steps rather than forced." },
-    { k: "9", t: "Confirm success", d: "Shows the commit hash and verifies the repo is clean after the push." }
-  ]},
-
-{ slug: "release", g: "utils", inv: "user", commits: true,
-  purpose: "Version bump, changelog, commit, tag, and push — language detected per run, with per-language sections.",
-  steps: [
-    { k: "1", t: "Parse type", d: "Accepts exactly one of major, minor, or patch from the argument, defaulting to patch. The type applies identically to every language." },
-    { k: "2", t: "Detect language", d: "Inspects the repo root: Python markers (pyproject.toml, uv.lock, …), Swift markers (Package.swift, *.xcodeproj), else the Generic manifest list (.claude-plugin/plugin.json, package.json, Cargo.toml, composer.json, pubspec.yaml)." },
-    { k: "3", t: "Read version", gate: true, d: "Reads the version from the language section's source and validates strict X.Y.Z (Swift's X.Y normalises to X.Y.0). Anything else — rc suffixes, date versions — stops and asks the user to normalise; a base version is never invented." },
-    { k: "4", t: "Compute version", d: "Semantic bump: major zeroes the rest, minor zeroes patch, patch increments the last segment." },
-    { k: "5", t: "Update sources", d: "Edits every version location the language section lists, keeping them in sync — only the version values, never reformatting." },
-    { k: "6", t: "Update changelog", d: "If CHANGELOG.md exists, moves Unreleased items into a dated version section (Keep a Changelog format). Swift creates the changelog when missing; other languages skip and note it." },
-    { k: "7", t: "Pre-commit steps", d: "Language extras that must precede staging: uv lock for uv projects, a package-lock refresh for Node — so lockfiles never go stale against the bumped version." },
-    { k: "8", t: "Stage & commit", commits: true, d: "Stages only the files the release touched plus anything the user had deliberately staged — never git add -A — and commits as Release vX.Y.Z with no attribution." },
-    { k: "9", t: "Tag", gate: true, d: "Checks the tag locally and on the remote first; an existing vX.Y.Z stops the run rather than force-overwriting. Then tags." },
-    { k: "10", t: "Push", d: "Pushes the branch and the new tag without asking — the user has standing authorisation for /release end-to-end. No remote configured: skip and report the local state; a failed push is surfaced verbatim with nothing rolled back." },
-    { k: "11", t: "Report", d: "One compact block: version, branch, short SHA, files updated, and the tag/push outcome." }
-  ]},
-
-{ slug: "diagram-update", g: "utils", inv: "both",
-  purpose: "Regenerates this page: analyses every skill, hook, and script on disk and overwrites diagram/index.html wholesale.",
-  steps: [
-    { k: "0", t: "Confirm invocation", gate: true, d: "Typing /diagram-update proceeds directly; a proactive arrival asks one AskUserQuestion first, since the run overwrites diagram/index.html." },
-    { k: "1", t: "Repo gate", d: "Refuses to run anywhere but the dev-skills plugin repo itself — the manifest at .claude-plugin/plugin.json must be named dev. Records the plugin version and a UTC timestamp for the header, and verifies templates/workflow-diagram.html exists — the page is rendered from that template, never authored from scratch." },
-    { k: "2", t: "Inventory plugin", d: "Enumerates and reads in full every skills/*/SKILL.md, hooks/hooks.json plus the scripts it references, and templates/. The files are the source of truth — never summaries or memory." },
-    { k: "3", t: "Extract model", d: "For each skill: invocation surface from frontmatter, ordered steps with ≤3-word titles and plain-language explanations, approval gates, loop-backs, parallel fan-outs, subagent delegation, and step-anchored cross-skill edges. Hooks get their triggers and actual script behaviour." },
-    { k: "4", t: "Derive graph", d: "Clusters skills into workflow groups from their cross-references, lays chained skills out in pipeline order, renders shared internal helpers as converging service boxes, and types every edge: calls, chains into, hands over, loops back." },
-    { k: "5", t: "Author data", d: "Produces the seven substitution values the template expects: plugin version, timestamp, the group list, the skills-with-steps array (titles, explanations, gates, brackets, parallel units), the step-anchored edge list, and the overview nodes and edges. All presentation and interaction lives in the template — this step authors data only." },
-    { k: "6", t: "Render template", d: "Reads templates/workflow-diagram.html, substitutes the seven anchored tokens with the Step 5 values, and writes the result wholesale to diagram/index.html. The engine (CSS and JS) is never edited during a run — presentation changes belong in the template itself." },
-    { k: "7", t: "Verify output", d: "Static checks on the written file: no literal template tokens remain, every skill folder appears exactly once, step counts match the extraction, edge anchors resolve, no external URL references, and the legend covers everything used. Failures are fixed and re-verified." },
-    { k: "8", t: "Report", d: "One summary line — skills, steps, edges, gates, loop-backs, parallel clusters — plus the pointer to open the file. Never commits or pushes; the regenerated diagram is left as a working-tree change." }
-  ]},
-
-/* ------------------------------- hooks ------------------------------- */
-{ slug: "remote-check", g: "hooks", inv: "hook", internal: true,
-  purpose: "hooks/remote-check.sh — warns when the branch is behind its upstream; fired on SessionStart and UserPromptSubmit.",
-  steps: [
-    { k: "1", t: "Locate repo", d: "Reads the hook payload's cwd and silently exits outside a git work tree. The hook must never block or error the session." },
-    { k: "2", t: "Throttle check", d: "SessionStart always fetches and resets the window; UserPromptSubmit fetches only when the last check is older than two hours, so it never nags every prompt. State lives in the repo's git dir and is never committed." },
-    { k: "3", t: "Bounded fetch", d: "git fetch with a 15-second timeout so a slow or offline remote cannot stall the prompt. The attempt is recorded whether or not it succeeds." },
-    { k: "4", t: "Compute behind", d: "Counts commits behind the upstream. Up to date, ahead-only, or no upstream: silent exit — there is nothing to warn about." },
-    { k: "5", t: "Warn & ask", gate: true, d: "Emits a user-visible systemMessage (so the behind-state is never silent) plus an additionalContext note telling Claude to offer git pull --ff-only via AskUserQuestion at the start of its next reply — at most once per session. The hook itself never pulls and never prompts." }
-  ]}
+  {
+    "slug": "feature-dispatch",
+    "g": "entry",
+    "inv": "agent",
+    "internal": true,
+    "purpose": "Model-only router: spots feature-shaped prompts and offers the right way into the chain before any code is written.",
+    "steps": [
+      {
+        "k": "1",
+        "t": "Scope check",
+        "d": "Re-reads your most recent message and drops out silently when routing would be wrong: you already typed a chain or bug slash command, work is already in flight, the request is a bug, the change is plainly small, or you framed it as a quick throwaway. When it skips, it says nothing at all \u2014 a router that announces itself on every prompt is worse than no router."
+      },
+      {
+        "k": "2",
+        "t": "Estimate scope",
+        "d": "Silently sizes a competent first-cut implementation. Under roughly 75 lines it stops, because dispatching would cost more than it saves. Above that it picks which entry to recommend: /feature-storm when the request is still vague at the product layer, /feature-design when you know what you want but the technical shape is open."
+      },
+      {
+        "k": "3",
+        "t": "Offer route",
+        "gate": true,
+        "d": "Asks once, with three options: the recommended skill first, the alternative second, and continue-without-dispatch third. A one-line restatement of your request is embedded in the question so you can correct its reading in the same click."
+      },
+      {
+        "k": "4",
+        "t": "Hand over",
+        "d": "Invokes the chosen skill with your original request as its argument and then stops \u2014 the target skill owns the rest of the conversation, including its own chain-in offers. Declining ends the router silently, with no summary and no apology for asking."
+      }
+    ]
+  },
+  {
+    "slug": "feature-list",
+    "g": "entry",
+    "inv": "both",
+    "purpose": "Read-only report: every feature under features/, how far it got through the chain, and the next command to run.",
+    "steps": [
+      {
+        "k": "1",
+        "t": "Validate argument",
+        "d": "Takes one optional argument whose only legal value is all. With nothing passed it reports the open features \u2014 those whose implementation is not complete; with all it reports every feature. Anything else stops the skill with a one-line usage error rather than guessing at an intent."
+      },
+      {
+        "k": "2",
+        "t": "Find folders",
+        "d": "Anchors on the repo root and globs features/ for feature-v<N>-* directories, parsing the version numerically so v10 outranks v9. For each one it lists the stage .md files present. It deliberately does not call feature-resolve, which would create folders and seed trackers as a side effect \u2014 listing must never mutate the repo."
+      },
+      {
+        "k": "3",
+        "t": "Resolve status",
+        "d": "Reads each stage's status from two independent signals: the tracker's data-stage / data-state attributes, and the stage files on disk. Disagreements are shown with a dagger rather than hidden. Implementation is the special case \u2014 there is no implement stage file, so completion comes from the tracker and partial progress from the plan-stage commits on the current branch."
+      },
+      {
+        "k": "4",
+        "t": "Date and sort",
+        "d": "Takes each feature's last activity from the newest Updated timestamp chip in its tracker, falling back to the last commit touching the folder, then file modification time, then unknown. Sorts newest first, breaking ties on version descending, with unknown dates last."
+      },
+      {
+        "k": "5",
+        "t": "Render table",
+        "d": "Prints exactly one markdown table: the feature, a column per chain stage, last activity, and the slash command that advances it \u2014 including where to resume a part-implemented feature. A legend follows, covering only the symbols that actually appear, plus a closing note when something needs saying."
+      },
+      {
+        "k": "6",
+        "t": "Empty cases",
+        "d": "Handles the nothing-to-report paths explicitly: no features/ folder, no matching feature folders, every feature already implemented, or a folder that matches the naming pattern but holds no stage files and no tracker. That last case is still listed \u2014 a seeded-but-stranded folder is exactly what a report should surface."
+      }
+    ]
+  },
+  {
+    "slug": "feature-storm",
+    "g": "chain",
+    "inv": "both",
+    "purpose": "Product-level brainstorm: goals, users, scope and constraints, written up as a seven-section storm document.",
+    "steps": [
+      {
+        "k": "0",
+        "t": "Confirm invocation",
+        "gate": true,
+        "d": "When you typed the slash command, or arrived from the dispatcher's routing question, this is skipped. When the model invoked the skill from natural language, it asks once \u2014 naming the specific scope it would brainstorm \u2014 before touching anything. Declining stops the run with no files written."
+      },
+      {
+        "k": "1",
+        "t": "Establish requirements",
+        "d": "Parses the arguments into an optional version token, a candidate short title, and the free-form requirement. If the requirement is thin it asks once for it. Requirements that reference existing versions, code symbols or current behaviour get a quick grounding read first, so the questions in the next step are fact-based rather than speculative."
+      },
+      {
+        "k": "2",
+        "t": "Resolve folder",
+        "d": "Settles the short title that goes into the folder name, then calls feature-resolve to allocate features/feature-v<N>-<description>/ and seed its tracker. The resolver runs inline in the same turn, so the returned block is a checkpoint rather than a hand-off \u2014 the run continues straight on."
+      },
+      {
+        "k": "3",
+        "t": "Discuss specifics",
+        "gate": true,
+        "d": "Iterative rounds of questions \u2014 always with options and a recommendation \u2014 covering goals, non-goals, users and scenarios, the scope boundary, high-level technical constraints, alternatives, risks and the open questions the design will have to close. This step runs even under instructions to work without stopping: converging on product intent is the whole point of the skill."
+      },
+      {
+        "k": "4",
+        "t": "Approve summary",
+        "gate": true,
+        "d": "Presents at most ten bullets covering where the brainstorm landed and asks you to approve, revise, or stop. Approving writes the document; revising loops back into discussion for another round; stopping writes nothing at all and leaves the tracker honestly showing storm as not done."
+      },
+      {
+        "k": "5",
+        "t": "Write storm",
+        "d": "Writes the storm document at the resolver-returned path, in a fixed seven-section shape: summary, goals, scope, high-level technical direction, alternatives considered, risks, and open questions for design. Sections with nothing to say carry an explicit not-applicable line with a real reason rather than being dropped."
+      },
+      {
+        "k": "6",
+        "t": "Update tracker",
+        "d": "Fills the tracker's Brainstorming panel \u2014 timestamp chip, bullet summary and expandable detail \u2014 and flips only the storm step of the progress bar to complete. Future stages get an explicit awaiting placeholder. Each substitution happens only where the token is still literal, so no skill can overwrite another's panel."
+      },
+      {
+        "k": "7",
+        "t": "Capture lessons",
+        "d": "Calls lessons-capture with this skill's slug. That helper decides whether the run produced a worthwhile improvement to the skill itself and appends one entry (often just no recommendations) to the per-skill log for later review."
+      },
+      {
+        "k": "8",
+        "t": "Present highlights",
+        "d": "Prints a short pointer block: the file paths, the approved bullets, the top open questions for design, and any skill-improvement recommendation. The files are the artefact; the chat stays under about thirty lines and never contains the whole document."
+      },
+      {
+        "k": "9",
+        "t": "Offer design",
+        "gate": true,
+        "d": "Asks once whether to continue into /feature-design, passing the resolved version so the next skill lands in the same feature folder. Declining prints a single line telling you the command to run when you are ready."
+      }
+    ]
+  },
+  {
+    "slug": "feature-design",
+    "g": "chain",
+    "inv": "both",
+    "purpose": "The technical design: clarified to closure, mocked up where there is a UI, self-reviewed, and written as a nine-section document.",
+    "steps": [
+      {
+        "k": "0",
+        "t": "Confirm invocation",
+        "gate": true,
+        "d": "Skipped when you typed the slash command, chained in from /feature-storm, or came through the dispatcher. Otherwise it asks once, naming the scope it would design. Declining stops the run before any file is written."
+      },
+      {
+        "k": "1",
+        "t": "Capture requirements",
+        "d": "Resolves what is being designed, in priority order: the free-form argument text, then a just-completed storm, then a substantial requirements discussion in the conversation, and only then a direct question. Whichever source it picked is stated in chat, so one word from you can redirect it."
+      },
+      {
+        "k": "2",
+        "t": "Resolve folder",
+        "d": "Confirms the short title where it was inferred rather than given, then calls feature-resolve for the folder, version, design file path and tracker path. Those values are used verbatim everywhere downstream \u2014 no path in this skill is ever built by string concatenation."
+      },
+      {
+        "k": "3",
+        "t": "Ground in code",
+        "d": "Reads the storm if one exists, then the parts of the codebase the feature will touch: entry points, modules it must integrate with, data models it extends, tests that pin current behaviour. Legacy docs/ is fair game to read but never written to. Third-party surfaces are grounded in official documentation rather than assumed."
+      },
+      {
+        "k": "4",
+        "t": "Clarify decisions",
+        "gate": true,
+        "d": "Rounds of questions until no remaining decision would change the design: scope, acceptance criteria, approach choices with their measurable trade-offs, constraints, data and state, and failure behaviour. Every open question left by the storm has to be closed here. Like the storm's discussion round, this runs even under autonomous instructions."
+      },
+      {
+        "k": "5a",
+        "t": "Mockup decision",
+        "d": "Decides by rule, not taste, whether to mock the surface up. It fires only when the feature has a user-visible surface and that surface's look is not already settled. It skips on four named exits: no user-visible surface, an appearance you already supplied or specified precisely, a mechanical delta, or your explicit decline \u2014 and records which one applied."
+      },
+      {
+        "k": "5b",
+        "t": "Call mockup",
+        "d": "Invokes feature-mockup with the resolved folder and version, a one-line statement of what you will see, and \u2014 when your own reference covers only part of the surface \u2014 that reference to extend. The mockup skill runs inline in this same turn, so its result block is a checkpoint, not a hand-off."
+      },
+      {
+        "k": "5c",
+        "t": "Fold mockup in",
+        "d": "Carries the accepted mockup's UI decisions into the design as concrete content, cites the mockup file by relative path, and records each rejected alternative as an alternative considered. Any UI question the mockup left open goes back through the clarification round rather than being parked as an open question."
+      },
+      {
+        "k": "6",
+        "t": "Write design",
+        "d": "Writes the nine-section design document, preferring a modular, separately testable decomposition over a monolithic one and recording the rationale when a single unit is genuinely right. Every section is required: a section with nothing to say carries an explicit not-applicable line, and open questions must be empty before the run can finish."
+      },
+      {
+        "k": "7",
+        "t": "Self-review",
+        "d": "Re-reads the draft through a fixed set of lenses and fixes what it finds in place: requirement coverage, decision closure, security gaps, inefficiencies, modularity and testability, whether every cited path and API actually exists, whether the claims about existing code hold, mockup fidelity, and cross-section consistency. It loops until the draft passes."
+      },
+      {
+        "k": "8",
+        "t": "Update tracker",
+        "d": "Fills the tracker's Design panel with the highlights and an expandable rendering of the document \u2014 including a link to the accepted mockup when there is one \u2014 and flips only the design step of the progress bar. Defensive substitution means it never overwrites the storm's panel or anyone else's."
+      },
+      {
+        "k": "9",
+        "t": "Capture lessons",
+        "d": "Calls lessons-capture with this skill's slug. That helper decides whether the run is worth an improvement entry, appends it (or a no-recommendations line) to the per-skill log, and hands the text back for the summary below. The reflection protocol is never inlined here."
+      },
+      {
+        "k": "10",
+        "t": "Present highlights",
+        "d": "Prints the design's file path, the accepted mockup if any, and a scannable set of highlights, risks and acceptance notes. The full document is never pasted into chat."
+      },
+      {
+        "k": "11",
+        "t": "Offer plan",
+        "gate": true,
+        "d": "Asks once whether to continue into /feature-plan against the design just saved, passing the version so the plan lands in the same folder. Declining prints the one-line command to run later."
+      }
+    ]
+  },
+  {
+    "slug": "feature-plan",
+    "g": "chain",
+    "inv": "both",
+    "wraps": {
+      "core": "planning subagent \u2014 Steps 3\u201310, no user channel"
+    },
+    "purpose": "Turns a closed design into a staged, test-first implementation plan; its planning core runs in one subagent that never asks questions.",
+    "steps": [
+      {
+        "k": "0",
+        "t": "Confirm invocation",
+        "gate": true,
+        "d": "Skipped when you typed the slash command or chained in from the design skill's closing offer. Otherwise it asks once, naming the design version it would plan against, and stops on a decline."
+      },
+      {
+        "k": "1",
+        "t": "Resolve folder",
+        "d": "Parses only a version token from the arguments \u2014 plans never redefine scope, the design does \u2014 and calls feature-resolve for stage=plan. The resolver refuses when no design exists and asks about overwriting an existing plan. This deliberately stays in the main conversation, because those questions must be settled before a subagent that cannot ask anything is launched."
+      },
+      {
+        "k": "2",
+        "t": "Launch subagent",
+        "d": "Launches exactly one general-purpose subagent with a self-contained brief: the resolver block verbatim, the full text of Steps 3\u201310, the no-questions rule, a halt protocol, and a files-only git constraint. When it returns, the main agent verifies the plan file exists and the final message has the expected shape before relaying anything as success."
+      },
+      {
+        "k": "3",
+        "t": "Read design",
+        "sub": true,
+        "wrap": "core",
+        "d": "Reads the design end to end and maps its requirements, components, interfaces, failure cases, risks and rollout. If the design still has open questions, the run halts with a BLOCKED message instead of planning around them. The storm and any cited external dependency are read too."
+      },
+      {
+        "k": "4",
+        "t": "Ground in code",
+        "sub": true,
+        "wrap": "core",
+        "d": "Verifies the design's assumptions against the real codebase: do the cited files and helpers exist, what already works, what has to be built. It catalogues the project's test conventions and runner so the plan's steps are executable, and sizes the blast radius of every shared symbol the design changes before deciding how to stage it."
+      },
+      {
+        "k": "5",
+        "t": "Draft stages",
+        "sub": true,
+        "wrap": "core",
+        "d": "Drafts the plan as a sequence of stages, each ending in a working, tested, mergeable increment. Behaviour-changing stages carry the four test-first steps with a concrete expected first failure; anything that cannot be red-first carries one of four sanctioned category labels and a one-line justification."
+      },
+      {
+        "k": "6",
+        "t": "Decide autonomously",
+        "sub": true,
+        "wrap": "core",
+        "d": "The subagent has no way to ask you anything, so planning-level gaps \u2014 stage order, flag placement, which existing harness to use, concrete file paths \u2014 are decided on the evidence and recorded, one line each, in the plan's planning-decisions section. Design-level gaps are never decided here; they halt the run."
+      },
+      {
+        "k": "7",
+        "t": "Review plan",
+        "sub": true,
+        "wrap": "core",
+        "d": "Re-reads the draft against a checklist and fixes it in place: design coverage, test-first discipline, invented citations, contradictions and ordering, intermediate states, silent changes to the design, decision-log purity, insecure staging windows, hand-waves and stage size. It loops until every check passes."
+      },
+      {
+        "k": "8",
+        "t": "Update tracker",
+        "sub": true,
+        "wrap": "core",
+        "d": "Fills the tracker's Plan panel \u2014 stage list, coverage table, cross-cutting concerns, verification, decisions and deviations \u2014 and flips only the plan step of the progress bar, and only on a successful run. A halted run leaves the progress bar untouched."
+      },
+      {
+        "k": "9",
+        "t": "Capture lessons",
+        "sub": true,
+        "wrap": "core",
+        "d": "Calls lessons-capture with this skill's slug from inside the subagent. If the Skill tool is unavailable there, it says so in one line and the main agent runs the capture during verification instead \u2014 the reflection is never inlined by hand."
+      },
+      {
+        "k": "10",
+        "t": "Compose summary",
+        "sub": true,
+        "wrap": "core",
+        "d": "The subagent's final message is exactly the summary block and nothing else: stages with their goals, the coverage count, the autonomous planning decisions, deviations from the design, top risks, and the next concrete action. It is the only part of the subagent's run you read."
+      },
+      {
+        "k": "11",
+        "t": "Offer implement",
+        "gate": true,
+        "d": "Relays the subagent's summary verbatim, then asks once whether to continue into /feature-implement. Which option is recommended depends on the plan: a plan matching the design recommends proceeding, while any recorded deviation recommends folding it back into a new design version first."
+      }
+    ]
+  },
+  {
+    "slug": "feature-implement",
+    "g": "chain",
+    "inv": "both",
+    "commits": true,
+    "wraps": {
+      "cycle": "per-stage cycle \u2014 subagent units when chunked, main agent when direct"
+    },
+    "purpose": "Builds the plan stage by stage on the current branch, test-first, one commit per green stage. Never branches, never pushes.",
+    "steps": [
+      {
+        "k": "0",
+        "t": "Confirm invocation",
+        "gate": true,
+        "d": "Strictly enforced, because this skill writes code and creates commits. Skipped only when you typed the slash command or accepted the plan skill's closing offer. Otherwise it asks once, naming the version it would build and warning that it will commit."
+      },
+      {
+        "k": "1",
+        "t": "Resolve folder",
+        "d": "Parses an optional version token and calls feature-resolve for stage=implement, which refuses unless a plan exists and points at the plan as the prerequisite file. The resolver runs inline, so the run continues in the same turn rather than stopping on its output block."
+      },
+      {
+        "k": "2",
+        "t": "Read plan",
+        "d": "Reads the plan and the design in full and builds an internal model of both: requirements, components and decisions on one side; stages, test steps, files touched and definitions of done on the other. If the plan records unresolved deviations from the design, it asks whether to proceed or pause for a design refresh."
+      },
+      {
+        "k": "3",
+        "t": "Repo readiness",
+        "gate": true,
+        "d": "Confirms a git work tree, sorts the chain's own uncommitted artefacts from your unrelated work, checks the branch, fetches and reconciles with the remote, then detects the project's test, lint, format, type-check and build commands and baselines them. If the test suite is already red it stops and asks whether to investigate, file a bug, or halt \u2014 it never builds on a red suite, even under autonomous instructions."
+      },
+      {
+        "k": "4",
+        "t": "Find start stage",
+        "d": "Greps the branch history for this feature's stage commits to see how far a previous run got, and resumes at the next stage. Contiguous history resumes without asking; ambiguous history asks. A plan that appears fully committed skips the loop entirely rather than redoing work."
+      },
+      {
+        "k": "5",
+        "t": "Resolve strategy",
+        "d": "Decides who drives the per-stage cycle, by rule rather than by asking: chunked subagent units of three stages by default; direct in this conversation when you asked for that, when two or fewer stages remain, or when a pre-scan leaves almost nothing delegatable. Stages needing live verification or network provisioning are pulled back here at their position in the order. The resolved strategy is announced in one line \u2014 the run's only checkpoint before code lands."
+      },
+      {
+        "k": "5a",
+        "t": "Re-read stage",
+        "sub": true,
+        "wrap": "cycle",
+        "d": "Re-reads the stage block in the plan rather than trusting memory: goal, design references, files, test steps, definition of done, risks. A set of pre-flight scans runs here too \u2014 testability seams, type identity across module loaders, signature-change blast radius, time-dependent fixtures, and existing helpers worth reusing."
+      },
+      {
+        "k": "5b",
+        "t": "Write test",
+        "sub": true,
+        "wrap": "cycle",
+        "d": "Writes the test the stage specifies, and nothing else. No production code is written at this point \u2014 the test has to exist first, describing the behaviour in concrete terms."
+      },
+      {
+        "k": "5c",
+        "t": "Confirm fail",
+        "sub": true,
+        "wrap": "cycle",
+        "d": "Runs the new test and checks it fails the way the plan predicted. A test that passes here is a problem, not a shortcut: either it is not exercising the new behaviour or the behaviour already exists, and the run stops to resolve that before continuing."
+      },
+      {
+        "k": "5d",
+        "t": "Implement code",
+        "sub": true,
+        "wrap": "cycle",
+        "d": "Makes the minimum change needed to satisfy the test, touching only the files the stage names or their direct consequences. Where reality differs from the plan, the plan file is edited to match and the difference is recorded as a deviation rather than absorbed silently."
+      },
+      {
+        "k": "5e",
+        "t": "Confirm pass",
+        "sub": true,
+        "wrap": "cycle",
+        "d": "Re-runs the targeted test, then a wider suite. Failures are compared against the baseline taken in Step 3, so pre-existing breakage is not mistaken for a regression \u2014 but any new failure has to be fixed before the stage can commit. A baseline failure that starts passing simply drops off the list."
+      },
+      {
+        "k": "5f",
+        "t": "Coverage check",
+        "sub": true,
+        "wrap": "cycle",
+        "d": "Checks the stage against its own promises point by point: files touched or their omission justified, every promised behaviour covered by a passing test, the definition of done satisfied, and the design requirements assigned to this stage actually exercised. Gaps are filled inside the same stage rather than deferred with a TODO."
+      },
+      {
+        "k": "5g",
+        "t": "Self-review",
+        "sub": true,
+        "wrap": "cycle",
+        "d": "Reviews the stage's change through seven lenses \u2014 bloat, duplication and reuse, superseded or orphaned code, functional issues, inefficiencies, security issues, and comment style \u2014 and fixes what it finds before committing. Two of those lenses deliberately look outside the diff: one for code the change should have called, one for code the change has just stranded."
+      },
+      {
+        "k": "5h",
+        "t": "Commit stage",
+        "sub": true,
+        "commits": true,
+        "wrap": "cycle",
+        "d": "Runs the test command once more, then makes exactly one commit for the stage, staging only the files the stage touched. The message format is fixed, because it is the contract a later run greps to resume. Documentation and tracker edits go in a separate commit so they never pollute that grep."
+      },
+      {
+        "k": "5i",
+        "t": "Next stage",
+        "sub": true,
+        "wrap": "cycle",
+        "d": "Confirms a clean tree and moves to the next stage. Between stages nothing is pushed, no branch is switched, and neither the plan nor the design is touched unless a deviation had to be recorded."
+      },
+      {
+        "k": "6",
+        "t": "Stop conditions",
+        "gate": true,
+        "d": "The loop stops and consults you on any of: an undiagnosable test failure, a decision the plan and design do not cover, a working tree dirtied by something else, a security issue too large for the stage, or a plan that turns out to need a new design. Completed stages stay committed and partial work stays uncommitted."
+      },
+      {
+        "k": "7",
+        "t": "Dead-code sweep",
+        "d": "After the last stage, checks every design requirement has a verifying test and every component exists with tests, then runs the project's dead-code analyser across the whole project and compares against the Step 3 baseline. Only orphans this feature created are removed; symbols reachable through public API, dynamic dispatch, serialization or framework entry points are surfaced instead of deleted."
+      },
+      {
+        "k": "8",
+        "t": "Update tracker",
+        "commits": true,
+        "d": "Fills the tracker's Implementation panel \u2014 stages and their commits, test and lint outcomes with baseline exclusions named, the design-coverage table, deviations and any notes \u2014 and flips the implement step of the progress bar. The tracker update is committed as a documentation commit so the run ends with a clean tree."
+      },
+      {
+        "k": "9",
+        "t": "Capture lessons",
+        "d": "Calls lessons-capture with this skill's slug, always in the main conversation, and pastes the returned entry into the summary. The reflection protocol lives in that one helper for every skill in the plugin."
+      },
+      {
+        "k": "10",
+        "t": "Final summary",
+        "d": "Prints the branch, the tracker, the stages with their commit shas, the test result, the excluded pre-existing failures, design coverage, the dead-code outcome and any deviations. No diffs and no file contents \u2014 under about forty lines."
+      },
+      {
+        "k": "11",
+        "t": "Offer evals",
+        "gate": true,
+        "par": [
+          "evals-code-run",
+          "evals-e2e-run"
+        ],
+        "d": "The work is committed but not pushed \u2014 exactly what the two eval skills score. It asks once, and on consent runs both in parallel read-only subagents, each briefed that you already confirmed. Their score summaries are relayed back. Declining, a headless run, or a failing eval never fails the implementation."
+      }
+    ]
+  },
+  {
+    "slug": "feature-resolve",
+    "g": "helpers",
+    "inv": "agent",
+    "internal": true,
+    "purpose": "The single source of pathing: which feature folder, which version, which stage file \u2014 created and seeded, then returned as a parseable block.",
+    "steps": [
+      {
+        "k": "1",
+        "t": "Ensure features/",
+        "d": "Checks for a features/ directory in the project root and creates it on first use. It never writes feature artefacts anywhere else, and never migrates or copies from the legacy docs/ folder."
+      },
+      {
+        "k": "2",
+        "t": "Scan folders",
+        "d": "Globs the existing feature-v<N>-* folders, parsing each version numerically and taking the description verbatim from the folder name. For each one it records which stage files already exist, which is what the next step's create-new versus continue-existing decision turns on."
+      },
+      {
+        "k": "3",
+        "t": "Resolve version",
+        "gate": true,
+        "d": "Applies four ordered rules covering an explicit version, a first-ever feature, a latest folder still missing this stage, and a latest folder that already has it. Ambiguity is never invented away: overwriting an existing stage file, or choosing between continuing and starting a new feature, is put to you as a question."
+      },
+      {
+        "k": "4",
+        "t": "Validate description",
+        "d": "For a new feature, the description must be at most ten words, non-empty, and safe as a filename once spaces become hyphens. Overlong or unsafe descriptions stop the run with an error rather than being silently truncated. When continuing into an existing folder, the folder name is authoritative and any conflicting description is discarded with a note."
+      },
+      {
+        "k": "5",
+        "t": "Create folder",
+        "d": "Creates features/feature-v<N>-<description>/ when this is a new feature, and does nothing when continuing into an existing one. The absolute path is recorded for the result block."
+      },
+      {
+        "k": "6",
+        "t": "Seed tracker",
+        "d": "Copies the plugin's tracker template into the folder as feature-v<N>-tracker.html when it is not already there, preferring the installed plugin when several copies exist. No tokens are substituted \u2014 that belongs to each stage. A missing template degrades to a note rather than failing the resolution."
+      },
+      {
+        "k": "7",
+        "t": "Emit block",
+        "d": "Emits a fixed block of mode, version, description, folder, stage file, tracker file, prerequisite file and notes, which the caller's later steps read verbatim. Because it was loaded into the caller's own turn, emitting the block is a checkpoint and not a hand-off: the run must continue immediately into the caller's next step."
+      }
+    ]
+  },
+  {
+    "slug": "feature-mockup",
+    "g": "helpers",
+    "inv": "agent",
+    "internal": true,
+    "purpose": "Shows what the feature will look like: offline HTML mockups, iterated with you, returned to the design as concrete UI decisions.",
+    "steps": [
+      {
+        "k": "1",
+        "t": "Check surface",
+        "d": "Confirms there is a user-visible surface worth drawing \u2014 a screen, a page, a terminal view, the shape of command output, a report or a notification. A library change, background job, migration or infrastructure change returns a not-applicable result and the design carries on. It never invents a UI to justify running."
+      },
+      {
+        "k": "2",
+        "t": "Ground design language",
+        "d": "Reads whatever the project already has: its UI layer and styles, design tokens or theme configuration, any committed brand assets, prior mockups in sibling feature folders, and this feature's own storm and design. From those it distils a short digest of palette, typography, spacing, component patterns and density, each traceable to where it came from. Anything you supplied as a reference is read first and outranks the digest."
+      },
+      {
+        "k": "3",
+        "t": "Classify change",
+        "d": "Decides whether this is a brand-new surface or a modification to one that already exists \u2014 a new section or element, or a change to fonts, colours, spacing and arrangement. If the surface already exists in the codebase it counts as a modification even when the addition is large. That choice decides the shape of what gets drawn."
+      },
+      {
+        "k": "4",
+        "t": "Build mockups",
+        "d": "Writes self-contained, offline, non-functional HTML into the feature folder's mockups/ directory, with obviously placeholder data and a banner naming what each page shows. A new surface gets one overall view covering the screens, the states and how it slots into existing navigation; a modification gets two to four uniquely named alternatives, each rendering today's surface plus the change and each differing on a real axis."
+      },
+      {
+        "k": "5",
+        "t": "Present and iterate",
+        "gate": true,
+        "d": "Lists the pages with their paths and asks for your verdict: accept, revise, or choose between the named alternatives. Revisions overwrite the same file, genuinely new directions get new names, and three rounds without convergence force an explicit settle, hand-back or drop. Your opinion is the output of this skill, so the question is asked even under autonomous instructions."
+      },
+      {
+        "k": "6",
+        "t": "Record outcome",
+        "d": "Marks the accepted page as accepted with the date and each rejected page as not chosen, and keeps every alternative on disk as the record of what was considered. No separate decision document is written \u2014 the design about to be authored is the single place UI decisions live."
+      },
+      {
+        "k": "7",
+        "t": "Return decision",
+        "d": "Emits a fixed block: status, kind, the mockup directory, the accepted file, the alternatives offered, the design language followed, the concrete UI decisions, any unresolved UI questions, and notes. The decisions line is the payload \u2014 specific enough to design and implement against. As an inline helper, it then continues straight into the caller's next step rather than ending the turn."
+      }
+    ]
+  },
+  {
+    "slug": "lessons-capture",
+    "g": "helpers",
+    "inv": "agent",
+    "internal": true,
+    "purpose": "The single source of the reflection protocol: one improvement observation per run, appended to that skill's log. Never edits a SKILL.md.",
+    "steps": [
+      {
+        "k": "1",
+        "t": "Reflect on run",
+        "d": "Looks back over the run that just finished for both friction and opportunity: ambiguous instructions, work redone, questions the skill could have answered itself, steps that could be cheaper or smarter. At most one recommendation per run, and most runs correctly produce none \u2014 a padded log is worse than an empty one."
+      },
+      {
+        "k": "2",
+        "t": "Format entry",
+        "d": "Formats the recommendation as three lines: what was observed, the specific edit it implies in the target SKILL.md, and the expected benefit. With nothing worth saying, the entry is a single no-recommendations line."
+      },
+      {
+        "k": "3",
+        "t": "Append log",
+        "d": "Appends the entry, with a UTC timestamp, to the per-skill log under ~/.claude/dev-skills/lessons/. It always appends in one shell operation and never rewrites the file, so a concurrent or interrupted run cannot clobber earlier entries."
+      },
+      {
+        "k": "4",
+        "t": "Return entry",
+        "d": "Echoes just this run's entry back so the calling skill can paste it into its own summary. The rest of the log is never reprinted, and no SKILL.md is ever edited here \u2014 applying improvements is /dev:lessons-learn's job, deliberately later and with your approval."
+      }
+    ]
+  },
+  {
+    "slug": "bug-tracker-render",
+    "g": "helpers",
+    "inv": "agent",
+    "internal": true,
+    "purpose": "The single source of bug-tracker rendering: rebuilds bugs/bugs-tracker.html wholesale from the template plus what is on disk.",
+    "steps": [
+      {
+        "k": "1",
+        "t": "Locate template",
+        "d": "Finds the repo root and the plugin's tracker template, preferring the installed plugin when several copies exist. Outside a git work tree, or with no template found, it emits a one-line skip note and returns rather than failing the skill that called it."
+      },
+      {
+        "k": "2",
+        "t": "Copy template",
+        "d": "Copies the template over bugs/bugs-tracker.html, always overwriting. The tracker holds no state of its own, so create and update are the same operation and everything below is re-derived."
+      },
+      {
+        "k": "3",
+        "t": "Set chrome",
+        "d": "Switches the shared template into its bug-tracker mode: only the Issues tab, with the stepper and feature tabs hidden. It sets the title and generation date, then blanks the twelve feature-panel tokens so no literal placeholder is left anywhere in the page."
+      },
+      {
+        "k": "4",
+        "t": "Gather bugs",
+        "d": "Scans bugs/ for open bugs and bugs/archive/ for closed ones, reading each report for its number, title, severity, filed date and body, and listing any screenshots in the folder. Both lists are sorted newest first."
+      },
+      {
+        "k": "5",
+        "t": "Render cards",
+        "d": "Renders one expandable card per bug: number, title, severity and date in the summary; description, reproduction, screenshots, triage and any resolution in the body. Image sources are relative to the tracker, differing between open and archived bugs, and bug text is escaped so it renders as text."
+      },
+      {
+        "k": "6",
+        "t": "Write regions",
+        "d": "Replaces the placeholder content between the three marker pairs \u2014 timestamp, open cards, closed cards \u2014 leaving the markers themselves in place and touching nothing else. The open and closed counts are computed by the page itself at load time and never written by hand."
+      },
+      {
+        "k": "7",
+        "t": "Report status",
+        "d": "Emits a single status line for the caller with the open and closed counts, or the skip reason when Step 1 bailed. It never touches bug folders or report files \u2014 creating, moving and closing bugs belongs to the caller."
+      }
+    ]
+  },
+  {
+    "slug": "bug-submit",
+    "g": "bugs",
+    "inv": "both",
+    "purpose": "Files a bug as a folder under bugs/ \u2014 report, screenshots and a triage grounded in a quick read of the code. Nothing leaves your machine.",
+    "steps": [
+      {
+        "k": "0",
+        "t": "Confirm invocation",
+        "gate": true,
+        "d": "Skipped when you typed the slash command. Otherwise it states what it is about to file and waits for a plain yes in your next message; anything else cancels. Confirmation here is plain chat rather than a question widget, because images attached to answers never arrive with a usable file path."
+      },
+      {
+        "k": "1",
+        "t": "Parse arguments",
+        "d": "Splits the arguments into description text and image paths, validating that each path resolves. It also scans recent conversation messages for screenshots you pasted in, which is the only mechanism that turns a pasted image into a referenceable path."
+      },
+      {
+        "k": "2",
+        "t": "Locate bugs root",
+        "d": "Anchors everything at the git repo root, so bug numbering stays consistent no matter which subdirectory you invoked from. Outside a work tree it stops and asks you to change into the target repo \u2014 it never falls back to an arbitrary directory."
+      },
+      {
+        "k": "3",
+        "t": "Clarify bug",
+        "gate": true,
+        "d": "Asks once, in plain chat, when the description is thin or when visual context would obviously help and no screenshot arrived. It is a single round, not an interrogation, and it runs even under instructions to work without stopping \u2014 a vague report wastes more time downstream than one question costs."
+      },
+      {
+        "k": "4",
+        "t": "Allocate number",
+        "d": "Scans both bugs/ and bugs/archive/ and takes the numeric maximum, so a number is never reused after a bug is resolved. Builds a scannable slug from the description, symptom first, and creates the bug folder."
+      },
+      {
+        "k": "5",
+        "t": "Save images",
+        "d": "Copies each screenshot into the bug folder, resolving filename collisions and never symlinking. Attachments that look potentially sensitive stop for an explicit go-ahead first, since anything under bugs/ may later be committed."
+      },
+      {
+        "k": "6",
+        "t": "Triage bug",
+        "d": "Spends a bounded effort understanding the problem: a skim of the repo, a few focused searches, at most two files read. From that it writes an honest summary, the probable area with a confidence level, a rough severity, an initial hypothesis where one exists, what is missing to reproduce, and a couple of concrete next steps."
+      },
+      {
+        "k": "7",
+        "t": "Write report",
+        "d": "Writes the report in a fixed shape \u2014 severity, description, expected behaviour, reproduction, screenshots and triage \u2014 with explicit placeholders instead of dropped sections. Anything resembling a credential is redacted before it is written to disk."
+      },
+      {
+        "k": "8",
+        "t": "Render tracker",
+        "d": "Calls bug-tracker-render, which rebuilds bugs/bugs-tracker.html from the template and the filesystem, with the new bug appearing under Open. If the template cannot be found, the skip note is surfaced and the run continues \u2014 the bug folder is the durable record."
+      },
+      {
+        "k": "9",
+        "t": "Present highlights",
+        "d": "Prints the report path, the tracker path, the title, the triage in three lines and the attachment count. Under about twenty lines: the folder and tracker are the artefacts, the chat is the pointer."
+      }
+    ]
+  },
+  {
+    "slug": "bug-fix",
+    "g": "bugs",
+    "inv": "both",
+    "commits": true,
+    "purpose": "Takes one open bug, proves the root cause, fixes it test-first, then archives it and makes a single commit. Never pushes.",
+    "steps": [
+      {
+        "k": "0",
+        "t": "Select bug",
+        "d": "Reads the repo root and picks the target: the bug number you passed, or the lowest-numbered open bug in bugs/. An already-archived number is reported as resolved, an unknown number as not found, and no open bugs at all ends with a pointer to /bug-submit. The chosen report is read in full before anything else."
+      },
+      {
+        "k": "1",
+        "t": "Confirm invocation",
+        "gate": true,
+        "d": "Strictly enforced, because this skill changes code and commits. Skipped when you typed the slash command; otherwise it asks once, naming the selected bug, and offers to proceed, pick a different bug, or cancel."
+      },
+      {
+        "k": "2",
+        "t": "Ground in code",
+        "d": "Builds an accurate model before any theory: the code paths the triage points at, read end to end along the real control flow; the project's orientation docs; the most recent feature under features/, since fresh work is a common source of new bugs; and the recent history of the affected files. It also detects the project's tooling and takes a baseline so pre-existing failures are never mistaken for its own."
+      },
+      {
+        "k": "3",
+        "t": "Clarify report",
+        "gate": true,
+        "d": "Where the report leaves material ambiguity \u2014 unclear expected behaviour, fuzzy reproduction, a symptom that could map to several features \u2014 it asks, preferring concrete options with a recommendation. No ambiguity means one line saying so and straight on. This runs even under autonomous instructions."
+      },
+      {
+        "k": "4",
+        "t": "Diagnose cause",
+        "d": "The gate the whole skill turns on: no production code changes until the cause is established with evidence \u2014 a reproduction, a failing assertion, a traced path, an observed value. The report's own triage is treated as a first guess to confirm or refute, not an anchor. If the honest answer is that the bug should not be fixed, there is a separate documented close path."
+      },
+      {
+        "k": "5",
+        "t": "Approve fix",
+        "gate": true,
+        "d": "States the root cause with its evidence, the proposed change and why it addresses the cause rather than the symptom, and how it will be verified. Then asks to proceed, adjust, or cancel. The fix stays scoped to the root cause; unrelated cleanups are raised separately rather than bundled."
+      },
+      {
+        "k": "6",
+        "t": "Fix test-first",
+        "d": "Writes a regression test that encodes the correct behaviour and watches it fail for the right reason, makes the minimal change at the root cause, tidies only what it touched, then runs the full suite against the Step 2 baseline. Where the obvious assertion would be flaky, it grounds the test in a measured signal instead of a guessed threshold."
+      },
+      {
+        "k": "7",
+        "t": "Verify resolution",
+        "gate": true,
+        "d": "Automated tests that fully exercise the fixed behaviour are the verification. Where they cannot be \u2014 rendering, an external system, a visual judgement \u2014 it gives you precise reproduction steps and what fixed looks like, then waits for your verdict. It never assumes success."
+      },
+      {
+        "k": "8",
+        "t": "Loop if unresolved",
+        "d": "A still-failing test or a still-broken report sends the run back to diagnosis with the new evidence in hand, since a failed attempt itself rules something out. Speculative patches are never stacked; if honest attempts stop converging it stops and tells you what it tried and what it needs."
+      },
+      {
+        "k": "9",
+        "t": "Close and commit",
+        "commits": true,
+        "d": "Appends a resolution section to the report \u2014 date, evidenced root cause, the fix, the verification and any lessons \u2014 moves the bug folder into bugs/archive/, calls bug-tracker-render so it renders under Closed, and makes exactly one commit on the current branch. Nothing is pushed."
+      },
+      {
+        "k": "10",
+        "t": "Capture lessons",
+        "d": "Calls lessons-capture with this skill's slug, so the run's one improvement observation lands in the log. Then prints a short summary: the archived bug, the commit sha, the root cause, the fix, what verified it, and the reminder that nothing was pushed."
+      }
+    ]
+  },
+  {
+    "slug": "evals-code-run",
+    "g": "evals",
+    "inv": "both",
+    "purpose": "Scores the unpushed commits for duplication, bloat, inefficiency and security. Higher is worse; logs to ~/.claude/evals/code.json.",
+    "steps": [
+      {
+        "k": "0",
+        "t": "Confirm invocation",
+        "gate": true,
+        "d": "Skipped when you typed the slash command. Otherwise it asks once before analysing anything. Inside a subagent with no user channel it proceeds only when its brief explicitly told it to run."
+      },
+      {
+        "k": "1",
+        "t": "Resolve change set",
+        "d": "Works out what counts as unpushed: an explicit base ref if given, else the branch upstream, else the remote head. It collects the commits and their three-dot diff, then computes the denominator \u2014 added lines, with generated files and lockfiles excluded and recorded. Nothing unpushed means it stops without writing to the log."
+      },
+      {
+        "k": "2",
+        "t": "Run four evals",
+        "par": [
+          "duplication",
+          "bloat",
+          "inefficiency",
+          "security"
+        ],
+        "d": "Launches four read-only subagents in one message, one per dimension, each with a self-contained brief carrying the change set, the denominator and its dimension definition. Duplication deliberately searches the whole repo, not just the diff \u2014 reimplementing an existing helper is the thing worth catching."
+      },
+      {
+        "k": "3",
+        "t": "Validate results",
+        "d": "Recomputes each score from the reported line counts, checks that a non-zero score cites real findings, forces the recommendation empty when the score is zero, and trims anything over a hundred words. A dimension that returns garbage twice is analysed directly rather than left as a hole in the record."
+      },
+      {
+        "k": "4",
+        "t": "Append log",
+        "d": "Appends exactly four entries \u2014 repo, one shared timestamp, eval type, score and recommendation \u2014 to the JSON array at ~/.claude/evals/code.json, written atomically via a temp file so an interrupted run cannot half-destroy the log. A log that fails to parse is moved aside as a corrupt backup rather than discarded."
+      },
+      {
+        "k": "5",
+        "t": "Present summary",
+        "d": "Reports what was evaluated, a compact score table, the top findings with file and line evidence for each non-zero dimension, and confirmation of the log write. Uncommitted work is mentioned but deliberately not scored \u2014 the expected flow is that each stage was committed first."
+      }
+    ]
+  },
+  {
+    "slug": "evals-e2e-run",
+    "g": "evals",
+    "inv": "both",
+    "purpose": "Scores a feature's whole chain: artefact quality and stage-to-stage consistency. Higher is better; logs to ~/.claude/evals/design.json.",
+    "steps": [
+      {
+        "k": "0",
+        "t": "Confirm invocation",
+        "gate": true,
+        "d": "Skipped when you typed the slash command. Otherwise it asks once. Inside a subagent \u2014 the usual case, launched by the implement skill's eval offer \u2014 it proceeds only when its brief says the user already confirmed."
+      },
+      {
+        "k": "1",
+        "t": "Resolve feature",
+        "d": "Finds the feature version from the stage commits in the unpushed range, falling back to the highest-versioned feature folder, and locates that folder by read-only globbing \u2014 never through feature-resolve, which would create folders and seed trackers. It then checks which artefacts exist and selects only the evals whose inputs are present."
+      },
+      {
+        "k": "2",
+        "t": "Run evals",
+        "par": [
+          "storm_quality",
+          "design_quality",
+          "plan_quality",
+          "design_consistency",
+          "plan_consistency",
+          "code_storm_consistency",
+          "code_design_consistency",
+          "code_plan_consistency"
+        ],
+        "d": "Launches one read-only subagent per selected eval, all in one message. Quality evals judge an artefact against a rubric written in lockstep with the skill that produces it; consistency evals enumerate the upstream artefact's commitments and classify how the downstream one treats each \u2014 honoured, quietly diverged, or silently dropped."
+      },
+      {
+        "k": "3",
+        "t": "Validate results",
+        "d": "Checks each eval type is one of the eight literal names, recomputes the score from the item counts, verifies that deductions cite evidence, and forces the recommendation empty for any score of eighty or above. Anything unreliable is re-run once before being accepted."
+      },
+      {
+        "k": "4",
+        "t": "Append log",
+        "d": "Appends one entry per eval that actually ran \u2014 same five fields, one shared timestamp \u2014 to ~/.claude/evals/design.json, atomically. Skipped evals write nothing, so entry counts vary per run and consumers have to key on the eval type rather than position."
+      },
+      {
+        "k": "5",
+        "t": "Present summary",
+        "d": "Reports which feature and artefacts were evaluated, and which evals were skipped and why. Then a compact score table, the findings and recommendation for anything scoring under eighty, and confirmation of the log write."
+      }
+    ]
+  },
+  {
+    "slug": "lessons-learn",
+    "g": "util",
+    "inv": "user",
+    "purpose": "The inverse of lessons-capture: consolidates one skill's log, applies the improvements you approve to its SKILL.md, then archives the log.",
+    "steps": [
+      {
+        "k": "1",
+        "t": "Locate SKILL.md",
+        "d": "Takes the target skill's slug and finds its SKILL.md on disk by searching rather than assuming an install path. Several matches \u2014 an installed plugin and a working clone, say \u2014 are put to you rather than guessed at. The file is read in full, so suggestions already implemented drop out automatically."
+      },
+      {
+        "k": "2",
+        "t": "Read log",
+        "d": "Reads the accumulated log for that slug and parses its timestamped entries, discarding the no-recommendation ones. If nothing actionable remains, it says so and stops."
+      },
+      {
+        "k": "3",
+        "t": "Group improvements",
+        "d": "Clusters the surviving entries by what they actually target, then filters each cluster hard: already addressed, one-off rather than durable, language-specific (rewritten generically or dropped), complexity for no clear win, or reasoning that misreads the skill. A typical run leaves nought to three survivors, and that is healthy."
+      },
+      {
+        "k": "4",
+        "t": "Ask approval",
+        "gate": true,
+        "d": "Presents each survivor as what, where, the concrete edit and why, so you can judge it without opening the file. Every proposal offers apply, skip, or defer \u2014 deferred entries stay in the active log for a future run to reconsider. With no survivors, nothing is asked at all."
+      },
+      {
+        "k": "5",
+        "t": "Apply edits",
+        "d": "Applies each approved edit to the target SKILL.md one at a time, so one failure does not undo the others. An edit whose anchor text has moved stops for your decision rather than being patched up silently. Only the target skill is ever edited, and nothing is committed."
+      },
+      {
+        "k": "6",
+        "t": "Archive log",
+        "d": "Snapshots the whole active log under a UTC-stamped filename, never overwriting an existing snapshot, then writes back a fresh active log containing only the deferred entries. The snapshot is read-only from that point on."
+      },
+      {
+        "k": "7",
+        "t": "Present summary",
+        "d": "Prints the snapshot path, the target file, how many entries were reviewed, and what was applied, skipped and deferred. It closes by reminding you that reviewing the diff and committing are yours to do \u2014 this skill never commits."
+      }
+    ]
+  },
+  {
+    "slug": "diagram-update",
+    "g": "util",
+    "inv": "both",
+    "purpose": "Regenerates this diagram from whatever is on disk \u2014 every skill, hook and template re-read, the page rebuilt wholesale from its template.",
+    "steps": [
+      {
+        "k": "0",
+        "t": "Confirm invocation",
+        "gate": true,
+        "d": "Skipped when you typed the slash command. Otherwise it asks once, noting that the existing diagram will be overwritten, and touches nothing on anything but an explicit yes."
+      },
+      {
+        "k": "1",
+        "t": "Gate repo",
+        "d": "Refuses to run anywhere but the dev-skills plugin repo itself, checking the manifest name rather than trusting the directory. It records the plugin version and generation timestamp for the page header, and stops rather than improvising if the diagram template is missing."
+      },
+      {
+        "k": "2",
+        "t": "Inventory plugin",
+        "d": "Enumerates every skill under skills/, the hook configuration and each script it references, and the templates \u2014 then reads all of them in full. Working from a summary or from memory of the plugin is explicitly disallowed: the files are the source of truth, so a skill added yesterday appears without this skill changing."
+      },
+      {
+        "k": "3",
+        "t": "Extract model",
+        "d": "For each skill it extracts the identity and who may invoke it, the ordered procedure steps with a short title and a plain-language explanation each, every approval gate and loop-back, which steps fan out or run in subagents, and every reference to another skill. Lettered sub-step cycles are extracted individually rather than hidden inside one box."
+      },
+      {
+        "k": "4",
+        "t": "Derive graph",
+        "d": "Clusters the skills into workflow groups from their actual cross-references rather than a fixed list. Chained skills are laid out left to right as the dominant flow, and shared helpers become service boxes that several edges converge on. Every edge is typed as a call, a chain-in, a handover, a loop-back or a data feed."
+      },
+      {
+        "k": "5",
+        "t": "Author data",
+        "d": "Writes data only \u2014 groups, skills with their steps, edges, and the overview layout. All presentation and interaction lives in the template, which owns the cards, pop-ups, hover connectors, brackets, badges and theming. Counts are computed by the page, never authored."
+      },
+      {
+        "k": "6",
+        "t": "Render template",
+        "d": "Reads the template, checks all seven anchored tokens are present, substitutes the authored data, and writes the result wholesale to diagram/index.html. It never modifies the template and never hand-tunes the generated markup."
+      },
+      {
+        "k": "7",
+        "t": "Verify output",
+        "d": "Checks the written file: no token left literal, every skill folder present exactly once as a card, step counts matching the extraction, every edge pointing at ids that exist, no external references anywhere, and a legend covering everything actually used. Failures are fixed and re-verified."
+      },
+      {
+        "k": "8",
+        "t": "Report",
+        "d": "Prints one line with the skill, step, edge, gate, loop-back and fan-out counts, and stops. The regenerated diagram is left as a working-tree change for you to review and commit."
+      }
+    ]
+  },
+  {
+    "slug": "push",
+    "g": "util",
+    "inv": "user",
+    "commits": true,
+    "purpose": "Commits everything outstanding with a message in the repo's own style, then pushes.",
+    "steps": [
+      {
+        "k": "1",
+        "t": "Check status",
+        "d": "Runs git status to see what is staged and unstaged. Nothing is decided or staged until the current state is known."
+      },
+      {
+        "k": "2",
+        "t": "Stop if clean",
+        "d": "With nothing to commit, it says so and stops. No empty commit is created and nothing is pushed for the sake of it."
+      },
+      {
+        "k": "3",
+        "t": "Review changes",
+        "d": "Reads the actual diff, then the last few commit subjects. That way the message it writes describes the real change and matches the repository's existing style rather than a generic template."
+      },
+      {
+        "k": "4",
+        "t": "Compose message",
+        "d": "Uses the message you passed, or writes one focused on the what and the why rather than implementation detail, keeping the first line under seventy-two characters. Never adds attribution."
+      },
+      {
+        "k": "5",
+        "t": "Update gitignore",
+        "d": "Adds any new files or directories that plainly should not be tracked to .gitignore first, so the commit stays clean."
+      },
+      {
+        "k": "6",
+        "t": "Stage all",
+        "d": "Stages everything outstanding. This is the deliberate commit-it-all path, in contrast to the feature chain, which stages only the files each stage touched."
+      },
+      {
+        "k": "7",
+        "t": "Create commit",
+        "commits": true,
+        "d": "Creates the commit with the composed message. This is the only commit the skill makes, whatever the number of changed files."
+      },
+      {
+        "k": "8",
+        "t": "Push remote",
+        "d": "Pushes to the remote. A rejected push \u2014 needing a pull first, say \u2014 is reported with the suggested next step rather than forced."
+      },
+      {
+        "k": "9",
+        "t": "Confirm success",
+        "d": "Confirms the push and shows the commit hash. The repository must be clean afterwards."
+      }
+    ]
+  },
+  {
+    "slug": "release",
+    "g": "util",
+    "inv": "user",
+    "commits": true,
+    "purpose": "Releases the project: detects the language, bumps the version everywhere it lives, updates the changelog, then commits, tags and pushes.",
+    "steps": [
+      {
+        "k": "1",
+        "t": "Parse type",
+        "d": "Reads major, minor or patch from the arguments, defaulting to patch. The release type behaves identically for every language."
+      },
+      {
+        "k": "2",
+        "t": "Detect language",
+        "d": "Inspects the repository root and takes the first match: Python markers, Swift markers, or the generic manifest fallback. That choice decides where the version lives and which extra pre-commit steps apply."
+      },
+      {
+        "k": "3",
+        "t": "Read version",
+        "d": "Reads the current version from the detected language's source and validates its shape. A version it cannot parse \u2014 a release candidate, a date-based scheme, or nothing at all \u2014 stops the run with the actual value quoted. It never invents a base version."
+      },
+      {
+        "k": "4",
+        "t": "Compute version",
+        "d": "Applies semantic versioning to produce the new number. The named segment is bumped and every segment below it is zeroed, so a minor release of 1.4.2 becomes 1.5.0."
+      },
+      {
+        "k": "5",
+        "t": "Update sources",
+        "d": "Updates every place the version lives for that language, keeping them in sync. Only the version values change \u2014 the surrounding file is never rewritten or reformatted."
+      },
+      {
+        "k": "6",
+        "t": "Update changelog",
+        "d": "Moves the unreleased items into a new dated section and re-creates an empty unreleased header. With no changelog present, it follows the language's policy \u2014 usually skipping and saying so."
+      },
+      {
+        "k": "7",
+        "t": "Pre-commit steps",
+        "d": "Runs whatever the detected language requires before staging \u2014 refreshing a lockfile that pins the project's own version, for instance. These have to complete first, so the release commit is internally consistent."
+      },
+      {
+        "k": "8",
+        "t": "Stage and commit",
+        "commits": true,
+        "d": "Stages only the files the release touched, plus anything you had already staged deliberately, and commits. Never stages everything indiscriminately, and never adds attribution."
+      },
+      {
+        "k": "9",
+        "t": "Create tag",
+        "d": "Checks for an existing tag locally and on the remote before doing anything. A conflict is surfaced and stops the run \u2014 an existing tag is never force-overwritten. Otherwise it tags the release commit."
+      },
+      {
+        "k": "10",
+        "t": "Push",
+        "d": "Pushes the branch and the new tag without asking again \u2014 invoking the skill is the authorisation. With no remote it says the commit and tag are local; a failed push is surfaced verbatim and never rolled back."
+      },
+      {
+        "k": "11",
+        "t": "Report",
+        "d": "Prints what was released, on which branch and at which commit. It also lists the version sources that changed, whether the changelog was updated, and whether the tag was pushed or only created locally."
+      }
+    ]
+  },
+  {
+    "slug": "remote-check",
+    "g": "hooks",
+    "inv": "hook",
+    "purpose": "Session-start and prompt hook: warns when your branch is behind its upstream and has Claude offer a fast-forward pull. Never pulls, never blocks.",
+    "steps": [
+      {
+        "k": "1",
+        "t": "Locate repo",
+        "d": "Reads the working directory out of the hook payload and changes into it. Outside a git work tree it exits immediately and silently \u2014 the hook must never error or block a session."
+      },
+      {
+        "k": "2",
+        "t": "Throttle check",
+        "d": "At session start it always checks and resets the window. On a prompt it checks only when the last check is more than two hours old, so it never nags on every message. The timestamp lives in the repo's git directory, so it is per-repo and never committed."
+      },
+      {
+        "k": "3",
+        "t": "Fetch remote",
+        "d": "Fetches with a bounded timeout, using whichever timeout command the machine actually has. The attempt is recorded whether or not it succeeded, so an offline or failing remote is not retried on every single prompt."
+      },
+      {
+        "k": "4",
+        "t": "Compare upstream",
+        "d": "Counts how many commits the branch is behind its upstream. No upstream, or up to date, or merely ahead means it exits without saying anything."
+      },
+      {
+        "k": "5",
+        "t": "Warn and ask",
+        "d": "Emits two things: a terminal warning you see directly, so a behind branch is never silent, and a context note telling Claude to ask \u2014 once, with a recommendation \u2014 whether to run a fast-forward pull on its next reply. The hook itself cannot prompt or pull, which is exactly why it delegates the asking."
+      }
+    ]
+  }
 ];
 
 /* Edges: f/t are "slug.stepKey" or a bare "slug" (anchors to the card header). */
 const EDGES = [
-  /* internal-service calls */
-  { f: "feature-storm.2",      t: "feature-resolve", ty: "call", l: "stage=storm" },
-  { f: "feature-design.2",     t: "feature-resolve", ty: "call", l: "stage=design" },
-  { f: "feature-plan.1",       t: "feature-resolve", ty: "call", l: "stage=plan" },
-  { f: "feature-implement.1",  t: "feature-resolve", ty: "call", l: "stage=implement" },
-  { f: "feature-storm.7",      t: "lessons-capture", ty: "call", l: "reflect" },
-  { f: "feature-design.8",     t: "lessons-capture", ty: "call", l: "reflect" },
-  { f: "feature-plan.9",       t: "lessons-capture", ty: "call", l: "reflect" },
-  { f: "feature-implement.9",  t: "lessons-capture", ty: "call", l: "reflect" },
-  { f: "bug-fix.10",           t: "lessons-capture", ty: "call", l: "reflect" },
-  { f: "bug-submit.8",         t: "bug-tracker-render", ty: "call", l: "render tracker" },
-  { f: "bug-fix.9",            t: "bug-tracker-render", ty: "call", l: "render tracker" },
-  { f: "feature-implement.11", t: "evals-code-run.0",  ty: "call", l: "parallel subagent" },
-  { f: "feature-implement.11", t: "evals-e2e-run.0",   ty: "call", l: "parallel subagent" },
-  /* chain-in offers */
-  { f: "feature-dispatch.4", t: "feature-storm.0",     ty: "chain", l: "route: storm" },
-  { f: "feature-dispatch.4", t: "feature-design.0",    ty: "chain", l: "route: design" },
-  { f: "feature-storm.9",    t: "feature-design.0",    ty: "chain", l: "chain in" },
-  { f: "feature-design.10",  t: "feature-plan.0",      ty: "chain", l: "chain in" },
-  { f: "feature-plan.11",    t: "feature-implement.0", ty: "chain", l: "chain in" },
-  /* conditional handovers */
-  { f: "feature-implement.3", t: "bug-submit.0", ty: "hand", l: "red baseline → file bug" },
-  { f: "bug-fix.0",           t: "bug-submit.0", ty: "hand", l: "no open bugs" },
-  /* loop-backs */
-  { f: "feature-storm.4",     t: "feature-storm.3",  ty: "loop", l: "revise summary" },
-  { f: "bug-fix.8",           t: "bug-fix.4",        ty: "loop", l: "still broken → re-diagnose" },
-  { f: "feature-implement.7", t: "feature-implement.5a", ty: "loop", l: "coverage gap → extra stage" },
-  { f: "feature-implement.5i", t: "feature-implement.5a", ty: "loop", l: "next stage" },
-  { f: "feature-implement.5f", t: "feature-implement.5b", ty: "loop", l: "gap → more tests" },
-  { f: "feature-plan.2",      t: "feature-design",   ty: "loop", l: "BLOCKED: design gap" },
-  { f: "feature-implement.6", t: "feature-design",   ty: "loop", l: "design-level drift → new version" },
-  /* data feeds */
-  { f: "lessons-capture.3", t: "lessons-learn.2", ty: "data", l: "lessons log" },
-  { f: "feature-storm.6",      t: "feature-list.3", ty: "data", l: "tracker status" },
-  { f: "feature-design.7",     t: "feature-list.3", ty: "data", l: "tracker status" },
-  { f: "feature-plan.8",       t: "feature-list.3", ty: "data", l: "tracker status" },
-  { f: "feature-implement.8",  t: "feature-list.3", ty: "data", l: "tracker status" },
-  { f: "feature-implement.5h", t: "feature-list.3", ty: "data", l: "stage commits" }
+  {
+    "f": "feature-dispatch.4",
+    "t": "feature-storm.0",
+    "ty": "chain",
+    "l": "vague \u2192 storm"
+  },
+  {
+    "f": "feature-dispatch.4",
+    "t": "feature-design.0",
+    "ty": "chain",
+    "l": "clear \u2192 design"
+  },
+  {
+    "f": "feature-storm.2",
+    "t": "feature-resolve.1",
+    "ty": "call",
+    "l": "stage=storm"
+  },
+  {
+    "f": "feature-storm.4",
+    "t": "feature-storm.3",
+    "ty": "loop",
+    "l": "revise summary"
+  },
+  {
+    "f": "feature-storm.7",
+    "t": "lessons-capture.1",
+    "ty": "call",
+    "l": "slug=feature-storm"
+  },
+  {
+    "f": "feature-storm.9",
+    "t": "feature-design.0",
+    "ty": "chain",
+    "l": "chains into design"
+  },
+  {
+    "f": "feature-design.2",
+    "t": "feature-resolve.1",
+    "ty": "call",
+    "l": "stage=design"
+  },
+  {
+    "f": "feature-design.5b",
+    "t": "feature-mockup.1",
+    "ty": "call",
+    "l": "mock up surface"
+  },
+  {
+    "f": "feature-mockup.7",
+    "t": "feature-design.5c",
+    "ty": "data",
+    "l": "UI decisions"
+  },
+  {
+    "f": "feature-mockup.5",
+    "t": "feature-mockup.4",
+    "ty": "loop",
+    "l": "revise mockup"
+  },
+  {
+    "f": "feature-design.5c",
+    "t": "feature-design.4",
+    "ty": "loop",
+    "l": "open UI questions"
+  },
+  {
+    "f": "feature-design.7",
+    "t": "feature-design.6",
+    "ty": "loop",
+    "l": "fix the draft"
+  },
+  {
+    "f": "feature-design.8",
+    "t": "feature-list.3",
+    "ty": "data",
+    "l": "tracker state"
+  },
+  {
+    "f": "feature-design.9",
+    "t": "lessons-capture.1",
+    "ty": "call",
+    "l": "slug=feature-design"
+  },
+  {
+    "f": "feature-design.11",
+    "t": "feature-plan.0",
+    "ty": "chain",
+    "l": "chains into plan"
+  },
+  {
+    "f": "feature-plan.1",
+    "t": "feature-resolve.1",
+    "ty": "call",
+    "l": "stage=plan"
+  },
+  {
+    "f": "feature-plan.3",
+    "t": "feature-design",
+    "ty": "hand",
+    "l": "open questions \u2192 BLOCKED"
+  },
+  {
+    "f": "feature-plan.7",
+    "t": "feature-plan.5",
+    "ty": "loop",
+    "l": "fix the plan"
+  },
+  {
+    "f": "feature-plan.9",
+    "t": "lessons-capture.1",
+    "ty": "call",
+    "l": "slug=feature-plan"
+  },
+  {
+    "f": "feature-plan.11",
+    "t": "feature-implement.0",
+    "ty": "chain",
+    "l": "chains into implement"
+  },
+  {
+    "f": "feature-implement.1",
+    "t": "feature-resolve.1",
+    "ty": "call",
+    "l": "stage=implement"
+  },
+  {
+    "f": "feature-implement.3",
+    "t": "bug-submit.0",
+    "ty": "hand",
+    "l": "red baseline \u2192 file bug"
+  },
+  {
+    "f": "feature-implement.5f",
+    "t": "feature-implement.5b",
+    "ty": "loop",
+    "l": "gap \u2192 more tests"
+  },
+  {
+    "f": "feature-implement.5i",
+    "t": "feature-implement.5a",
+    "ty": "loop",
+    "l": "next stage"
+  },
+  {
+    "f": "feature-implement.6",
+    "t": "feature-design",
+    "ty": "hand",
+    "l": "plan wrong \u2192 redesign"
+  },
+  {
+    "f": "feature-implement.7",
+    "t": "feature-implement.5b",
+    "ty": "loop",
+    "l": "coverage stage"
+  },
+  {
+    "f": "feature-implement.8",
+    "t": "feature-list.3",
+    "ty": "data",
+    "l": "tracker state"
+  },
+  {
+    "f": "feature-implement.9",
+    "t": "lessons-capture.1",
+    "ty": "call",
+    "l": "slug=feature-implement"
+  },
+  {
+    "f": "feature-implement.11",
+    "t": "evals-code-run.0",
+    "ty": "call",
+    "l": "parallel eval"
+  },
+  {
+    "f": "feature-implement.11",
+    "t": "evals-e2e-run.0",
+    "ty": "call",
+    "l": "parallel eval"
+  },
+  {
+    "f": "bug-fix.0",
+    "t": "bug-submit.0",
+    "ty": "hand",
+    "l": "no open bugs"
+  },
+  {
+    "f": "bug-fix.8",
+    "t": "bug-fix.4",
+    "ty": "loop",
+    "l": "still broken \u2192 re-diagnose"
+  },
+  {
+    "f": "bug-fix.9",
+    "t": "bug-tracker-render.1",
+    "ty": "call",
+    "l": "regenerate tracker"
+  },
+  {
+    "f": "bug-fix.10",
+    "t": "lessons-capture.1",
+    "ty": "call",
+    "l": "slug=bug-fix"
+  },
+  {
+    "f": "bug-submit.8",
+    "t": "bug-tracker-render.1",
+    "ty": "call",
+    "l": "regenerate tracker"
+  },
+  {
+    "f": "lessons-capture.3",
+    "t": "lessons-learn.2",
+    "ty": "data",
+    "l": "lessons log"
+  },
+  {
+    "f": "remote-check.5",
+    "t": "feature-implement.3",
+    "ty": "data",
+    "l": "sync before work"
+  }
 ];
 
 /* ======================= Render ======================= */
@@ -1029,59 +2064,257 @@ document.addEventListener("keydown", e => { if (e.key === "Escape") closePopup()
 /* ======================= Overview flow (skills only) ======================= */
 
 const OV_NODES = [
-  { slug: "remote-check",       x: 1,  y: 26 },
-  { slug: "feature-dispatch",   x: 1,  y: 120 },
-  { slug: "feature-storm",      x: 17, y: 120 },
-  { slug: "feature-design",     x: 33, y: 120 },
-  { slug: "feature-plan",       x: 49, y: 120 },
-  { slug: "feature-implement",  x: 65, y: 120 },
-  { slug: "push",               x: 86, y: 82 },
-  { slug: "release",            x: 86, y: 152 },
-  { slug: "feature-list",       x: 5,  y: 240 },
-  { slug: "feature-resolve",    x: 24, y: 240 },
-  { slug: "lessons-capture",    x: 44, y: 240 },
-  { slug: "evals-code-run",     x: 62, y: 240 },
-  { slug: "evals-e2e-run",      x: 77, y: 240 },
-  { slug: "bug-submit",         x: 6,  y: 350 },
-  { slug: "bug-fix",            x: 24, y: 350 },
-  { slug: "bug-tracker-render", x: 42, y: 350 },
-  { slug: "lessons-learn",      x: 61, y: 350 },
-  { slug: "diagram-update",     x: 86, y: 350 }
+  {
+    "slug": "feature-dispatch",
+    "x": 4,
+    "y": 18
+  },
+  {
+    "slug": "feature-storm",
+    "x": 4,
+    "y": 88
+  },
+  {
+    "slug": "feature-design",
+    "x": 22,
+    "y": 88
+  },
+  {
+    "slug": "feature-plan",
+    "x": 42,
+    "y": 88
+  },
+  {
+    "slug": "feature-implement",
+    "x": 60,
+    "y": 88
+  },
+  {
+    "slug": "evals-code-run",
+    "x": 82,
+    "y": 62
+  },
+  {
+    "slug": "evals-e2e-run",
+    "x": 82,
+    "y": 112
+  },
+  {
+    "slug": "feature-resolve",
+    "x": 12,
+    "y": 172
+  },
+  {
+    "slug": "feature-mockup",
+    "x": 30,
+    "y": 172
+  },
+  {
+    "slug": "lessons-capture",
+    "x": 48,
+    "y": 172
+  },
+  {
+    "slug": "feature-list",
+    "x": 82,
+    "y": 172
+  },
+  {
+    "slug": "bug-tracker-render",
+    "x": 64,
+    "y": 232
+  },
+  {
+    "slug": "bug-submit",
+    "x": 8,
+    "y": 252
+  },
+  {
+    "slug": "bug-fix",
+    "x": 26,
+    "y": 252
+  },
+  {
+    "slug": "lessons-learn",
+    "x": 45,
+    "y": 252
+  },
+  {
+    "slug": "diagram-update",
+    "x": 8,
+    "y": 332
+  },
+  {
+    "slug": "push",
+    "x": 27,
+    "y": 332
+  },
+  {
+    "slug": "release",
+    "x": 40,
+    "y": 332
+  },
+  {
+    "slug": "remote-check",
+    "x": 60,
+    "y": 332
+  }
 ];
 
 /* bend: arc offset in px for same-row edges (negative = arc above) */
 const OV_EDGES = [
-  { f: "remote-check",      t: "feature-dispatch",  ty: "data",  l: "branch-sync warning" },
-  { f: "feature-dispatch",  t: "feature-storm",     ty: "chain", l: "vague" },
-  { f: "feature-dispatch",  t: "feature-design",    ty: "chain", l: "clear, undesigned", bend: -62 },
-  { f: "feature-storm",     t: "feature-design",    ty: "chain", l: "" },
-  { f: "feature-design",    t: "feature-plan",      ty: "chain", l: "" },
-  { f: "feature-plan",      t: "feature-implement", ty: "chain", l: "" },
-  { f: "feature-storm",     t: "feature-resolve",   ty: "call",  l: "" },
-  { f: "feature-design",    t: "feature-resolve",   ty: "call",  l: "" },
-  { f: "feature-plan",      t: "feature-resolve",   ty: "call",  l: "" },
-  { f: "feature-implement", t: "feature-resolve",   ty: "call",  l: "" },
-  { f: "feature-storm",     t: "lessons-capture",   ty: "call",  l: "" },
-  { f: "feature-design",    t: "lessons-capture",   ty: "call",  l: "" },
-  { f: "feature-plan",      t: "lessons-capture",   ty: "call",  l: "" },
-  { f: "feature-implement", t: "lessons-capture",   ty: "call",  l: "" },
-  { f: "bug-fix",           t: "lessons-capture",   ty: "call",  l: "" },
-  { f: "feature-implement", t: "evals-code-run",    ty: "call",  l: "eval offer (parallel)" },
-  { f: "feature-implement", t: "evals-e2e-run",     ty: "call",  l: "" },
-  { f: "feature-storm",     t: "feature-list",      ty: "data",  l: "tracker status" },
-  { f: "feature-design",    t: "feature-list",      ty: "data",  l: "" },
-  { f: "feature-plan",      t: "feature-list",      ty: "data",  l: "" },
-  { f: "feature-implement", t: "feature-list",      ty: "data",  l: "" },
-  { f: "feature-plan",      t: "feature-design",    ty: "loop",  l: "BLOCKED: design gap", bend: -52 },
-  { f: "feature-implement", t: "feature-design",    ty: "loop",  l: "design-level drift", bend: -92 },
-  { f: "feature-implement", t: "bug-submit",        ty: "hand",  l: "red test baseline" },
-  { f: "bug-fix",           t: "bug-submit",        ty: "hand",  l: "no open bugs", bend: 44 },
-  { f: "bug-submit",        t: "bug-fix",           ty: "data",  l: "user runs /bug-fix" },
-  { f: "bug-submit",        t: "bug-tracker-render", ty: "call", l: "" },
-  { f: "bug-fix",           t: "bug-tracker-render", ty: "call", l: "" },
-  { f: "lessons-capture",   t: "lessons-learn",     ty: "data",  l: "lessons log" },
-  { f: "feature-implement", t: "push",              ty: "data",  l: "user: /push when ready" },
-  { f: "push",              t: "release",           ty: "data",  l: "then /release" }
+  {
+    "f": "feature-dispatch",
+    "t": "feature-storm",
+    "ty": "chain",
+    "l": "vague"
+  },
+  {
+    "f": "feature-dispatch",
+    "t": "feature-design",
+    "ty": "chain",
+    "l": "clear"
+  },
+  {
+    "f": "feature-storm",
+    "t": "feature-design",
+    "ty": "chain",
+    "l": "storm approved"
+  },
+  {
+    "f": "feature-design",
+    "t": "feature-plan",
+    "ty": "chain",
+    "l": "design closed"
+  },
+  {
+    "f": "feature-plan",
+    "t": "feature-implement",
+    "ty": "chain",
+    "l": "plan staged"
+  },
+  {
+    "f": "feature-plan",
+    "t": "feature-design",
+    "ty": "hand",
+    "l": "BLOCKED",
+    "bend": -52
+  },
+  {
+    "f": "feature-implement",
+    "t": "evals-code-run",
+    "ty": "call",
+    "l": "offer evals"
+  },
+  {
+    "f": "feature-implement",
+    "t": "evals-e2e-run",
+    "ty": "call",
+    "l": ""
+  },
+  {
+    "f": "feature-implement",
+    "t": "bug-submit",
+    "ty": "hand",
+    "l": "red baseline"
+  },
+  {
+    "f": "feature-storm",
+    "t": "feature-resolve",
+    "ty": "call",
+    "l": ""
+  },
+  {
+    "f": "feature-design",
+    "t": "feature-resolve",
+    "ty": "call",
+    "l": ""
+  },
+  {
+    "f": "feature-plan",
+    "t": "feature-resolve",
+    "ty": "call",
+    "l": ""
+  },
+  {
+    "f": "feature-implement",
+    "t": "feature-resolve",
+    "ty": "call",
+    "l": ""
+  },
+  {
+    "f": "feature-design",
+    "t": "feature-mockup",
+    "ty": "call",
+    "l": "mock up UI"
+  },
+  {
+    "f": "feature-storm",
+    "t": "lessons-capture",
+    "ty": "call",
+    "l": ""
+  },
+  {
+    "f": "feature-design",
+    "t": "lessons-capture",
+    "ty": "call",
+    "l": ""
+  },
+  {
+    "f": "feature-plan",
+    "t": "lessons-capture",
+    "ty": "call",
+    "l": ""
+  },
+  {
+    "f": "feature-implement",
+    "t": "lessons-capture",
+    "ty": "call",
+    "l": ""
+  },
+  {
+    "f": "bug-fix",
+    "t": "lessons-capture",
+    "ty": "call",
+    "l": ""
+  },
+  {
+    "f": "bug-submit",
+    "t": "bug-tracker-render",
+    "ty": "call",
+    "l": ""
+  },
+  {
+    "f": "bug-fix",
+    "t": "bug-tracker-render",
+    "ty": "call",
+    "l": ""
+  },
+  {
+    "f": "bug-fix",
+    "t": "bug-submit",
+    "ty": "hand",
+    "l": "no open bugs",
+    "bend": -44
+  },
+  {
+    "f": "lessons-capture",
+    "t": "lessons-learn",
+    "ty": "data",
+    "l": "lessons log"
+  },
+  {
+    "f": "feature-implement",
+    "t": "feature-list",
+    "ty": "data",
+    "l": "tracker state"
+  },
+  {
+    "f": "remote-check",
+    "t": "feature-implement",
+    "ty": "data",
+    "l": "sync before work"
+  }
 ];
 
 const ovbox = document.getElementById("ovbox");
