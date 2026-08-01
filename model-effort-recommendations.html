@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>dev-skills — model/effort recommendations</title>
+<style>
+  :root {
+    --bg: #f7f7f8;
+    --card: #ffffff;
+    --text: #1a1a1e;
+    --muted: #6b6b76;
+    --border: #e3e3e8;
+    --accent: #6d4fc2;
+    --fable: #6d4fc2;
+    --opus: #b3591f;
+    --sonnet: #1f6fb3;
+    --haiku: #2e8b57;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #141417;
+      --card: #1e1e23;
+      --text: #ececf1;
+      --muted: #9a9aa6;
+      --border: #33333c;
+      --accent: #a58ee8;
+      --fable: #a58ee8;
+      --opus: #e0904f;
+      --sonnet: #5ea3dd;
+      --haiku: #5fbc8a;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 2.5rem 1.5rem 4rem;
+    background: var(--bg);
+    color: var(--text);
+    font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  .wrap { max-width: 1100px; margin: 0 auto; }
+  h1 { font-size: 1.5rem; margin: 0 0 .25rem; }
+  p.sub { color: var(--muted); margin: 0 0 1.5rem; max-width: 70ch; }
+  .table-scroll { overflow-x: auto; border: 1px solid var(--border); border-radius: 10px; background: var(--card); }
+  table { border-collapse: collapse; width: 100%; min-width: 760px; }
+  th, td { padding: .6rem .85rem; text-align: left; vertical-align: top; border-bottom: 1px solid var(--border); }
+  th {
+    font-size: .78rem; text-transform: uppercase; letter-spacing: .05em;
+    color: var(--muted); position: sticky; top: 0; background: var(--card);
+  }
+  tr:last-child td { border-bottom: none; }
+  td.skill { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .85rem; white-space: nowrap; }
+  .internal { color: var(--muted); font-size: .75rem; font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
+  .badge {
+    display: inline-block; padding: .1rem .55rem; border-radius: 999px;
+    font-size: .8rem; font-weight: 600; color: #fff; white-space: nowrap;
+  }
+  .fable  { background: var(--fable); }
+  .opus   { background: var(--opus); }
+  .sonnet { background: var(--sonnet); }
+  .haiku  { background: var(--haiku); }
+  td.effort { white-space: nowrap; font-weight: 600; }
+  td.why { color: var(--text); font-size: .9rem; max-width: 46ch; }
+  .note {
+    margin-top: 1.5rem; padding: 1rem 1.25rem; border: 1px solid var(--border);
+    border-left: 4px solid var(--accent); border-radius: 8px; background: var(--card);
+    font-size: .9rem; max-width: 80ch;
+  }
+  .note strong { color: var(--accent); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>dev-skills plugin — recommended model/effort pairs</h1>
+  <p class="sub">Guidance for which session model/effort to run each skill under. The plugin deliberately pins neither in frontmatter, so everything inherits the session model — including subagents spawned by <code>feature-plan</code>, <code>feature-implement</code>, and the two eval skills.</p>
+
+  <div class="table-scroll">
+  <table>
+    <thead>
+      <tr><th>Skill</th><th>Model</th><th>Effort</th><th>Rationale</th></tr>
+    </thead>
+    <tbody>
+      <tr><td class="skill">feature-storm</td><td><span class="badge opus">Opus</span></td><td class="effort">high</td><td class="why">Step 3a must generate ideas the user didn't bring — breadth and judgement matter, but a human reviews everything before it becomes binding.</td></tr>
+      <tr><td class="skill">feature-design</td><td><span class="badge fable">Fable</span></td><td class="effort">high</td><td class="why">The pivotal artefact: a guessed design silently costs a plan <em>and</em> an implementation. Highest-leverage thinking in the chain.</td></tr>
+      <tr><td class="skill">feature-plan</td><td><span class="badge opus">Opus</span></td><td class="effort">medium</td><td class="why">Structured decomposition of an already-closed design; needs solid codebase grounding but little open-ended reasoning.</td></tr>
+      <tr><td class="skill">feature-implement</td><td><span class="badge opus">Opus</span></td><td class="effort">medium</td><td class="why">The plan did the thinking; execution needs reliable coding, not deep design. Sonnet/high is a sound budget alternative when plans are tight.</td></tr>
+      <tr><td class="skill">feature-mockup <span class="internal">(internal)</span></td><td><span class="badge opus">Opus</span></td><td class="effort">medium</td><td class="why">Frontend taste and faithful rendering of the host project's design language; Sonnet/high acceptable.</td></tr>
+      <tr><td class="skill">feature-resolve <span class="internal">(internal)</span></td><td><span class="badge haiku">Haiku</span></td><td class="effort">low</td><td class="why">Pure convention logic — pathing, versioning, tracker seeding. Anything stronger is wasted.</td></tr>
+      <tr><td class="skill">feature-dispatch <span class="internal">(internal)</span></td><td><span class="badge sonnet">Sonnet</span></td><td class="effort">low</td><td class="why">The hard part is <em>staying silent</em> correctly; Haiku misfires would be a recurring annoyance, but it's still just classification.</td></tr>
+      <tr><td class="skill">feature-list</td><td><span class="badge haiku">Haiku</span></td><td class="effort">medium</td><td class="why">Multi-source parsing (trackers, stage files, git log), zero creativity, zero risk — it writes nothing.</td></tr>
+      <tr><td class="skill">bug-submit</td><td><span class="badge sonnet">Sonnet</span></td><td class="effort">medium</td><td class="why">Triage grounding needs competent code reading; no code changes are made.</td></tr>
+      <tr><td class="skill">bug-fix</td><td><span class="badge opus">Opus</span></td><td class="effort">high</td><td class="why">Debugging is the hardest routine task here; the root-cause gate is only as good as the model's evidence-gathering. Fable/high for gnarly ones.</td></tr>
+      <tr><td class="skill">bug-tracker-render <span class="internal">(internal)</span></td><td><span class="badge haiku">Haiku</span></td><td class="effort">low</td><td class="why">Deterministic template regeneration from filesystem state.</td></tr>
+      <tr><td class="skill">diagram-update</td><td><span class="badge sonnet">Sonnet</span></td><td class="effort">medium</td><td class="why">Needs accurate reading of all skills, but presentation is fully owned by the template.</td></tr>
+      <tr><td class="skill">evals-code-run</td><td><span class="badge opus">Opus</span></td><td class="effort">medium</td><td class="why">Judge quality determines whether the lessons loop improves or degrades skills; the rubric is fixed, so medium suffices.</td></tr>
+      <tr><td class="skill">evals-e2e-run</td><td><span class="badge opus">Opus</span></td><td class="effort">medium</td><td class="why">Same reasoning as code evals; consistency judging across long artefacts favours Opus over Sonnet.</td></tr>
+      <tr><td class="skill">lessons-capture <span class="internal">(internal)</span></td><td><span class="badge sonnet">Sonnet</span></td><td class="effort">low</td><td class="why">Distilling a useful lesson takes some judgement, but weak entries get filtered later by lessons-learn.</td></tr>
+      <tr><td class="skill">lessons-learn</td><td><span class="badge fable">Fable</span></td><td class="effort">high</td><td class="why">Rare, user-triggered, and edits SKILL.md — the product itself. Changes propagate to every future run: highest leverage per token in the repo.</td></tr>
+      <tr><td class="skill">push</td><td><span class="badge haiku">Haiku</span></td><td class="effort">low</td><td class="why">Mechanical commit + push.</td></tr>
+      <tr><td class="skill">release</td><td><span class="badge sonnet">Sonnet</span></td><td class="effort">medium</td><td class="why">Procedural, but changelog prose and version judgement deserve a mid tier.</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="note">
+    <strong>Pattern:</strong> Fable where a mistake is expensive and reviewed rarely (design, skill-editing) · Opus where sustained reasoning or judging quality compounds (storm, bug-fix, implement, evals) · Sonnet for competent mid-weight work · Haiku for anything deterministic or read-only. Internal helpers load inline via <code>Skill</code> and always inherit the caller's model — their rows show the minimum tier that would suffice, so they never justify a bigger session model on their own.
+  </div>
+</div>
+</body>
+</html>
