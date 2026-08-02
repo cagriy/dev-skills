@@ -1,0 +1,968 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>dev-skills plugin — C4 architecture</title>
+
+<!--
+  =====================================================================
+  c4-diagram template (dev-skills plugin)
+  ---------------------------------------------------------------------
+  Source of truth for the PRESENTATION + INTERACTION ENGINE of the C4
+  architecture diagram. /diagram-c4-update renders <out>/c4.html from
+  this file by substituting seven tokens -- it never edits the engine.
+
+  Sibling of templates/workflow-diagram.html. The two deliberately
+  DUPLICATE their design language and their edge-drawing technique
+  rather than sharing an extracted partial: there is no build step in
+  this repo, and the two engines diverge (C4 needs drill-down, shapes
+  and boundaries; the workflow board needs wrap brackets and step
+  badges). If you restyle one, consider the other -- they are meant to
+  look like siblings.
+
+  Unlike its sibling, the page this renders ships into ANY repo, so it
+  carries no dev-skills vocabulary.
+
+  Tokens (names listed WITHOUT braces here so the anchored occurrences
+  below are the only literal matches). Each appears exactly once except
+  C4_SYSTEM_NAME, which appears twice -- in <title> and in <h1> --  so
+  substitution must replace ALL occurrences, not the first:
+
+    C4_SYSTEM_NAME    name of the software system in scope
+    C4_REPO_NAME      repo / project name, shown as a header chip
+    GENERATED_AT      UTC stamp, e.g. "2026-08-01 18:40 UTC"
+    C4_WORKSPACE      JS object literal -- the whole workspace:
+                      { name, description, model:{people, softwareSystems},
+                        views:{ systemContextViews, containerViews,
+                                componentViews, configuration } }
+                      Structurizr-workspace compatible; view elements
+                      carry the additive keys { col, row, boundary? }
+                      alongside the standard { id, x, y }.
+    C4_DEFAULT_VIEW   view key opened on load
+    C4_DECISIONS      JS array: { q, choice, by:"user"|"skill", why }
+                      -- the judgement calls behind this model
+    C4_WORKFLOW_LINK  anchor markup linking to a sibling workflow
+                      diagram, or "" when there is none
+
+  THE GRID CONTRACT (presentation-owned, skill-read):
+    Elements are placed on integer (col, row) cells. This file owns the
+    pitch; the skill authors cells and derives x/y from these numbers.
+    Non-overlap is a theorem, not a hope: every box is exactly one cell
+    of fixed size, pitch exceeds box size, and one cell holds one
+    element -- so distinct cells are disjoint rectangles.
+    Boundary chrome must fit the leftover gutter; the inequalities are
+    asserted by tests/test_static.py::TestC4DiagramContract.
+
+  Modification points:
+    - DATA changes flow through /diagram-c4-update -- rerun the skill;
+      never hand-edit the generated page, it is overwritten wholesale.
+      To nudge layout, edit col/row in c4-model.json and re-run.
+    - PRESENTATION / INTERACTION / GRID changes belong HERE, kept in
+      lockstep with the token table in skills/diagram-c4-update/SKILL.md.
+  =====================================================================
+-->
+<style>
+  :root {
+    /* ---- Design language: kept in step with workflow-diagram.html ---- */
+    --bg: #f7f8fa;
+    --surface: #ffffff;
+    --surface-2: #f1f3f6;
+    --border: #e3e6eb;
+    --text: #101623;
+    --muted: #5b6472;
+    --subtle: #9aa2ae;
+    --shadow: 0 1px 2px rgba(16,22,35,.05), 0 8px 24px rgba(16,22,35,.06);
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, system-ui, sans-serif;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+    /* ---- C4 element palette (Structurizr's canonical hues) ----------
+       Colour is never the only carrier: every box prints its type as
+       text, so the diagram survives greyscale. */
+    --c-person: #08427b;
+    --c-system: #1168bd;
+    --c-container: #438dd5;
+    --c-component: #85bbf0;
+    --c-external: #6b7280;
+    --c-store: #2f6f4f;
+    --on-dark: #ffffff;
+    --on-light: #0b1220;
+
+    --edge: #7b8695;
+    --edge-async: #b45309;
+
+    /* ---- THE GRID (see contract above) ------------------------------
+       box 220x140 in a 300x260 cell => 80px column / 120px row gutter.
+       Boundary chrome must fit half a gutter:
+         bpad 26        <= 80/2 - 1  = 39   OK
+         bpad + blabel  = 54 <= 120/2 - 1 = 59  OK
+         bpad-nested 12 < bpad 26 => 14px between nested rings */
+    --c4-box-w: 220px;
+    --c4-box-h: 140px;
+    --c4-col-pitch: 300px;
+    --c4-row-pitch: 260px;
+    --c4-margin: 90px;
+    --c4-bpad: 26px;
+    --c4-bpad-nested: 12px;
+    --c4-blabel: 28px;
+    /* Clear air between a box and the arrows touching it. The scope ring is
+       painted outside the box's own geometry, so an edge landing on a
+       scope-highlighted box has to stand off by both. */
+    --c4-edge-gap: 3px;
+    --c4-scope-ring: 3px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0c0e12;
+      --surface: #14171d;
+      --surface-2: #1b1f27;
+      --border: #272c36;
+      --text: #eef1f5;
+      --muted: #a2aab6;
+      --subtle: #6b7380;
+      --shadow: 0 1px 2px rgba(0,0,0,.5), 0 10px 28px rgba(0,0,0,.35);
+      --c-person: #2a5f9e;
+      --c-system: #2b7fd4;
+      --c-container: #3f83c4;
+      --c-component: #4a6f96;
+      --c-external: #4b5563;
+      --c-store: #2f7a56;
+      --edge: #626d7d;
+      --edge-async: #d97706;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: var(--sans); font-size: 15px; line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+  #page { position: relative; max-width: 1480px; margin: 0 auto; padding: 44px 36px 90px; }
+
+  /* Header ---------------------------------------------------------- */
+  header.top { margin-bottom: 22px; }
+  .chiprow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .vchip {
+    font-family: var(--mono); font-size: 11.5px; font-weight: 600;
+    background: var(--surface-2); border: 1px solid var(--border);
+    color: var(--muted); padding: 3px 10px; border-radius: 999px;
+  }
+  a.vchip { text-decoration: none; }
+  a.vchip:hover { color: var(--text); border-color: var(--subtle); }
+  h1 { margin: 12px 0 6px; font-size: 30px; letter-spacing: -.02em; line-height: 1.15; }
+  .intro { max-width: 900px; color: var(--muted); margin: 0; }
+
+  /* Breadcrumb + view heading ---------------------------------------- */
+  .crumbs { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 24px 0 6px; font-size: 12.5px; }
+  .crumb { color: var(--muted); cursor: pointer; text-decoration: none; border-bottom: 1px solid transparent; }
+  .crumb:hover { color: var(--text); border-bottom-color: var(--subtle); }
+  .crumb.here { color: var(--text); font-weight: 600; cursor: default; }
+  .crumb-sep { color: var(--subtle); }
+  .view-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 2px; }
+  .view-head h2 { margin: 0; font-size: 19px; letter-spacing: -.015em; }
+  .view-kind {
+    font-size: 10px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase;
+    color: var(--muted); background: var(--surface-2);
+    border: 1px solid var(--border); border-radius: 999px; padding: 2px 9px;
+  }
+  .view-desc { margin: 2px 0 0; color: var(--muted); font-size: 13px; max-width: 900px; }
+
+  /* Stage ------------------------------------------------------------ */
+  .stagewrap {
+    margin-top: 16px; background: var(--surface); border: 1px solid var(--border);
+    border-radius: 14px; box-shadow: var(--shadow); overflow: auto;
+  }
+  #stage { position: relative; transform-origin: 0 0; }
+  #wires { position: absolute; top: 0; left: 0; pointer-events: none; overflow: visible; z-index: 3; }
+  /* Connectors have two resting behaviours, chosen per view by the
+     data-edges mode the engine sets on #stage.
+
+     AMBIENT (landscape, context + container views) — every edge is drawn at
+     rest; picking a box brings its own to the front and fades the rest back.
+     These views are small enough that the whole web reads at a glance, and
+     at this altitude the connections are most of the story.
+
+     HIDDEN (component views) — nothing is drawn until a box is picked, and
+     then only that box's edges. This is the level that gets dense: a
+     container with twenty peers can carry fifty relationships, and drawn all
+     at once they are a hairball no amount of fading rescues. Same convention
+     as templates/workflow-diagram.html, where the detail-board connectors
+     are hidden until a step is hovered.
+
+     The JS is identical in both modes — it tags active edges .hl and the
+     rest .dm — so the mode is purely a matter of what .dm resolves to. */
+  #wires path { fill: none; stroke: var(--edge); stroke-width: 1.7; opacity: .75; transition: opacity .15s ease, stroke-width .15s ease; }
+  #wires path.async { stroke: var(--edge-async); stroke-dasharray: 6 5; }
+  #wires path.hl { opacity: 1; stroke-width: 2.6; }
+  #wires path.dm { opacity: .08; }
+  #wires text {
+    font-family: var(--sans); font-size: 10.5px; font-weight: 600; fill: var(--muted);
+    paint-order: stroke; stroke: var(--surface); stroke-width: 4px;
+    stroke-linejoin: round; transition: opacity .15s ease;
+  }
+  #wires text.async { fill: var(--edge-async); }
+  #wires text.dm { opacity: .08; }
+  /* Arrowhead fill as a rule rather than a presentation attribute, so the
+     custom property resolves the same way the line's stroke does. */
+  #m-sync path { fill: var(--edge); }
+  #m-async path { fill: var(--edge-async); }
+
+  #stage[data-edges="hidden"] #wires path,
+  #stage[data-edges="hidden"] #wires text { opacity: 0; }
+  #stage[data-edges="hidden"] #wires path.dm,
+  #stage[data-edges="hidden"] #wires text.dm { opacity: 0; }
+  #stage[data-edges="hidden"] #wires path.hl,
+  #stage[data-edges="hidden"] #wires text.hl { opacity: 1; }
+
+  /* Boundaries: derived from member cells, never authored ------------- */
+  .boundary {
+    position: absolute; z-index: 1; border: 1.5px dashed var(--subtle);
+    border-radius: 12px; background: color-mix(in srgb, var(--surface-2) 55%, transparent);
+  }
+  .boundary > .blabel {
+    position: absolute; left: 12px; bottom: 100%; margin-bottom: 3px;
+    font-size: 10.5px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase;
+    color: var(--subtle); white-space: nowrap;
+  }
+  .boundary.nested { border-style: dotted; border-radius: 10px; }
+
+  /* Elements ---------------------------------------------------------- */
+  .el {
+    position: absolute; z-index: 2;
+    width: var(--c4-box-w); height: var(--c4-box-h);
+    border-radius: 10px; padding: 13px 14px;
+    display: flex; flex-direction: column; gap: 4px; overflow: hidden;
+    cursor: pointer; color: var(--on-dark);
+    background: var(--c-system); border: 1px solid rgba(0,0,0,.18);
+    box-shadow: 0 1px 2px rgba(16,22,35,.16), 0 6px 18px rgba(16,22,35,.14);
+    transition: box-shadow .12s ease, opacity .15s ease;
+  }
+  /* Deliberately no transform on hover: edges are drawn from offsetTop/Left,
+     which a transform does not move, so lifting the box would open a gap
+     between it and its own arrows at the exact moment they are highlighted. */
+  .el:hover { box-shadow: 0 8px 24px rgba(0,0,0,.28); }
+  .el:focus-visible { outline: 3px solid var(--edge-async); outline-offset: 2px; }
+  .el.dm { opacity: .2; }
+  .el-name { font-size: 14.5px; font-weight: 700; letter-spacing: -.01em; line-height: 1.2; }
+  .el-meta { font-size: 10.5px; opacity: .85; font-family: var(--mono); line-height: 1.3; }
+  .el-desc {
+    font-size: 11.5px; opacity: .9; line-height: 1.35; overflow: hidden;
+    display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
+  }
+  .drill {
+    position: absolute; right: 8px; top: 8px; font-size: 11px; line-height: 1;
+    padding: 3px 6px; border-radius: 6px; background: rgba(255,255,255,.22);
+    font-weight: 700; letter-spacing: .03em;
+  }
+
+  /* Types ------------------------------------------------------------- */
+  .el.t-person    { background: var(--c-person); }
+  .el.t-system    { background: var(--c-system); }
+  .el.t-container { background: var(--c-container); }
+  .el.t-component { background: var(--c-component); color: var(--on-light); }
+  .el.external    { background: var(--c-external); }
+  .el.store       { background: var(--c-store); }
+  .el.scope       { box-shadow: 0 0 0 var(--c4-scope-ring) var(--edge-async), 0 8px 22px rgba(0,0,0,.2); }
+
+  /* Shapes. Every shape stays INSIDE its cell, so the non-overlap
+     theorem holds visually as well as arithmetically. */
+  .el.t-person { padding-top: 34px; }
+  .el.t-person::before {
+    content: ""; position: absolute; top: 8px; left: 50%; transform: translateX(-50%);
+    width: 20px; height: 20px; border-radius: 50%;
+    background: rgba(255,255,255,.55);
+  }
+  .el.store { padding-top: 26px; border-radius: 10px; }
+  .el.store::before {
+    content: ""; position: absolute; top: 5px; left: 10px; right: 10px; height: 15px;
+    border-radius: 50%; background: rgba(255,255,255,.28);
+  }
+  .el.t-component { padding-left: 26px; }
+  .el.t-component::before,
+  .el.t-component::after {
+    content: ""; position: absolute; left: -1px; width: 15px; height: 11px;
+    background: var(--c-component); border: 1px solid rgba(0,0,0,.25);
+  }
+  .el.t-component::before { top: 22px; }
+  .el.t-component::after  { top: 44px; }
+
+  /* Legend ------------------------------------------------------------ */
+  .legend {
+    margin-top: 18px; background: var(--surface); border: 1px solid var(--border);
+    border-radius: 14px; padding: 16px 20px; box-shadow: var(--shadow);
+    display: flex; flex-wrap: wrap; gap: 20px 34px; font-size: 12.5px;
+  }
+  .legend h3 { margin: 0 0 8px; font-size: 11px; text-transform: uppercase; letter-spacing: .09em; color: var(--subtle); }
+  .legend .col { min-width: 170px; }
+  .lg-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; color: var(--muted); }
+  .lg-row:last-child { margin-bottom: 0; }
+  .lg-box { flex: 0 0 26px; height: 15px; border-radius: 4px; border: 1px solid rgba(0,0,0,.2); }
+  .lg-round { border-radius: 50%; flex: 0 0 15px; }
+  .lg-dash { flex: 0 0 26px; height: 0; border-top: 1.5px dashed var(--subtle); }
+  .swatch { flex: 0 0 30px; height: 0; border-top: 2.5px solid; border-radius: 2px; position: relative; }
+  .swatch.dashed { border-top-style: dashed; }
+  .swatch::after {
+    content: ""; position: absolute; right: -1px; top: -4.5px;
+    border: 3.5px solid transparent; border-left: 6px solid; border-left-color: inherit;
+  }
+  kbd {
+    font-family: var(--mono); font-size: 10.5px; background: var(--surface-2);
+    border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 5px;
+    padding: 1px 5px; color: var(--muted);
+  }
+
+  /* Decisions --------------------------------------------------------- */
+  .decisions {
+    margin-top: 18px; background: var(--surface); border: 1px solid var(--border);
+    border-radius: 14px; box-shadow: var(--shadow); overflow: hidden;
+  }
+  .decisions > summary {
+    padding: 13px 20px; cursor: pointer; font-size: 13px; font-weight: 600; color: var(--muted);
+  }
+  .decisions > summary:hover { background: var(--surface-2); color: var(--text); }
+  .decisions .dbody { padding: 0 20px 16px; }
+  .ditem { padding: 9px 0; border-top: 1px solid var(--border); }
+  .dq { font-size: 12.5px; font-weight: 600; }
+  .da { font-size: 12.5px; color: var(--muted); margin-top: 2px; }
+  .dwhy { font-size: 11.5px; color: var(--subtle); margin-top: 2px; }
+  .by {
+    font-size: 9.5px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase;
+    border-radius: 999px; padding: 1px 7px; margin-left: 6px; border: 1px solid var(--border);
+  }
+  .by-user { color: var(--c-system); }
+  .by-skill { color: var(--subtle); }
+
+  /* Popup (kept in step with workflow-diagram.html) -------------------- */
+  #overlay {
+    position: fixed; inset: 0; background: rgba(10,12,18,.45);
+    backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px);
+    z-index: 40; display: none;
+  }
+  #overlay.open { display: block; }
+  #popup {
+    position: fixed; z-index: 41; top: 50%; left: 50%; transform: translate(-50%,-50%);
+    width: min(560px, calc(100vw - 40px)); max-height: min(72vh, 640px);
+    background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
+    box-shadow: 0 24px 70px rgba(0,0,0,.35); display: none; flex-direction: column;
+  }
+  #popup.open { display: flex; }
+  .pop-head { padding: 18px 22px 0; }
+  .pop-type {
+    display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: .06em;
+    text-transform: uppercase; border-radius: 999px; padding: 2px 9px;
+    color: var(--on-dark); background: var(--c-system);
+  }
+  .pop-title { font-size: 19px; font-weight: 700; letter-spacing: -.015em; margin: 9px 0 0; padding-right: 40px; }
+  .pop-tech { font-family: var(--mono); font-size: 11.5px; color: var(--subtle); margin-top: 3px; }
+  .pop-body { padding: 12px 22px 20px; overflow-y: auto; }
+  .pop-body > p { margin: 0 0 12px; }
+  .pop-conn h4 { margin: 14px 0 6px; font-size: 10.5px; text-transform: uppercase; letter-spacing: .09em; color: var(--subtle); }
+  .pop-conn ul { margin: 0; padding: 0; list-style: none; }
+  .pop-conn li { font-size: 12.5px; color: var(--muted); padding: 3px 0; display: flex; gap: 7px; align-items: baseline; }
+  .pop-conn .dir { font-family: var(--mono); font-size: 11px; color: var(--subtle); flex: 0 0 auto; }
+  #pop-go { margin-top: 14px; display: flex; flex-wrap: wrap; gap: 8px; }
+  #pop-go button {
+    font-size: 12.5px; font-weight: 600; cursor: pointer;
+    background: var(--c-system); color: var(--on-dark); border: 0;
+    border-radius: 9px; padding: 8px 14px;
+  }
+  #pop-go button:hover { filter: brightness(1.1); }
+  #pop-close {
+    position: absolute; top: 12px; right: 12px; width: 30px; height: 30px;
+    border-radius: 8px; border: 1px solid var(--border); background: var(--surface-2);
+    color: var(--muted); font-size: 15px; line-height: 1; cursor: pointer;
+  }
+  #pop-close:hover { color: var(--text); }
+
+  footer.bottom {
+    margin-top: 40px; padding-top: 18px; border-top: 1px solid var(--border);
+    color: var(--subtle); font-size: 12px; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px;
+  }
+
+  @media (max-width: 720px) {
+    #page { padding: 26px 14px 60px; }
+    h1 { font-size: 23px; }
+    .legend { gap: 14px 20px; }
+  }
+</style>
+</head>
+<body>
+<div id="page">
+  <header class="top">
+    <div class="chiprow">
+      <span class="vchip">dev-skills</span>
+      <span class="vchip">generated 2026-08-02 13:32 UTC</span>
+      <span class="vchip">by /diagram-c4-update</span>
+      <a class="vchip" href="index.html">&#8592; workflow diagram</a>
+    </div>
+    <h1>dev-skills plugin — architecture</h1>
+    <p class="intro">A <strong>C4 model</strong> of this project. Start at the system context, then <strong>click any box marked&nbsp;<span class="drill" style="position:static;background:var(--surface-2);color:var(--muted)">&#8663;</span></strong> to zoom one level in — context to containers, containers to components. The context and container views draw every connection; the denser component view keeps them hidden until you pick a box. Either way, <strong>hover</strong> a box (or <kbd>Tab</kbd> to it) to bring just its own relationships forward. <strong>Click</strong> a box without a deeper view for its details. <kbd>Esc</kbd> goes back up.</p>
+  </header>
+
+  <nav class="crumbs" id="crumbs" aria-label="Diagram levels"></nav>
+  <div class="view-head">
+    <h2 id="view-title"></h2>
+    <span class="view-kind" id="view-kind"></span>
+  </div>
+  <p class="view-desc" id="view-desc"></p>
+
+  <div class="stagewrap">
+    <div id="stage">
+      <svg id="wires" aria-hidden="true">
+        <defs>
+          <!-- refX=0 puts the triangle's BASE on the path end, so the line
+               stops where the head begins instead of running through it to
+               the tip. markerUnits=userSpaceOnUse fixes the head's size in
+               px, so it does not grow with the stroke when an edge is
+               highlighted — which keeps the standoff constant. The engine
+               reads markerWidth back off these elements, so the arrow length
+               has exactly one definition. -->
+          <marker id="m-sync" viewBox="0 0 12 10" refX="0" refY="5"
+                  markerWidth="12" markerHeight="10" markerUnits="userSpaceOnUse" orient="auto">
+            <path d="M0,0 L12,5 L0,10 z"/>
+          </marker>
+          <marker id="m-async" viewBox="0 0 12 10" refX="0" refY="5"
+                  markerWidth="12" markerHeight="10" markerUnits="userSpaceOnUse" orient="auto">
+            <path d="M0,0 L12,5 L0,10 z"/>
+          </marker>
+        </defs>
+        <g id="edgeLayer"></g>
+      </svg>
+    </div>
+  </div>
+
+  <div class="legend" id="legend" aria-label="Key"></div>
+
+  <details class="decisions" id="decisions">
+    <summary>Modelling decisions behind this diagram</summary>
+    <div class="dbody" id="dbody"></div>
+  </details>
+
+  <footer class="bottom">
+    <span id="counts"></span>
+    <span>Regenerate with <code>/diagram-c4-update</code> — this file is overwritten wholesale.</span>
+  </footer>
+</div>
+
+<div id="overlay"></div>
+<div id="popup" role="dialog" aria-modal="true">
+  <button id="pop-close" aria-label="Close">&#10005;</button>
+  <div class="pop-head">
+    <span class="pop-type" id="pop-type"></span>
+    <h2 class="pop-title" id="pop-title"></h2>
+    <div class="pop-tech" id="pop-tech"></div>
+  </div>
+  <div class="pop-body">
+    <p id="pop-desc"></p>
+    <div class="pop-conn" id="pop-conn"></div>
+    <div id="pop-go" hidden></div>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+/* ======================= DATA (authored by /diagram-c4-update) ======================= */
+
+const WS = {"name": "dev-skills", "description": "C4 model of the dev-skills Claude Code plugin.", "model": {"people": [{"id": "1", "name": "Developer", "tags": "Element,Person", "description": "Builds software with Claude Code and drives the plugin's skills by slash command.", "evidence": "README.md#getting-started", "relationships": [{"id": "100", "sourceId": "1", "destinationId": "2", "description": "Invokes /dev:* slash commands in", "technology": "CLI, IDE", "tags": "Relationship"}]}], "softwareSystems": [{"id": "5", "name": "dev-skills plugin", "tags": "Element,Software System", "description": "A Claude Code plugin shipping a TDD-driven feature workflow, a bug workflow, eval scorers and two diagram renderers.", "evidence": "manifest:.claude-plugin/plugin.json#name", "containers": [{"id": "10", "name": "Skill definitions", "technology": "Markdown", "tags": "Element,Container", "description": "The product: SKILL.md procedures the agent loads and executes, one directory per skill. Holds 19 skills in 9 functional groups.", "evidence": "skills/*/SKILL.md", "components": [{"id": "20", "name": "feature-storm", "technology": "Markdown", "tags": "Element,Component", "description": "Brainstorms the product/requirements view of a feature; writes a 7-section storm document.", "group": "Feature chain", "evidence": "skills/feature-storm/SKILL.md:1", "relationships": [{"id": "242", "sourceId": "20", "destinationId": "21", "description": "Offers to continue into", "technology": "Chain hand-off", "tags": "Relationship"}, {"id": "250", "sourceId": "20", "destinationId": "26", "description": "Resolves the feature folder through", "technology": "Skill tool", "tags": "Relationship"}, {"id": "270", "sourceId": "20", "destinationId": "35", "description": "Appends one improvement observation to", "technology": "Skill tool", "tags": "Relationship"}]}, {"id": "21", "name": "feature-design", "technology": "Markdown", "tags": "Element,Component", "description": "Turns a requirement into a reviewed technical design, clarifying until no decision is left open.", "group": "Feature chain", "evidence": "skills/feature-design/SKILL.md:1", "relationships": [{"id": "243", "sourceId": "21", "destinationId": "22", "description": "Offers to continue into", "technology": "Chain hand-off", "tags": "Relationship"}, {"id": "251", "sourceId": "21", "destinationId": "26", "description": "Resolves the feature folder through", "technology": "Skill tool", "tags": "Relationship"}, {"id": "260", "sourceId": "21", "destinationId": "27", "description": "Mocks up the user-visible surface through", "technology": "Skill tool", "tags": "Relationship"}, {"id": "271", "sourceId": "21", "destinationId": "35", "description": "Appends one improvement observation to", "technology": "Skill tool", "tags": "Relationship"}]}, {"id": "22", "name": "feature-plan", "technology": "Markdown", "tags": "Element,Component", "description": "Breaks an approved design into staged, TDD-driven work; its planning core runs in a subagent.", "group": "Feature chain", "evidence": "skills/feature-plan/SKILL.md:1", "relationships": [{"id": "244", "sourceId": "22", "destinationId": "23", "description": "Offers to continue into", "technology": "Chain hand-off", "tags": "Relationship"}, {"id": "252", "sourceId": "22", "destinationId": "26", "description": "Resolves the feature folder through", "technology": "Skill tool", "tags": "Relationship"}, {"id": "272", "sourceId": "22", "destinationId": "35", "description": "Appends one improvement observation to", "technology": "Skill tool", "tags": "Relationship"}]}, {"id": "23", "name": "feature-implement", "technology": "Markdown", "tags": "Element,Component", "description": "Executes the plan stage by stage on the current branch, one commit per green stage.", "group": "Feature chain", "evidence": "skills/feature-implement/SKILL.md:1", "relationships": [{"id": "253", "sourceId": "23", "destinationId": "26", "description": "Resolves the feature folder through", "technology": "Skill tool", "tags": "Relationship"}, {"id": "273", "sourceId": "23", "destinationId": "35", "description": "Appends one improvement observation to", "technology": "Skill tool", "tags": "Relationship"}, {"id": "280", "sourceId": "23", "destinationId": "31", "description": "Offers to score the unpushed commits with", "technology": "Subagent", "tags": "Relationship"}, {"id": "281", "sourceId": "23", "destinationId": "32", "description": "Offers to score the finished feature with", "technology": "Subagent", "tags": "Relationship"}, {"id": "300", "sourceId": "23", "destinationId": "3", "description": "Writes code and one commit per stage into", "technology": "git", "tags": "Relationship"}]}, {"id": "24", "name": "feature-dispatch", "technology": "Markdown", "tags": "Element,Component", "description": "Model-only router: spots feature-shaped prompts and recommends an entry into the chain.", "group": "Routing", "evidence": "skills/feature-dispatch/SKILL.md:1", "relationships": [{"id": "240", "sourceId": "24", "destinationId": "20", "description": "Routes a vague requirement to", "technology": "Skill tool", "tags": "Relationship"}, {"id": "241", "sourceId": "24", "destinationId": "21", "description": "Routes a clear-but-undesigned requirement to", "technology": "Skill tool", "tags": "Relationship"}]}, {"id": "25", "name": "feature-list", "technology": "Markdown", "tags": "Element,Component", "description": "Read-only report over features/ \u2014 open features by default, all of them with one argument.", "group": "Reporting", "evidence": "skills/feature-list/SKILL.md:1", "relationships": [{"id": "302", "sourceId": "25", "destinationId": "3", "description": "Reads the features/ tree from", "technology": "Filesystem", "tags": "Relationship"}]}, {"id": "26", "name": "feature-resolve", "technology": "Markdown", "tags": "Element,Component", "description": "Single source of pathing: resolves the feature folder, version and stage file, and seeds the tracker.", "group": "Internal helpers", "evidence": "skills/feature-resolve/SKILL.md:1", "relationships": [{"id": "290", "sourceId": "26", "destinationId": "11", "description": "Seeds a per-feature tracker from", "technology": "File copy", "tags": "Relationship"}]}, {"id": "27", "name": "feature-mockup", "technology": "Markdown", "tags": "Element,Component", "description": "Renders static HTML mockups of a feature's user-visible surface and returns the chosen direction.", "group": "Internal helpers", "evidence": "skills/feature-mockup/SKILL.md:1"}, {"id": "28", "name": "bug-tracker-render", "technology": "Markdown", "tags": "Element,Component", "description": "Regenerates bugs/bugs-tracker.html wholesale from the bug folders on disk.", "group": "Internal helpers", "evidence": "skills/bug-tracker-render/SKILL.md:1", "relationships": [{"id": "291", "sourceId": "28", "destinationId": "11", "description": "Renders the bug tracker from", "technology": "Token substitution", "tags": "Relationship"}]}, {"id": "29", "name": "bug-submit", "technology": "Markdown", "tags": "Element,Component", "description": "Files a triaged bug under bugs/ with any screenshots, grounded in a quick read of the code.", "group": "Bug workflow", "evidence": "skills/bug-submit/SKILL.md:1", "relationships": [{"id": "282", "sourceId": "29", "destinationId": "28", "description": "Regenerates the bug tracker through", "technology": "Skill tool", "tags": "Relationship"}]}, {"id": "30", "name": "bug-fix", "technology": "Markdown", "tags": "Element,Component", "description": "Diagnoses one open bug, fixes it test-first behind a root-cause gate, archives it and commits.", "group": "Bug workflow", "evidence": "skills/bug-fix/SKILL.md:1", "relationships": [{"id": "274", "sourceId": "30", "destinationId": "35", "description": "Appends one improvement observation to", "technology": "Skill tool", "tags": "Relationship"}, {"id": "283", "sourceId": "30", "destinationId": "28", "description": "Regenerates the bug tracker through", "technology": "Skill tool", "tags": "Relationship"}, {"id": "301", "sourceId": "30", "destinationId": "3", "description": "Writes the fix and one commit into", "technology": "git", "tags": "Relationship"}]}, {"id": "31", "name": "evals-code-run", "technology": "Markdown", "tags": "Element,Component", "description": "Scores unpushed commits for duplication, bloat, inefficiency and security.", "group": "Eval scorers", "evidence": "skills/evals-code-run/SKILL.md:1", "relationships": [{"id": "312", "sourceId": "31", "destinationId": "4", "description": "Appends four JSON entries to", "technology": "JSON", "tags": "Relationship"}]}, {"id": "32", "name": "evals-e2e-run", "technology": "Markdown", "tags": "Element,Component", "description": "Scores a finished feature end-to-end: artefact quality and stage-to-stage consistency.", "group": "Eval scorers", "evidence": "skills/evals-e2e-run/SKILL.md:1", "relationships": [{"id": "313", "sourceId": "32", "destinationId": "4", "description": "Appends one JSON entry per eval to", "technology": "JSON", "tags": "Relationship"}]}, {"id": "33", "name": "diagram-update", "technology": "Markdown", "tags": "Element,Component", "description": "Regenerates this plugin's own workflow diagram; refuses outside this repo.", "group": "Diagram renderers", "evidence": "skills/diagram-update/SKILL.md:1", "relationships": [{"id": "292", "sourceId": "33", "destinationId": "11", "description": "Renders the workflow page from", "technology": "Token substitution", "tags": "Relationship"}, {"id": "303", "sourceId": "33", "destinationId": "3", "description": "Writes the workflow page into", "technology": "Filesystem", "tags": "Relationship"}]}, {"id": "34", "name": "diagram-c4-update", "technology": "Markdown", "tags": "Element,Component", "description": "Builds a C4 model of any project and renders the interactive page you are reading.", "group": "Diagram renderers", "evidence": "skills/diagram-c4-update/SKILL.md:1", "relationships": [{"id": "293", "sourceId": "34", "destinationId": "11", "description": "Renders the C4 page from", "technology": "Token substitution", "tags": "Relationship"}, {"id": "304", "sourceId": "34", "destinationId": "3", "description": "Writes the C4 page and model into", "technology": "Filesystem", "tags": "Relationship"}]}, {"id": "35", "name": "lessons-capture", "technology": "Markdown", "tags": "Element,Component", "description": "Appends one improvement observation per run to the calling skill's log.", "group": "Reflection", "evidence": "skills/lessons-capture/SKILL.md:1", "relationships": [{"id": "310", "sourceId": "35", "destinationId": "4", "description": "Appends a dated entry to", "technology": "Markdown", "tags": "Relationship"}]}, {"id": "36", "name": "lessons-learn", "technology": "Markdown", "tags": "Element,Component", "description": "Consolidates a skill's log, applies the high-signal lessons, and archives the log.", "group": "Reflection", "evidence": "skills/lessons-learn/SKILL.md:1", "relationships": [{"id": "311", "sourceId": "36", "destinationId": "4", "description": "Consolidates and archives", "technology": "Markdown", "tags": "Relationship"}]}, {"id": "37", "name": "push", "technology": "Markdown", "tags": "Element,Component", "description": "Commits outstanding work in the repo's own style and pushes.", "group": "Repo utilities", "evidence": "skills/push/SKILL.md:1", "relationships": [{"id": "305", "sourceId": "37", "destinationId": "3", "description": "Commits and pushes", "technology": "git", "tags": "Relationship"}]}, {"id": "38", "name": "release", "technology": "Markdown", "tags": "Element,Component", "description": "Bumps the semantic version, updates the changelog, then commits, tags and pushes.", "group": "Repo utilities", "evidence": "skills/release/SKILL.md:1", "relationships": [{"id": "306", "sourceId": "38", "destinationId": "3", "description": "Bumps the version, tags and pushes", "technology": "git", "tags": "Relationship"}]}], "relationships": [{"id": "113", "sourceId": "10", "destinationId": "11", "description": "Substitutes per-run data into", "technology": "Token substitution", "tags": "Relationship"}, {"id": "114", "sourceId": "10", "destinationId": "3", "description": "Writes feature, bug and diagram artefacts into", "technology": "Filesystem", "tags": "Relationship"}, {"id": "115", "sourceId": "10", "destinationId": "4", "description": "Appends run observations and eval scores to", "technology": "Filesystem", "tags": "Relationship"}]}, {"id": "11", "name": "Page templates", "technology": "HTML, CSS, JS", "tags": "Element,Container,Data Store", "description": "Three self-contained token-substituted pages: the feature/bug tracker and the two diagram engines.", "evidence": "templates/"}, {"id": "12", "name": "Remote-readiness hook", "technology": "POSIX shell", "tags": "Element,Container", "description": "Runs as its own process on SessionStart and UserPromptSubmit; warns when the branch is behind upstream. The only executable code in the plugin.", "evidence": "hooks/remote-check.sh:1", "relationships": [{"id": "116", "sourceId": "12", "destinationId": "3", "description": "Fetches and compares the branch against its upstream", "technology": "git", "tags": "Relationship"}]}, {"id": "13", "name": "Plugin manifest", "technology": "JSON", "tags": "Element,Container,Data Store", "description": "Declares the plugin name 'dev' and its version; the harness reads it to discover skills and hooks.", "evidence": "manifest:.claude-plugin/plugin.json#name"}, {"id": "14", "name": "Test suite", "technology": "Python, pytest", "tags": "Element,Container", "description": "Static cross-file consistency checks over the skill markdown, plus optional LLM judge tests behind a marker.", "evidence": "tests/test_static.py:1", "relationships": [{"id": "117", "sourceId": "14", "destinationId": "10", "description": "Asserts cross-file consistency across", "technology": "pytest", "tags": "Relationship"}]}], "relationships": [{"id": "102", "sourceId": "5", "destinationId": "3", "description": "Writes feature, bug and diagram artefacts into", "technology": "Filesystem", "tags": "Relationship"}, {"id": "103", "sourceId": "5", "destinationId": "4", "description": "Appends run observations and eval scores to", "technology": "Filesystem", "tags": "Relationship"}]}, {"id": "2", "name": "Claude Code", "tags": "Element,Software System,External", "description": "The agent harness. Discovers the plugin, loads a skill's procedure into context, and executes it.", "evidence": "manifest:.claude-plugin/plugin.json#name", "relationships": [{"id": "101", "sourceId": "2", "destinationId": "5", "description": "Loads and executes skills, hooks and templates from", "technology": "Markdown, JSON", "tags": "Relationship"}, {"id": "110", "sourceId": "2", "destinationId": "13", "description": "Discovers the plugin's skills and hooks from", "technology": "JSON", "tags": "Relationship"}, {"id": "111", "sourceId": "2", "destinationId": "12", "description": "Fires on session start and prompt submit", "technology": "Hook process", "tags": "Relationship"}, {"id": "112", "sourceId": "2", "destinationId": "10", "description": "Loads and executes the matching procedure from", "technology": "Markdown", "tags": "Relationship"}, {"id": "200", "sourceId": "2", "destinationId": "20", "description": "Runs the brainstorm procedure from", "technology": "Slash command", "tags": "Relationship"}, {"id": "201", "sourceId": "2", "destinationId": "21", "description": "Runs the design procedure from", "technology": "Slash command", "tags": "Relationship"}, {"id": "202", "sourceId": "2", "destinationId": "22", "description": "Runs the planning procedure from", "technology": "Slash command", "tags": "Relationship"}, {"id": "203", "sourceId": "2", "destinationId": "23", "description": "Runs the implementation procedure from", "technology": "Slash command", "tags": "Relationship"}, {"id": "204", "sourceId": "2", "destinationId": "25", "description": "Runs the feature report from", "technology": "Slash command", "tags": "Relationship"}, {"id": "205", "sourceId": "2", "destinationId": "29", "description": "Runs the bug-filing procedure from", "technology": "Slash command", "tags": "Relationship"}, {"id": "206", "sourceId": "2", "destinationId": "30", "description": "Runs the diagnose-and-fix procedure from", "technology": "Slash command", "tags": "Relationship"}, {"id": "207", "sourceId": "2", "destinationId": "31", "description": "Runs the code eval from", "technology": "Slash command", "tags": "Relationship"}, {"id": "208", "sourceId": "2", "destinationId": "32", "description": "Runs the end-to-end eval from", "technology": "Slash command", "tags": "Relationship"}, {"id": "209", "sourceId": "2", "destinationId": "33", "description": "Runs the workflow-diagram regeneration from", "technology": "Slash command", "tags": "Relationship"}, {"id": "210", "sourceId": "2", "destinationId": "34", "description": "Runs the C4 regeneration from", "technology": "Slash command", "tags": "Relationship"}, {"id": "211", "sourceId": "2", "destinationId": "36", "description": "Runs the log consolidation from", "technology": "Slash command", "tags": "Relationship"}, {"id": "212", "sourceId": "2", "destinationId": "37", "description": "Runs the commit-and-push procedure from", "technology": "Slash command", "tags": "Relationship"}, {"id": "213", "sourceId": "2", "destinationId": "38", "description": "Runs the release procedure from", "technology": "Slash command", "tags": "Relationship"}, {"id": "230", "sourceId": "2", "destinationId": "24", "description": "Offers every non-trivial prompt to", "technology": "Model-invoked", "tags": "Relationship"}]}, {"id": "3", "name": "Target project repository", "tags": "Element,Software System,External", "description": "Whatever repo the developer is working in. Receives every artefact the skills produce, and the one commit bug-fix makes.", "evidence": "CLAUDE.md#per-feature-output-structure"}, {"id": "4", "name": "Lessons & eval logs", "tags": "Element,Software System,External,Data Store", "description": "Per-skill improvement logs under ~/.claude/dev-skills/lessons/ and eval scores under ~/.claude/evals/.", "evidence": "skills/lessons-capture/SKILL.md:1"}]}, "views": {"systemContextViews": [{"key": "SystemContext", "softwareSystemId": "5", "name": "System Context: dev-skills plugin", "description": "System Context diagram for the dev-skills plugin \u2014 who uses it and what it touches.", "elements": [{"id": "1", "x": 390, "y": 90, "col": 1, "row": 0, "band": 0}, {"id": "2", "x": 390, "y": 350, "col": 1, "row": 1, "band": 1}, {"id": "5", "x": 390, "y": 610, "col": 1, "row": 2, "band": 3}, {"id": "3", "x": 90, "y": 870, "col": 0, "row": 3, "band": 6}, {"id": "4", "x": 690, "y": 870, "col": 2, "row": 3, "band": 6}], "relationships": [{"id": "100"}, {"id": "101"}, {"id": "102"}, {"id": "103"}], "dimensions": {"width": 1000, "height": 1100}}], "containerViews": [{"key": "Containers", "softwareSystemId": "5", "name": "Containers: dev-skills plugin", "description": "Container diagram for the dev-skills plugin \u2014 the units the harness runs or reads, and the technologies they are written in. The zoom runs 1 system \u2192 5 containers \u2192 19 components in 9 groups; only Skill definitions goes deeper.", "elements": [{"id": "1", "x": 390, "y": 90, "col": 1, "row": 0, "band": 0}, {"id": "2", "x": 390, "y": 350, "col": 1, "row": 1, "band": 1}, {"id": "13", "x": 90, "y": 610, "col": 0, "row": 2, "band": 2, "boundary": "5"}, {"id": "12", "x": 690, "y": 610, "col": 2, "row": 2, "band": 2, "boundary": "5"}, {"id": "10", "x": 390, "y": 870, "col": 1, "row": 3, "band": 3, "boundary": "5"}, {"id": "14", "x": 990, "y": 1130, "col": 3, "row": 4, "band": 4, "boundary": "5"}, {"id": "11", "x": 390, "y": 1390, "col": 1, "row": 5, "band": 5, "boundary": "5"}, {"id": "3", "x": 90, "y": 1650, "col": 0, "row": 6, "band": 6}, {"id": "4", "x": 690, "y": 1650, "col": 2, "row": 6, "band": 6}], "relationships": [{"id": "100"}, {"id": "110"}, {"id": "111"}, {"id": "112"}, {"id": "113"}, {"id": "114"}, {"id": "115"}, {"id": "116"}, {"id": "117"}], "dimensions": {"width": 1300, "height": 1880}}], "componentViews": [{"key": "Components-skills", "containerId": "10", "name": "Components: skill definitions", "description": "Component diagram for the skill-definition container \u2014 one box per skill, grouped into the nine functional areas by dashed boundaries. Rows read as invocation distance from the user: entry points, the feature chain, secondary workflows, internal helpers, then what they write to. It is a dense view by nature; hover any box to isolate just its relationships.", "elements": [{"id": "1", "x": 990, "y": 90, "col": 3, "row": 0, "band": 0}, {"id": "2", "x": 990, "y": 350, "col": 3, "row": 1, "band": 1}, {"id": "24", "x": 90, "y": 610, "col": 0, "row": 2, "band": 2, "boundary": "Routing"}, {"id": "25", "x": 690, "y": 610, "col": 2, "row": 2, "band": 2, "boundary": "Reporting"}, {"id": "33", "x": 1290, "y": 610, "col": 4, "row": 2, "band": 2, "boundary": "Diagram renderers"}, {"id": "34", "x": 1590, "y": 610, "col": 5, "row": 2, "band": 2, "boundary": "Diagram renderers"}, {"id": "20", "x": 90, "y": 870, "col": 0, "row": 3, "band": 3, "boundary": "Feature chain"}, {"id": "21", "x": 390, "y": 870, "col": 1, "row": 3, "band": 3, "boundary": "Feature chain"}, {"id": "22", "x": 690, "y": 870, "col": 2, "row": 3, "band": 3, "boundary": "Feature chain"}, {"id": "23", "x": 990, "y": 870, "col": 3, "row": 3, "band": 3, "boundary": "Feature chain"}, {"id": "37", "x": 1590, "y": 870, "col": 5, "row": 3, "band": 3, "boundary": "Repo utilities"}, {"id": "38", "x": 1890, "y": 870, "col": 6, "row": 3, "band": 3, "boundary": "Repo utilities"}, {"id": "29", "x": 90, "y": 1130, "col": 0, "row": 4, "band": 4, "boundary": "Bug workflow"}, {"id": "30", "x": 390, "y": 1130, "col": 1, "row": 4, "band": 4, "boundary": "Bug workflow"}, {"id": "31", "x": 990, "y": 1130, "col": 3, "row": 4, "band": 4, "boundary": "Eval scorers"}, {"id": "32", "x": 1290, "y": 1130, "col": 4, "row": 4, "band": 4, "boundary": "Eval scorers"}, {"id": "26", "x": 90, "y": 1390, "col": 0, "row": 5, "band": 5, "boundary": "Internal helpers"}, {"id": "27", "x": 390, "y": 1390, "col": 1, "row": 5, "band": 5, "boundary": "Internal helpers"}, {"id": "28", "x": 690, "y": 1390, "col": 2, "row": 5, "band": 5, "boundary": "Internal helpers"}, {"id": "35", "x": 1290, "y": 1390, "col": 4, "row": 5, "band": 5, "boundary": "Reflection"}, {"id": "36", "x": 1590, "y": 1390, "col": 5, "row": 5, "band": 5, "boundary": "Reflection"}, {"id": "11", "x": 90, "y": 1650, "col": 0, "row": 6, "band": 6}, {"id": "3", "x": 990, "y": 1650, "col": 3, "row": 6, "band": 6}, {"id": "4", "x": 1590, "y": 1650, "col": 5, "row": 6, "band": 6}], "relationships": [{"id": "100"}, {"id": "200"}, {"id": "201"}, {"id": "202"}, {"id": "203"}, {"id": "204"}, {"id": "205"}, {"id": "206"}, {"id": "207"}, {"id": "208"}, {"id": "209"}, {"id": "210"}, {"id": "211"}, {"id": "212"}, {"id": "213"}, {"id": "230"}, {"id": "240"}, {"id": "241"}, {"id": "242"}, {"id": "243"}, {"id": "244"}, {"id": "250"}, {"id": "251"}, {"id": "252"}, {"id": "253"}, {"id": "260"}, {"id": "270"}, {"id": "271"}, {"id": "272"}, {"id": "273"}, {"id": "274"}, {"id": "280"}, {"id": "281"}, {"id": "282"}, {"id": "283"}, {"id": "290"}, {"id": "291"}, {"id": "292"}, {"id": "293"}, {"id": "300"}, {"id": "301"}, {"id": "302"}, {"id": "303"}, {"id": "304"}, {"id": "305"}, {"id": "306"}, {"id": "310"}, {"id": "311"}, {"id": "312"}, {"id": "313"}], "dimensions": {"width": 2200, "height": 1880}}], "configuration": {"styles": {"elements": [], "relationships": []}}}, "properties": {"c4.generator": "diagram-c4-update", "c4.repoClass": "plugin / agent-asset"}, "c4": {"decisions": [{"q": "Where does the system boundary sit?", "choice": "One software system: the dev-skills plugin as installed.", "by": "user", "why": "Single repo, single owner, everything ships together \u2014 the ownership and deployment-alignment heuristic (c4-model.md 2.2)."}, {"q": "Which containers earn a component view?", "choice": "Skill definitions only.", "by": "user", "why": "It is the only container with internal structure worth decomposing; C4 5.1 warns component views are the fastest to rot."}, {"q": "Container or component: an individual skill?", "choice": "Component \u2014 one box per skill, all nineteen.", "by": "skill", "why": "A skill is not separately deployable \u2014 it is loaded into the agent's context \u2014 so the deployability test (2.4) makes it a component. A hook script runs as its own process, so it is a container."}, {"q": "How are the nineteen skills grouped?", "choice": "Nine dashed boundary rectangles; the groups are not elements.", "by": "skill", "why": "A functional group is an organisational grouping, not an abstraction level (2.6, 11). Collapsing each group into a single component would hide every skill and put a fifth level in by the back door."}, {"q": "Are templates a container?", "choice": "Yes \u2014 one 'Page templates' data-store container.", "by": "skill", "why": "They are read at runtime and are not code inside another process; C4 2.3 admits a file store as a container."}, {"q": "Queues and topics?", "choice": "Not applicable \u2014 none detected.", "by": "skill", "why": "No broker, queue or topic appears anywhere in the plugin."}]}};
+const DEFAULT_VIEW = "SystemContext";
+const DECISIONS = [{"q": "Where does the system boundary sit?", "choice": "One software system: the dev-skills plugin as installed.", "by": "user", "why": "Single repo, single owner, everything ships together \u2014 the ownership and deployment-alignment heuristic (c4-model.md 2.2)."}, {"q": "Which containers earn a component view?", "choice": "Skill definitions only.", "by": "user", "why": "It is the only container with internal structure worth decomposing; C4 5.1 warns component views are the fastest to rot."}, {"q": "Container or component: an individual skill?", "choice": "Component \u2014 one box per skill, all nineteen.", "by": "skill", "why": "A skill is not separately deployable \u2014 it is loaded into the agent's context \u2014 so the deployability test (2.4) makes it a component. A hook script runs as its own process, so it is a container."}, {"q": "How are the nineteen skills grouped?", "choice": "Nine dashed boundary rectangles; the groups are not elements.", "by": "skill", "why": "A functional group is an organisational grouping, not an abstraction level (2.6, 11). Collapsing each group into a single component would hide every skill and put a fifth level in by the back door."}, {"q": "Are templates a container?", "choice": "Yes \u2014 one 'Page templates' data-store container.", "by": "skill", "why": "They are read at runtime and are not code inside another process; C4 2.3 admits a file store as a container."}, {"q": "Queues and topics?", "choice": "Not applicable \u2014 none detected.", "by": "skill", "why": "No broker, queue or topic appears anywhere in the plugin."}];
+
+/* ======================= Grid (single source of truth: the CSS above) ======================= */
+
+const CSSV = getComputedStyle(document.documentElement);
+const px = n => parseFloat(CSSV.getPropertyValue(n));
+const GRID = {
+  BOX_W: px("--c4-box-w"), BOX_H: px("--c4-box-h"),
+  COL: px("--c4-col-pitch"), ROW: px("--c4-row-pitch"),
+  MARGIN: px("--c4-margin"),
+  PAD: px("--c4-bpad"), PAD_NESTED: px("--c4-bpad-nested"), LABEL: px("--c4-blabel"),
+  GAP: px("--c4-edge-gap"), RING: px("--c4-scope-ring")
+};
+const cellX = col => GRID.MARGIN + col * GRID.COL;
+const cellY = row => GRID.MARGIN + row * GRID.ROW;
+
+/* ======================= Index the model ======================= */
+
+const EL = {};      /* id -> element record */
+const REL = {};     /* id -> relationship record */
+
+function addRels(source) {
+  (source.relationships || []).forEach(r => {
+    REL[r.id] = {
+      id: r.id, sourceId: r.sourceId || source.id, destinationId: r.destinationId,
+      description: r.description || "", technology: r.technology || "",
+      tags: r.tags || ""
+    };
+  });
+}
+function addEl(raw, type, parentId) {
+  const tags = raw.tags || "";
+  EL[raw.id] = {
+    id: raw.id, name: raw.name, type: type, parentId: parentId || null,
+    description: raw.description || "", technology: raw.technology || "", tags: tags,
+    external: /\bExternal\b/.test(tags),
+    store: /\b(Database|Data Store|Datastore|File System|Blob Store|Queue|Topic)\b/.test(tags)
+  };
+  addRels(raw);
+}
+(WS.model.people || []).forEach(p => addEl(p, "person"));
+(WS.model.softwareSystems || []).forEach(s => {
+  addEl(s, "system");
+  (s.containers || []).forEach(c => {
+    addEl(c, "container", s.id);
+    (c.components || []).forEach(k => addEl(k, "component", c.id));
+  });
+});
+
+/* ======================= Index the views ======================= */
+
+const KINDS = [
+  ["systemLandscapeViews", "System Landscape", "landscape"],
+  ["systemContextViews", "System Context", "context"],
+  ["containerViews", "Container", "container"],
+  ["componentViews", "Component", "component"]
+];
+const VIEWS = [];
+KINDS.forEach(([key, label, kind]) => {
+  (WS.views[key] || []).forEach(v => {
+    VIEWS.push(Object.assign({}, v, {
+      kind: kind, kindLabel: label,
+      scopeId: v.containerId || v.softwareSystemId || null
+    }));
+  });
+});
+const viewByKey = k => VIEWS.find(v => v.key === k);
+
+/* A box drills in when a view one level DEEPER is scoped to that element:
+   a software system opens its container view, a container opens its
+   component view. Landscape and context views are scoped to a system too,
+   but they are not a zoom-in from it — including them here would make the
+   system box on the context view resolve to the view you are already on.
+
+   A container may have SEVERAL component views: a big container is split by
+   the coarser structural level rather than crammed into one board. So this
+   maps to a list — one target navigates straight there, several offer a
+   choice in the pop-up. */
+const childViewsOf = {};
+VIEWS.forEach(v => {
+  if (v.kind !== "container" && v.kind !== "component") return;
+  if (!v.scopeId) return;
+  (childViewsOf[v.scopeId] = childViewsOf[v.scopeId] || []).push(v.key);
+});
+const childrenOf = id => childViewsOf[id] || [];
+
+/* A view's parent is the view that shows its scope element as a box.
+   Derived rather than authored, so the skill cannot get the tree wrong. */
+function parentKeyOf(view) {
+  if (view.parentKey) return view.parentKey;
+  if (!view.scopeId) return null;
+  const owner = VIEWS.find(v =>
+    v.key !== view.key && (v.elements || []).some(e => e.id === view.scopeId));
+  return owner ? owner.key : null;
+}
+
+/* ======================= Render a view ======================= */
+
+const stage = document.getElementById("stage");
+const wires = document.getElementById("wires");
+const edgeLayer = document.getElementById("edgeLayer");
+let current = null;   /* the view being displayed */
+
+function typeLabel(el) {
+  if (el.type === "person") return "Person";
+  if (el.type === "system") return el.external ? "External system" : "Software System";
+  if (el.type === "container") return "Container";
+  return "Component";
+}
+function metaLine(el) {
+  const t = typeLabel(el);
+  return el.technology ? "[" + t + ": " + el.technology + "]" : "[" + t + "]";
+}
+function esc(s) {
+  return String(s == null ? "" : s)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+const isAsync = r => /\bAsync(hronous)?\b/i.test(r.tags) ||
+                     /\b(async|event|queue|topic|pub\/?sub|message)\b/i.test(r.technology);
+
+function renderView(key) {
+  const view = viewByKey(key);
+  if (!view) return;
+  current = view;
+
+  /* --- heading + breadcrumb --- */
+  document.getElementById("view-title").textContent = view.name || (view.kindLabel + " view");
+  document.getElementById("view-kind").textContent = view.kindLabel;
+  const desc = document.getElementById("view-desc");
+  desc.textContent = view.description || "";
+  desc.style.display = view.description ? "" : "none";
+
+  const trail = [];
+  for (let v = view, guard = 0; v && guard < 8; guard++) {
+    trail.unshift(v);
+    const pk = parentKeyOf(v);
+    v = pk ? viewByKey(pk) : null;
+  }
+  document.getElementById("crumbs").innerHTML = trail.map((v, i) =>
+    (i ? '<span class="crumb-sep">&rsaquo;</span>' : "") +
+    '<a class="crumb' + (v.key === view.key ? " here" : "") + '" data-view="' +
+    esc(v.key) + '">' + esc(v.name || v.kindLabel) + "</a>"
+  ).join("");
+
+  /* Edge resting behaviour is a property of the level: the higher views are
+     small enough to show every connection, the component board is not. */
+  const quiet = view.kind === "component";
+  stage.dataset.edges = quiet ? "hidden" : "ambient";
+
+  /* --- boxes --- */
+  stage.querySelectorAll(".el, .boundary").forEach(n => n.remove());
+  const items = view.elements || [];
+  let maxCol = 0, maxRow = 0;
+
+  /* Boundaries first so they paint behind. Depth: a boundary whose own
+     element sits inside another boundary in this view is nested. */
+  const groups = {};
+  items.forEach(e => {
+    if (!e.boundary) return;
+    (groups[e.boundary] = groups[e.boundary] || []).push(e);
+  });
+  Object.keys(groups).forEach(bid => {
+    const members = groups[bid];
+    const parentEl = EL[bid];
+    const nested = members.some(m => {
+      const p = EL[bid];
+      return p && p.parentId && groups[p.parentId];
+    });
+    const pad = nested ? GRID.PAD_NESTED : GRID.PAD;
+    const cols = members.map(m => m.col), rows = members.map(m => m.row);
+    const box = document.createElement("div");
+    box.className = "boundary" + (nested ? " nested" : "");
+    box.style.left = (cellX(Math.min.apply(null, cols)) - pad) + "px";
+    box.style.top = (cellY(Math.min.apply(null, rows)) - pad) + "px";
+    box.style.width = (cellX(Math.max.apply(null, cols)) + GRID.BOX_W + pad -
+                       (cellX(Math.min.apply(null, cols)) - pad)) + "px";
+    box.style.height = (cellY(Math.max.apply(null, rows)) + GRID.BOX_H + pad -
+                        (cellY(Math.min.apply(null, rows)) - pad)) + "px";
+    box.innerHTML = '<span class="blabel">' +
+      esc(parentEl ? parentEl.name : bid) + "</span>";
+    stage.appendChild(box);
+  });
+
+  items.forEach(item => {
+    const el = EL[item.id];
+    if (!el) return;
+    maxCol = Math.max(maxCol, item.col || 0);
+    maxRow = Math.max(maxRow, item.row || 0);
+    const node = document.createElement("div");
+    node.className = "el t-" + el.type +
+      (el.external ? " external" : "") + (el.store ? " store" : "") +
+      (el.id === view.scopeId ? " scope" : "");
+    node.id = "el-" + el.id;
+    node.dataset.id = el.id;
+    node.tabIndex = 0;
+    node.style.left = cellX(item.col || 0) + "px";
+    node.style.top = cellY(item.row || 0) + "px";
+    node.innerHTML =
+      '<div class="el-name">' + esc(el.name) + "</div>" +
+      '<div class="el-meta">' + esc(metaLine(el)) + "</div>" +
+      '<div class="el-desc">' + esc(el.description) + "</div>" +
+      (childrenOf(el.id).length ? '<span class="drill" title="Zoom in">&#8663;</span>' : "");
+    stage.appendChild(node);
+  });
+
+  const w = (view.dimensions && view.dimensions.width) || cellX(maxCol) + GRID.BOX_W + GRID.MARGIN;
+  const h = (view.dimensions && view.dimensions.height) || cellY(maxRow) + GRID.BOX_H + GRID.MARGIN;
+  stage.style.width = w + "px";
+  stage.style.height = h + "px";
+
+  drawEdges();
+  renderLegend(view);
+  document.getElementById("counts").textContent =
+    items.length + " elements · " + (view.relationships || []).length +
+    " relationships · " + VIEWS.length + " views";
+
+  if (location.hash.slice(1) !== view.key) history.replaceState(null, "", "#" + view.key);
+  wireBoxes();
+}
+
+/* ======================= Edges ======================= */
+/* Same technique as templates/workflow-diagram.html:576 — measure the
+   laid-out boxes, then stroke a bezier between the facing edges. */
+
+function boxRect(id) {
+  const n = document.getElementById("el-" + id);
+  if (!n) return null;
+  return { x: n.offsetLeft, y: n.offsetTop, w: n.offsetWidth, h: n.offsetHeight };
+}
+
+/* Length of the arrowhead, read back off the marker so the markup is its
+   only definition. Fixed px because the markers are userSpaceOnUse. */
+const ARROW = parseFloat(
+  document.getElementById("m-sync").getAttribute("markerWidth"));
+
+/* How far an edge must stand off this box: the standard gap, plus the scope
+   ring where one is painted (box-shadow sits outside offsetWidth, so the
+   ring is invisible to the geometry above). The arrowhead's base sits on the
+   path end and its tip reaches ARROW px further, so the receiving end backs
+   off by that much again — see drawEdges. */
+function edgeGap(id) {
+  const n = document.getElementById("el-" + id);
+  return GRID.GAP + (n && n.classList.contains("scope") ? GRID.RING : 0);
+}
+
+function drawEdges() {
+  wires.setAttribute("width", stage.scrollWidth);
+  wires.setAttribute("height", stage.scrollHeight);
+  let html = "";
+  (current.relationships || []).forEach((ref, i) => {
+    const r = REL[ref.id];
+    if (!r) return;
+    const a = boxRect(r.sourceId), b = boxRect(r.destinationId);
+    if (!a || !b) return;
+    const acx = a.x + a.w / 2, acy = a.y + a.h / 2;
+    const bcx = b.x + b.w / 2, bcy = b.y + b.h / 2;
+    /* The source end is bare, so it stops at the gap. The destination end
+       carries the head: the path stops ARROW px short and the triangle
+       spans that distance, putting its tip on the gap and its base on the
+       line. */
+    const ga = edgeGap(r.sourceId), gb = edgeGap(r.destinationId) + ARROW;
+    let x1, y1, x2, y2, d;
+    if (Math.abs(bcx - acx) > Math.abs(bcy - acy)) {
+      const dir = bcx > acx ? 1 : -1;
+      x1 = dir > 0 ? a.x + a.w + ga : a.x - ga; y1 = acy;
+      x2 = dir > 0 ? b.x - gb : b.x + b.w + gb; y2 = bcy;
+      const k = Math.max(36, Math.abs(x2 - x1) * 0.35);
+      d = "M" + x1 + "," + y1 + " C" + (x1 + dir * k) + "," + y1 + " " +
+          (x2 - dir * k) + "," + y2 + " " + x2 + "," + y2;
+    } else {
+      const dir = bcy > acy ? 1 : -1;
+      x1 = acx; y1 = dir > 0 ? a.y + a.h + ga : a.y - ga;
+      x2 = bcx; y2 = dir > 0 ? b.y - gb : b.y + b.h + gb;
+      const k = Math.max(36, Math.abs(y2 - y1) * 0.3);
+      d = "M" + x1 + "," + y1 + " C" + x1 + "," + (y1 + dir * k) + " " +
+          x2 + "," + (y2 - dir * k) + " " + x2 + "," + y2;
+    }
+    const cls = isAsync(r) ? " class=\"async\"" : "";
+    const marker = isAsync(r) ? "m-async" : "m-sync";
+    const label = r.description + (r.technology ? " [" + r.technology + "]" : "");
+    html += '<path id="edge-' + i + '"' + cls + ' d="' + d +
+            '" marker-end="url(#' + marker + ')"/>';
+    html += '<text id="elabel-' + i + '"' + cls + ' x="' + ((x1 + x2) / 2) +
+            '" y="' + ((y1 + y2) / 2 - 6) + '" text-anchor="middle">' + esc(label) + "</text>";
+  });
+  edgeLayer.innerHTML = html;
+}
+
+/* ======================= Hover isolation ======================= */
+
+/* Tag the edges touching `id` as .hl and every other edge as .dm; the CSS
+   above decides what .dm means for this view's mode — faded back on the
+   container and component boards, invisible on the context board. Bound to
+   pointer enter/leave AND focus/blur, so the keyboard path behaves exactly
+   like the pointer one. */
+function setHover(id, on) {
+  const rels = current.relationships || [];
+  stage.querySelectorAll(".el").forEach(n => n.classList.remove("dm"));
+  rels.forEach((ref, i) => {
+    const p = document.getElementById("edge-" + i);
+    const t = document.getElementById("elabel-" + i);
+    if (p) p.classList.remove("hl", "dm");
+    if (t) t.classList.remove("hl", "dm");
+  });
+  if (!on) return;
+  const keep = new Set([id]);
+  rels.forEach((ref, i) => {
+    const r = REL[ref.id];
+    if (!r) return;
+    const active = r.sourceId === id || r.destinationId === id;
+    if (active) { keep.add(r.sourceId); keep.add(r.destinationId); }
+    const p = document.getElementById("edge-" + i);
+    const t = document.getElementById("elabel-" + i);
+    if (p) p.classList.add(active ? "hl" : "dm");
+    if (t) t.classList.add(active ? "hl" : "dm");
+  });
+  stage.querySelectorAll(".el").forEach(n => {
+    if (!keep.has(n.dataset.id)) n.classList.add("dm");
+  });
+}
+
+/* ======================= Popup ======================= */
+
+const overlay = document.getElementById("overlay");
+const popup = document.getElementById("popup");
+const popGo = document.getElementById("pop-go");
+
+function openPopup(id) {
+  const el = EL[id];
+  if (!el) return;
+  const type = document.getElementById("pop-type");
+  type.textContent = typeLabel(el);
+  type.style.background = el.external ? "var(--c-external)"
+    : el.store ? "var(--c-store)"
+    : el.type === "person" ? "var(--c-person)"
+    : el.type === "container" ? "var(--c-container)"
+    : el.type === "component" ? "var(--c-component)" : "var(--c-system)";
+  type.style.color = el.type === "component" ? "var(--on-light)" : "var(--on-dark)";
+  document.getElementById("pop-title").textContent = el.name;
+  const tech = document.getElementById("pop-tech");
+  tech.textContent = el.technology || "";
+  tech.style.display = el.technology ? "" : "none";
+  document.getElementById("pop-desc").textContent = el.description;
+
+  const out = [], inn = [];
+  (current.relationships || []).forEach(ref => {
+    const r = REL[ref.id];
+    if (!r) return;
+    const line = t => esc(r.description) + (r.technology ? " <em>[" + esc(r.technology) + "]</em>" : "") +
+      " — " + esc((EL[t] || {}).name || t);
+    if (r.sourceId === id) out.push('<li><span class="dir">&rarr;</span><span>' + line(r.destinationId) + "</span></li>");
+    if (r.destinationId === id) inn.push('<li><span class="dir">&larr;</span><span>' + line(r.sourceId) + "</span></li>");
+  });
+  document.getElementById("pop-conn").innerHTML =
+    (out.length ? "<h4>Outgoing</h4><ul>" + out.join("") + "</ul>" : "") +
+    (inn.length ? "<h4>Incoming</h4><ul>" + inn.join("") + "</ul>" : "");
+
+  const kids = childrenOf(id).filter(k => k !== current.key);
+  popGo.hidden = !kids.length;
+  popGo.innerHTML = "";
+  kids.forEach(k => {
+    const b = document.createElement("button");
+    b.textContent = "Zoom into " + ((viewByKey(k) || {}).name || k);
+    b.onclick = () => { closePopup(); go(k); };
+    popGo.appendChild(b);
+  });
+  overlay.classList.add("open");
+  popup.classList.add("open");
+}
+function closePopup() {
+  overlay.classList.remove("open");
+  popup.classList.remove("open");
+}
+overlay.addEventListener("click", closePopup);
+document.getElementById("pop-close").addEventListener("click", closePopup);
+
+/* ======================= Legend (only what this view uses) ======================= */
+
+function renderLegend(view) {
+  const seen = { types: new Map(), external: false, store: false, drill: false,
+                 sync: false, async: false, boundary: false, nested: false };
+  (view.elements || []).forEach(item => {
+    const el = EL[item.id];
+    if (!el) return;
+    seen.types.set(typeLabel(el), el);
+    if (el.external) seen.external = true;
+    if (el.store) seen.store = true;
+    if (childrenOf(el.id).length) seen.drill = true;
+    if (item.boundary) seen.boundary = true;
+  });
+  (view.relationships || []).forEach(ref => {
+    const r = REL[ref.id];
+    if (!r) return;
+    if (isAsync(r)) seen.async = true; else seen.sync = true;
+  });
+
+  const colourOf = el => el.external ? "var(--c-external)"
+    : el.store ? "var(--c-store)"
+    : el.type === "person" ? "var(--c-person)"
+    : el.type === "container" ? "var(--c-container)"
+    : el.type === "component" ? "var(--c-component)" : "var(--c-system)";
+
+  let elements = "";
+  seen.types.forEach((el, label) => {
+    const round = el.type === "person" ? " lg-round" : "";
+    elements += '<div class="lg-row"><span class="lg-box' + round +
+      '" style="background:' + colourOf(el) + '"></span> ' + esc(label) + "</div>";
+  });
+  if (seen.store) {
+    elements += '<div class="lg-row"><span class="lg-box" style="background:var(--c-store)"></span> Data store</div>';
+  }
+  if (seen.boundary) {
+    elements += '<div class="lg-row"><span class="lg-dash"></span> Boundary (grouping)</div>';
+  }
+
+  let lines = "";
+  if (seen.sync) lines += '<div class="lg-row"><span class="swatch" style="border-color:var(--edge);color:var(--edge)"></span> Synchronous — arrow points from caller to callee</div>';
+  if (seen.async) lines += '<div class="lg-row"><span class="swatch dashed" style="border-color:var(--edge-async);color:var(--edge-async)"></span> Asynchronous / event — arrow points to the consumer</div>';
+
+  const quiet = stage.dataset.edges === "hidden";
+  let how = '<div class="lg-row"><kbd>hover</kbd> ' +
+    (quiet ? "reveal a box’s relationships — hidden until then"
+           : "bring a box’s relationships forward, fade the rest") + "</div>" +
+    '<div class="lg-row"><kbd>tab</kbd> the same, from the keyboard</div>' +
+    '<div class="lg-row"><kbd>click</kbd> details for a box</div>';
+  if (seen.drill) how += '<div class="lg-row"><span class="drill" style="position:static;background:var(--surface-2);color:var(--muted)">&#8663;</span> zoom one level in</div>';
+  how += '<div class="lg-row"><kbd>Esc</kbd> back up a level</div>';
+
+  document.getElementById("legend").innerHTML =
+    '<div class="col"><h3>Elements</h3>' + elements + "</div>" +
+    (lines ? '<div class="col"><h3>Relationships</h3>' + lines + "</div>" : "") +
+    '<div class="col"><h3>How to read it</h3>' + how + "</div>";
+}
+
+/* ======================= Decisions panel ======================= */
+
+(function () {
+  const box = document.getElementById("decisions");
+  if (!DECISIONS.length) { box.hidden = true; return; }
+  document.getElementById("dbody").innerHTML = DECISIONS.map(d =>
+    '<div class="ditem"><div class="dq">' + esc(d.q) +
+    '<span class="by ' + (d.by === "user" ? "by-user\">you" : "by-skill\">skill") + "</span></div>" +
+    '<div class="da">' + esc(d.choice) + "</div>" +
+    (d.why ? '<div class="dwhy">' + esc(d.why) + "</div>" : "") + "</div>"
+  ).join("");
+})();
+
+/* ======================= Navigation ======================= */
+
+function go(key) {
+  if (!viewByKey(key)) return;
+  location.hash = key;
+}
+function wireBoxes() {
+  stage.querySelectorAll(".el").forEach(n => {
+    const id = n.dataset.id;
+    n.addEventListener("mouseenter", () => setHover(id, true));
+    n.addEventListener("mouseleave", () => setHover(id, false));
+    n.addEventListener("focus", () => setHover(id, true));
+    n.addEventListener("blur", () => setHover(id, false));
+    n.addEventListener("click", () => {
+      const kids = childrenOf(id).filter(k => k !== current.key);
+      if (kids.length === 1) go(kids[0]); else openPopup(id);
+    });
+    n.addEventListener("keydown", e => {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); n.click(); }
+    });
+  });
+}
+document.getElementById("crumbs").addEventListener("click", e => {
+  const a = e.target.closest(".crumb");
+  if (a && !a.classList.contains("here")) go(a.dataset.view);
+});
+document.addEventListener("keydown", e => {
+  if (e.key !== "Escape") return;
+  if (popup.classList.contains("open")) { closePopup(); return; }
+  const pk = parentKeyOf(current);
+  if (pk) go(pk);
+});
+window.addEventListener("hashchange", () => {
+  const key = decodeURIComponent(location.hash.slice(1));
+  renderView(viewByKey(key) ? key : DEFAULT_VIEW);
+});
+
+let resizeTimer = null;
+window.addEventListener("resize", () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(drawEdges, 120);
+});
+
+/* ======================= Boot ======================= */
+
+const initial = decodeURIComponent(location.hash.slice(1));
+renderView(viewByKey(initial) ? initial : DEFAULT_VIEW);
+requestAnimationFrame(drawEdges);
+</script>
+</body>
+</html>

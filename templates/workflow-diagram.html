@@ -34,6 +34,11 @@
                      skill/hook exactly once
     OVERVIEW_EDGES   JS array: { f, t (bare slugs), ty, l,
                        bend? (px arc for same-row edges, negative = up) }
+    WORKFLOW_C4_LINK anchor markup linking to a sibling C4 architecture
+                     diagram (diagram/c4.html, written by
+                     /diagram-c4-update), or "" when there is none.
+                     Resolved from the filesystem, so this skill never
+                     has to know the other one exists.
 
   Modification points:
     - DATA changes (skills, steps, edges, layout) flow through
@@ -116,6 +121,8 @@
     background: var(--surface-2); border: 1px solid var(--border);
     color: var(--muted); padding: 3px 10px; border-radius: 999px;
   }
+  a.vchip { text-decoration: none; }
+  a.vchip:hover { color: var(--text); border-color: var(--subtle); }
   h1 { margin: 12px 0 6px; font-size: 30px; letter-spacing: -.02em; line-height: 1.15; }
   .intro { max-width: 900px; color: var(--muted); margin: 0; }
 
@@ -350,6 +357,7 @@
       <span class="vchip">dev-skills v{{PLUGIN_VERSION}}</span>
       <span class="vchip">generated {{GENERATED_AT}}</span>
       <span class="vchip">by /diagram-update</span>
+      {{WORKFLOW_C4_LINK}}
     </div>
     <h1>dev-skills — end-to-end workflow</h1>
     <p class="intro">The overview below shows how the skills connect end-to-end; the detailed cards underneath break each skill into its procedure steps. <strong>Click a step</strong> for what it does and who can invoke its skill; <strong>hover a step</strong> to reveal its connectors to other steps and skills (hidden otherwise). Amber-edged steps are human approval gates; dashed amber arrows show where the flow goes back when something fails.</p>

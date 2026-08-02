@@ -13,6 +13,14 @@ DESIGN_SKILL = SKILLS / "feature-design" / "SKILL.md"
 PLAN_SKILL = SKILLS / "feature-plan" / "SKILL.md"
 E2E_SKILL = SKILLS / "evals-e2e-run" / "SKILL.md"
 
+# The two diagram skills and the templates they render from. They are siblings
+# in style but not in scope: diagram-update refuses outside this repo, while
+# diagram-c4-update runs in any repo — see TestC4DiagramContract.
+C4_SKILL = SKILLS / "diagram-c4-update" / "SKILL.md"
+C4_TEMPLATE = TEMPLATES / "c4-diagram.html"
+WORKFLOW_SKILL = SKILLS / "diagram-update" / "SKILL.md"
+WORKFLOW_TEMPLATE = TEMPLATES / "workflow-diagram.html"
+
 
 def fenced_blocks(text: str) -> list[str]:
     """All fenced code blocks in a markdown document, fence markers stripped."""

@@ -10,12 +10,16 @@ literals must stay consistent with their consumers.
 import re
 
 from helpers import (
+    C4_SKILL,
+    C4_TEMPLATE,
     DESIGN_SKILL,
     E2E_SKILL,
     FEATURE_SKILLS,
     REPO,
     SKILLS,
     TEMPLATES,
+    WORKFLOW_SKILL,
+    WORKFLOW_TEMPLATE,
     cited_sections,
     design_quality_rubric,
     design_template_sections,
@@ -451,6 +455,262 @@ class TestFeatureMockupContract:
         assert "references=" in text, "feature-mockup: references= slot undocumented"
         assert re.search(r"references.{0,200}(precedence|outrank)", text, re.S | re.I), (
             "feature-mockup never states that supplied references take precedence"
+        )
+
+
+class TestC4DiagramContract:
+    """diagram-c4-update renders templates/c4-diagram.html by token substitution.
+
+    It is a stylistic sibling of diagram-update but deliberately not a scoping
+    one: diagram-update refuses outside this repo (manifest name "dev"), while
+    this skill must run in a plugin repo, a conventional software repo, or a
+    repo that is only architecture documents. The tests below pin the halves
+    that drift silently — the token contract in both directions, the grid
+    constants shared between prose and CSS, the reciprocal links, and the C4
+    notation rules that make the output a legal C4 diagram rather than a
+    picture of boxes.
+    """
+
+    # Column/row pitch and box size. Layout correctness rests on these agreeing
+    # between the SKILL.md that authors coordinates and the CSS that renders
+    # them; a silent divergence produces overlapping boxes on every diagram.
+    GRID_PROPS = ("--c4-col-pitch", "--c4-row-pitch", "--c4-box-w", "--c4-box-h")
+
+    def skill_text(self):
+        assert C4_SKILL.exists(), "skills/diagram-c4-update/SKILL.md is missing"
+        return C4_SKILL.read_text()
+
+    def template_text(self):
+        assert C4_TEMPLATE.exists(), "templates/c4-diagram.html is missing"
+        return C4_TEMPLATE.read_text()
+
+    def test_token_contract_holds_both_ways(self):
+        # test_skill_tokens_exist_in_templates only checks skill -> template.
+        # A token left in the template with no skill authoring it renders as a
+        # literal `{{...}}` on the page, so check the reverse too.
+        skill_tokens = set(re.findall(r"\{\{([A-Z][A-Z0-9_]*)\}\}", self.skill_text()))
+        template_tokens = set(
+            re.findall(r"\{\{([A-Z][A-Z0-9_]*)\}\}", self.template_text())
+        )
+        assert template_tokens, "c4-diagram.html defines no tokens"
+        assert template_tokens - skill_tokens == set(), (
+            "tokens in c4-diagram.html that diagram-c4-update never authors: "
+            f"{sorted(template_tokens - skill_tokens)}"
+        )
+        assert skill_tokens - template_tokens == set(), (
+            "tokens diagram-c4-update authors that c4-diagram.html lacks: "
+            f"{sorted(skill_tokens - template_tokens)}"
+        )
+
+    def test_grid_constants_agree(self):
+        template, skill = self.template_text(), self.skill_text()
+        for prop in self.GRID_PROPS:
+            m = re.search(rf"{prop}:\s*(\d+)px", template)
+            assert m, f"c4-diagram.html: CSS custom property {prop} not found"
+            assert m.group(1) in skill, (
+                f"{prop} is {m.group(1)}px in the template but that number does "
+                "not appear in the SKILL.md grid contract"
+            )
+
+    def test_grid_geometry_is_consistent(self):
+        # Non-overlap is meant to be a theorem, not a hope: every box is
+        # exactly one cell, so distinct cells give disjoint rectangles only if
+        # the pitch exceeds the box. The boundary chrome then has to fit in the
+        # leftover gutter, or a dashed boundary border collides with the
+        # neighbouring box it is supposed to sit beside.
+        template = self.template_text()
+
+        def px(prop):
+            m = re.search(rf"{prop}:\s*(\d+)px", template)
+            assert m, f"c4-diagram.html: {prop} not found"
+            return int(m.group(1))
+
+        col_pitch, row_pitch = px("--c4-col-pitch"), px("--c4-row-pitch")
+        box_w, box_h = px("--c4-box-w"), px("--c4-box-h")
+        pad, pad_nested = px("--c4-bpad"), px("--c4-bpad-nested")
+        label_h = px("--c4-blabel")
+
+        assert col_pitch > box_w, f"column pitch {col_pitch} must exceed box width {box_w}"
+        assert row_pitch > box_h, f"row pitch {row_pitch} must exceed box height {box_h}"
+
+        col_gap, row_gap = col_pitch - box_w, row_pitch - box_h
+        assert pad <= col_gap / 2 - 1, (
+            f"boundary padding {pad}px does not fit the {col_gap}px column gutter — "
+            "two side-by-side boundaries would overlap"
+        )
+        assert pad + label_h <= row_gap / 2 - 1, (
+            f"boundary padding + label ({pad + label_h}px) does not fit the "
+            f"{row_gap}px row gutter — the label would sit on the box above"
+        )
+        assert pad_nested < pad, (
+            "nested boundary padding must be smaller than the outer padding, "
+            "or the two rings render on top of each other"
+        )
+
+    def test_edge_resting_behaviour_is_per_view(self):
+        # Two modes, chosen by the level. Landscape, context and container
+        # views draw every edge at rest and fade the unpicked ones back — they
+        # are small enough that the whole web reads at a glance. Component
+        # views draw nothing until a box is picked: a container with twenty
+        # peers can carry fifty relationships, which no amount of fading
+        # rescues.
+        template = self.template_text()
+
+        base = re.search(r"#wires path \{([^}]*)\}", template)
+        assert base, "c4-diagram.html: #wires path base rule not found"
+        rest = re.search(r"opacity:\s*([\d.]+)", base.group(1))
+        assert rest and float(rest.group(1)) > 0, (
+            "ambient mode must draw edges at rest — container and component "
+            "views show their relationships"
+        )
+        for cls in ("hl", "dm"):
+            assert f"#wires path.{cls}" in template, f"missing #wires path.{cls}"
+
+        # The quiet mode is scoped to a stage attribute, never global.
+        quiet = re.findall(r'#stage\[data-edges="hidden"\][^{]*\{([^}]*)\}', template)
+        assert quiet, 'c4-diagram.html: no #stage[data-edges="hidden"] rules'
+        assert any(re.search(r"opacity:\s*0\s*[;}]", q) for q in quiet), (
+            "quiet mode must zero the resting edges"
+        )
+        assert any(re.search(r"opacity:\s*1\s*[;}]", q) for q in quiet), (
+            "quiet mode must still reveal the picked box's edges"
+        )
+        assert re.search(
+            r'stage\.dataset\.edges = \w+ \? "hidden" : "ambient"', template), (
+            "the engine must select the mode from the view kind"
+        )
+        assert re.search(r'const quiet = view\.kind === "component"', template), (
+            "quiet mode must be chosen by view kind — the component board is "
+            "the dense one; higher views show their edges at rest"
+        )
+        # Keyboard users must get the same reveal as pointer users.
+        for evt in ('"mouseenter"', '"mouseleave"', '"focus"', '"blur"'):
+            assert f"addEventListener({evt}, () => setHover(" in template, (
+                f"c4-diagram.html: {evt} does not drive setHover"
+            )
+
+    def test_arrows_stand_off_the_boxes(self):
+        # An arrowhead touching or piercing a box reads as a rendering fault.
+        # Three things have to hold together: the endpoints are inset by a
+        # gap, the marker's reference point is the arrow TIP (so the tip does
+        # not overshoot by one stroke-width, which would grow when an edge is
+        # highlighted), and a scope ring — painted outside offsetWidth, so
+        # invisible to the geometry — is added to the gap.
+        template = self.template_text()
+
+        assert re.search(r"--c4-edge-gap:\s*\d+px", template), "no --c4-edge-gap"
+        assert re.search(r"--c4-scope-ring:\s*\d+px", template), "no --c4-scope-ring"
+        assert "var(--c4-scope-ring)" in template, (
+            "the scope ring width must come from the variable, or the gap "
+            "silently stops matching the ring it compensates for"
+        )
+        markers = re.findall(r"<marker\b[^>]*>", template, re.S)
+        assert markers, "c4-diagram.html: arrow markers not found"
+        for m in markers:
+            assert 'refX="0"' in m, (
+                "marker refX must be 0 so the arrowhead's BASE sits on the path "
+                "end — anything else draws the line through the head to its tip"
+            )
+            assert 'markerUnits="userSpaceOnUse"' in m, (
+                "arrowheads must be sized in px, not stroke-widths, or they "
+                "grow when an edge is highlighted and eat the standoff"
+            )
+        # The head extends forward from the path end, so the receiving end has
+        # to back off by its length on top of the gap.
+        assert re.search(r'const ARROW = parseFloat\(\s*document\.getElementById\("m-sync"\)'
+                         r'\.getAttribute\("markerWidth"\)\)', template), (
+            "arrow length must be read off the marker, not restated in the JS"
+        )
+        assert "function edgeGap(" in template, "no per-endpoint gap helper"
+        assert re.search(r"const ga = edgeGap\(r\.sourceId\), "
+                         r"gb = edgeGap\(r\.destinationId\) \+ ARROW", template), (
+            "the destination endpoint must also back off by the arrow length"
+        )
+        for axis in ("x1", "x2", "y1", "y2"):
+            assert re.search(rf"{axis} = dir > 0 \? .*g[ab].*: .*g[ab]", template), (
+                f"{axis} is not offset by an endpoint gap"
+            )
+        assert not re.search(r"\.el:hover \{[^}]*transform:", template), (
+            "a hover transform moves the box but not its edges, which are laid "
+            "out from offsetTop/offsetLeft — the gap would shift on hover"
+        )
+
+    def test_runs_in_any_repo(self):
+        # The whole point of this skill versus diagram-update. Copy-paste from
+        # the sibling would silently import a refusal that breaks every repo
+        # except this one.
+        skill = self.skill_text()
+        assert "only runs inside the dev-skills" not in skill, (
+            "diagram-c4-update must not carry diagram-update's repo refusal"
+        )
+        assert re.search(r"any repo|any project|software repo", skill, re.I), (
+            "diagram-c4-update never states that it runs outside this repo"
+        )
+
+    def test_c4_notation_rules_are_enforced(self):
+        # docs/c4-model.md 8 and 9: these are what separate a C4 diagram from
+        # an unlabelled box drawing, and they are the skill's job to guarantee.
+        skill = self.skill_text().lower()
+        for rule, needle in (
+            ("a mandatory legend", "legend"),
+            ("per-element technology", "technology"),
+            ("no bare 'Uses' relationship labels", '"uses"'),
+            ("unidirectional relationships", "unidirectional"),
+        ):
+            assert needle in skill, f"diagram-c4-update never mentions {rule}"
+
+    def test_reciprocal_links_declared_on_both_sides(self):
+        # Two links pointing opposite ways, each resolved from the filesystem
+        # so neither skill has to know the other exists.
+        for token, skill_file, template in (
+            ("C4_WORKFLOW_LINK", C4_SKILL, C4_TEMPLATE),
+            ("WORKFLOW_C4_LINK", WORKFLOW_SKILL, WORKFLOW_TEMPLATE),
+        ):
+            assert f"{{{{{token}}}}}" in template.read_text(), (
+                f"{template.name}: {{{{{token}}}}} missing"
+            )
+            assert f"{{{{{token}}}}}" in skill_file.read_text(), (
+                f"{skill_file.parent.name}: {{{{{token}}}}} undocumented"
+            )
+
+    def test_frontmatter(self):
+        m = re.match(r"---\n(.*?)\n---\n", self.skill_text(), re.DOTALL)
+        assert m, "diagram-c4-update: missing frontmatter"
+        frontmatter = m.group(1)
+        assert re.search(r"^user-invocable:\s*true\s*$", frontmatter, re.MULTILINE), (
+            "diagram-c4-update must be user-invocable"
+        )
+        # Skills run on the user's current session model/effort; hardcoded pins
+        # are a plugin-wide invariant violation (CLAUDE.md).
+        for pin in ("model", "effort"):
+            assert not re.search(rf"^{pin}:", frontmatter, re.MULTILINE), (
+                f"diagram-c4-update pins {pin} in frontmatter"
+            )
+
+    def test_template_is_self_contained(self):
+        # The rendered page must work offline from file:// — no CDN, no fonts,
+        # no remote images.
+        offenders = re.findall(
+            r'(?:src|href)="(https?://[^"]+)"', self.template_text()
+        )
+        assert not offenders, f"c4-diagram.html references external hosts: {offenders}"
+
+    def test_does_not_call_lessons_capture(self):
+        # Same reasoning as diagram-update and bug-submit: a rendering skill's
+        # reflection overhead is not worth it. Checked structurally rather than
+        # by absence of the string — the SKILL.md *documents* the decision, and
+        # that sentence is worth keeping. Without the Skill tool it cannot
+        # invoke another skill at all, the feature-mockup precedent.
+        skill = self.skill_text()
+        m = re.match(r"---\n(.*?)\n---\n", skill, re.DOTALL)
+        tools = re.search(r"^allowed-tools:\s*(.+)$", m.group(1), re.MULTILINE)
+        assert tools, "diagram-c4-update: no allowed-tools line"
+        assert not re.search(r"\bSkill\b", tools.group(1)), (
+            "diagram-c4-update holds the Skill tool, so it could invoke "
+            "lessons-capture; drop the tool or revisit the decision"
+        )
+        assert re.search(r"does \*\*not\*\* call `lessons-capture`", skill), (
+            "diagram-c4-update should state that it does not call lessons-capture"
         )
 
 

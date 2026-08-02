@@ -66,7 +66,7 @@ For each hook: its trigger events, what the script actually does (read the scrip
 
 ## Step 5 — Author the data blocks
 
-All presentation and interaction — cards, pop-ups, hover-revealed connectors, brackets, badges, the overview engine, legend, theming — lives in the template located in Step 1. This step authors **data only**: the seven values Step 6 substitutes into the template's anchored tokens.
+All presentation and interaction — cards, pop-ups, hover-revealed connectors, brackets, badges, the overview engine, legend, theming — lives in the template located in Step 1. This step authors **data only**: the eight values Step 6 substitutes into the template's anchored tokens.
 
 | Token | Value |
 |---|---|
@@ -77,6 +77,7 @@ All presentation and interaction — cards, pop-ups, hover-revealed connectors, 
 | `DIAGRAM_EDGES` | JS array literal — `{ f, t, ty, l }`: `f`/`t` are `"slug.step"` (preferred — chips and hover anchoring depend on step precision) or a bare `"slug"` (anchors to the card header); `ty` ∈ `call\|chain\|hand\|loop\|data`; `l` is a short label. |
 | `OVERVIEW_NODES` | JS array literal — `{ slug, x, y }` for the skills-only overview: **every skill and hook exactly once**; `x` in percent, `y` in px. Lay the chained pipeline left-to-right on one row, shared internal helpers as a hub row beneath it, remaining groups in rows below, utilities on the right. |
 | `OVERVIEW_EDGES` | JS array literal — `{ f, t, ty, l, bend? }` with bare slugs; `bend` (px, negative = above) arcs a same-row edge clear of the nodes between. Leave the converging call fans unlabelled; label the load-bearing chain / handover / loop / data edges. |
+| `WORKFLOW_C4_LINK` | `<a class="vchip" href="c4.html">architecture diagram &#8594;</a>` when `<repo_root>/diagram/c4.html` exists (`test -f`), otherwise the empty string. Resolved from the filesystem alone — this skill never inspects `/diagram-c4-update`, so the two stay independently re-derivable. |
 
 Authoring conventions — each of these came out of a real review round; keep honouring them:
 
@@ -89,7 +90,7 @@ Authoring conventions — each of these came out of a real review round; keep ho
 
 ## Step 6 — Render from the template
 
-- `Read` `template_file` in full and verify all seven anchored tokens are present — the five data anchors (`const GROUPS = {{DIAGRAM_GROUPS}};` and siblings) plus the two header tokens. If any is missing, stop and report that the template has drifted from this skill's contract; fix template and SKILL.md together (see *Modification points*), never improvise around it.
+- `Read` `template_file` in full and verify all eight anchored tokens are present — the five data anchors (`const GROUPS = {{DIAGRAM_GROUPS}};` and siblings) plus the three header tokens. If any is missing, stop and report that the template has drifted from this skill's contract; fix template and SKILL.md together (see *Modification points*), never improvise around it.
 - Substitute each token with its Step 5 value.
 - `mkdir -p "<repo_root>/diagram"`, then `Write` the substituted result wholesale to `<repo_root>/diagram/index.html`. Do not keep backups of the old file; git history is the record.
 - A normal run's only write is `diagram/index.html`: never modify the template, and never hand-tune the engine markup/CSS/JS in the output.
@@ -98,7 +99,7 @@ Authoring conventions — each of these came out of a real review round; keep ho
 
 Static sanity checks on the file just written (fix and re-verify on any failure):
 
-- None of the seven template tokens remains literal in the output. Grep for the exact anchored names (`{{DIAGRAM_SKILLS}}` etc.), **not** for bare `{{` — at least one step description legitimately contains a `{{…}}` figure of speech.
+- None of the eight template tokens remains literal in the output. Grep for the exact anchored names (`{{DIAGRAM_SKILLS}}` etc.), **not** for bare `{{` — at least one step description legitimately contains a `{{…}}` figure of speech. Note that `{{WORKFLOW_C4_LINK}}` is correctly substituted with the *empty string* when there is no `diagram/c4.html`: check that the token is gone, never that it left something behind.
 - Every skill folder under `skills/` appears exactly once as a card (Grep the file for each slug).
 - The number of step boxes per skill matches the steps extracted in Step 3.
 - Every step box has corresponding pop-up content, and every edge references element ids that exist in the file.

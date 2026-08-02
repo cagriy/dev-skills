@@ -34,6 +34,11 @@
                      skill/hook exactly once
     OVERVIEW_EDGES   JS array: { f, t (bare slugs), ty, l,
                        bend? (px arc for same-row edges, negative = up) }
+    WORKFLOW_C4_LINK anchor markup linking to a sibling C4 architecture
+                     diagram (diagram/c4.html, written by
+                     /diagram-c4-update), or "" when there is none.
+                     Resolved from the filesystem, so this skill never
+                     has to know the other one exists.
 
   Modification points:
     - DATA changes (skills, steps, edges, layout) flow through
@@ -116,6 +121,8 @@
     background: var(--surface-2); border: 1px solid var(--border);
     color: var(--muted); padding: 3px 10px; border-radius: 999px;
   }
+  a.vchip { text-decoration: none; }
+  a.vchip:hover { color: var(--text); border-color: var(--subtle); }
   h1 { margin: 12px 0 6px; font-size: 30px; letter-spacing: -.02em; line-height: 1.15; }
   .intro { max-width: 900px; color: var(--muted); margin: 0; }
 
@@ -347,9 +354,10 @@
 <div id="page">
   <header class="top">
     <div class="chiprow">
-      <span class="vchip">dev-skills v0.3.31</span>
-      <span class="vchip">generated 2026-07-31 08:15 UTC</span>
+      <span class="vchip">dev-skills v0.3.34</span>
+      <span class="vchip">generated 2026-08-02 15:47 UTC</span>
       <span class="vchip">by /diagram-update</span>
+      <a class="vchip" href="c4.html">architecture diagram &#8594;</a>
     </div>
     <h1>dev-skills — end-to-end workflow</h1>
     <p class="intro">The overview below shows how the skills connect end-to-end; the detailed cards underneath break each skill into its procedure steps. <strong>Click a step</strong> for what it does and who can invoke its skill; <strong>hover a step</strong> to reveal its connectors to other steps and skills (hidden otherwise). Amber-edged steps are human approval gates; dashed amber arrows show where the flow goes back when something fails.</p>
@@ -470,7 +478,13 @@ const GROUPS = [
     "id": "util",
     "name": "Maintenance & utilities",
     "accent": "#d97706",
-    "desc": "apply captured lessons, regenerate this diagram, push and release"
+    "desc": "apply captured lessons, push and release"
+  },
+  {
+    "id": "diagrams",
+    "name": "Diagrams",
+    "accent": "#65a30d",
+    "desc": "two renderers, each pairing a skill with a template it owns no pixel of: this plugin's own workflow, and a C4 model of whatever project you run it in"
   },
   {
     "id": "hooks",
@@ -642,7 +656,7 @@ const SKILLS = [
         "k": "4",
         "t": "Clarify decisions",
         "gate": true,
-        "d": "An interview that runs until the design is fully determined, not a fixed handful of questions. It works through a coverage list — scope, acceptance criteria, the observable behaviour of each requirement, approach choices with their measurable trade-offs, constraints, data and state, interfaces and integration points, failure behaviour, scale and concurrency, permissions and trust boundaries, operability — asking you whatever is genuinely your call and deciding the rest from the grounding, recorded with its rationale rather than assumed. It exits on a readiness test: a dry-drafted design section with no guesses or hedge language, an empty open-questions section, every storm question closed, two engineers would build the same thing, and a round that surfaced nothing new. Every open question left by the storm has to be closed here. Like the storm's discussion round, this runs even under autonomous instructions."
+        "d": "An interview that runs until the design is fully determined, not a fixed handful of questions. It works through a coverage list \u2014 scope, acceptance criteria, the observable behaviour of each requirement, approach choices with their measurable trade-offs, constraints, data and state, interfaces and integration points, failure behaviour, scale and concurrency, permissions and trust boundaries, operability \u2014 asking you whatever is genuinely your call and deciding the rest from the grounding, recorded with its rationale rather than assumed. It exits on a readiness test: a dry-drafted design section with no guesses or hedge language, an empty open-questions section, every storm question closed, two engineers would build the same thing, and a round that surfaced nothing new. Every open question left by the storm has to be closed here. Like the storm's discussion round, this runs even under autonomous instructions."
       },
       {
         "k": "5a",
@@ -1358,7 +1372,7 @@ const SKILLS = [
   },
   {
     "slug": "diagram-update",
-    "g": "util",
+    "g": "diagrams",
     "inv": "both",
     "purpose": "Regenerates this diagram from whatever is on disk \u2014 every skill, hook and template re-read, the page rebuilt wholesale from its template.",
     "steps": [
@@ -1391,7 +1405,7 @@ const SKILLS = [
       {
         "k": "5",
         "t": "Author data",
-        "d": "Writes data only \u2014 groups, skills with their steps, edges, and the overview layout. All presentation and interaction lives in the template, which owns the cards, pop-ups, hover connectors, brackets, badges and theming. Counts are computed by the page, never authored."
+        "d": "Writes data only \u2014 groups, skills with their steps, edges, and the overview layout, plus a link to the sibling C4 page when one exists. All presentation and interaction lives in the template, which owns the cards, pop-ups, hover connectors, brackets, badges and theming. Counts are computed by the page, never authored."
       },
       {
         "k": "6",
@@ -1401,12 +1415,82 @@ const SKILLS = [
       {
         "k": "7",
         "t": "Verify output",
-        "d": "Checks the written file: no token left literal, every skill folder present exactly once as a card, step counts matching the extraction, every edge pointing at ids that exist, no external references anywhere, and a legend covering everything actually used. Failures are fixed and re-verified."
+        "d": "Checks the written file: no token left literal, every skill folder present exactly once as a card, step counts matching the extraction, every edge pointing at ids that exist, no external references anywhere, and a legend covering everything actually used. The sibling-page link is legitimately substituted with nothing when there is no C4 page, so the check is that the token is gone \u2014 not that it left something behind."
       },
       {
         "k": "8",
         "t": "Report",
         "d": "Prints one line with the skill, step, edge, gate, loop-back and fan-out counts, and stops. The regenerated diagram is left as a working-tree change for you to review and commit."
+      }
+    ]
+  },
+  {
+    "slug": "diagram-c4-update",
+    "g": "diagrams",
+    "inv": "both",
+    "purpose": "Builds a C4 model of whatever project you run it in and renders one self-contained page you drill down through: system context, to containers, to components.",
+    "steps": [
+      {
+        "k": "0",
+        "t": "Confirm invocation",
+        "gate": true,
+        "d": "When the model reaches for this skill on its own rather than you typing the command, it stops and asks first. Nothing is read or written until you say yes. Typing the command yourself skips the question entirely."
+      },
+      {
+        "k": "1",
+        "t": "Resolve paths",
+        "d": "Finds the project root, falling back to the current directory when this is not a git repo \u2014 a folder of architecture documents is a legitimate target. Reads the optional mode: nothing for a normal run, \"fresh\" to re-derive everything, \"render\" to redraw the model already on disk. Whether a previous model exists decides if this run reconciles or starts cold."
+      },
+      {
+        "k": "2",
+        "t": "Classify repo",
+        "d": "Works out what kind of project this is from the files present: a conventional software project with manifests and deploy descriptors, a plugin or agent-asset repo, or a repo that is only architecture documents. The answer decides what gets read next and nothing else. An existing formal C4 model in any format outranks inference."
+      },
+      {
+        "k": "3",
+        "t": "Harvest evidence",
+        "d": "Reads the sources that classification selected, collecting candidate people, systems, containers and relationships. Every candidate carries a pointer to the file and line that justifies it. Anything that cannot be cited is not a candidate \u2014 it is reported as unmodelled rather than guessed onto the page."
+      },
+      {
+        "k": "4",
+        "t": "Derive model",
+        "d": "Turns candidates into a C4 model by asking what is separately deployable: a unit with its own process is a container, anything living inside another unit's process is a component. External systems are modelled at their boundary, never their internals. Every container and component gets a technology taken from a real manifest, never a guessed one."
+      },
+      {
+        "k": "5",
+        "t": "Reconcile model",
+        "d": "When a model file already exists the freshly derived one is merged into it rather than replacing it. Hand-tuned positions and recorded decisions survive; elements that have vanished from the project are retired with a date rather than deleted. This is what makes re-running safe after you have nudged the layout by hand."
+      },
+      {
+        "k": "6",
+        "t": "Close decisions",
+        "gate": true,
+        "d": "One round of questions, at most four, covering only what the code cannot answer: where the system boundary sits, whether several services are one system or many, how much component detail you want, and how to treat queues. Options are derived from the project's real structure and carry a recommendation. There is never a second round \u2014 anything unanswered falls back to a documented default, recorded as the skill's call rather than yours."
+      },
+      {
+        "k": "7",
+        "t": "Place on grid",
+        "d": "Gives every element an integer cell on a fixed grid, so boxes cannot overlap by construction. Rows carry meaning rather than being free integers: people at the top, what they use below, data stores low, external systems at the edges. Groups of components become dashed boundary rectangles, never boxes of their own."
+      },
+      {
+        "k": "8",
+        "t": "Write and render",
+        "d": "Writes the model as JSON in a format Structurizr can still open, then substitutes it into the plugin's C4 template to produce the page. The template owns every pixel; this step supplies only data. The page is overwritten wholesale, the model is not."
+      },
+      {
+        "k": "9",
+        "t": "Verify output",
+        "d": "Checks the files actually written rather than the intent. Every relationship must resolve, every container and component must carry a technology, every arrow must have a direction-matching label that is not a bare \"Uses\", the page must carry a legend, no two elements may share a cell, and every unit found on disk must either appear or be named as deliberately not modelled."
+      },
+      {
+        "k": "10",
+        "t": "Report",
+        "d": "Prints one block: the repo class, element and view counts, what changed since the last run, which decisions were yours and which the skill's, and anything left unmodelled for want of evidence."
+      },
+      {
+        "k": "11",
+        "t": "Offer next look",
+        "d": "Says in one line what was added or retired and points at the page's decisions panel. It does not open the file, does not commit, and does not offer to."
       }
     ]
   },
@@ -1788,6 +1872,18 @@ const EDGES = [
     "t": "feature-implement.3",
     "ty": "data",
     "l": "sync before work"
+  },
+  {
+    "f": "diagram-update.5",
+    "t": "diagram-c4-update",
+    "ty": "data",
+    "l": "links to c4.html when present"
+  },
+  {
+    "f": "diagram-c4-update.8",
+    "t": "diagram-update",
+    "ty": "data",
+    "l": "links back to index.html"
   }
 ];
 
@@ -2141,22 +2237,27 @@ const OV_NODES = [
   },
   {
     "slug": "diagram-update",
-    "x": 8,
+    "x": 6,
+    "y": 332
+  },
+  {
+    "slug": "diagram-c4-update",
+    "x": 22,
     "y": 332
   },
   {
     "slug": "push",
-    "x": 27,
+    "x": 46,
     "y": 332
   },
   {
     "slug": "release",
-    "x": 40,
+    "x": 59,
     "y": 332
   },
   {
     "slug": "remote-check",
-    "x": 60,
+    "x": 76,
     "y": 332
   }
 ];
@@ -2314,6 +2415,20 @@ const OV_EDGES = [
     "t": "feature-implement",
     "ty": "data",
     "l": "sync before work"
+  },
+  {
+    "f": "diagram-update",
+    "t": "diagram-c4-update",
+    "ty": "data",
+    "l": "links to c4",
+    "bend": -44
+  },
+  {
+    "f": "diagram-c4-update",
+    "t": "diagram-update",
+    "ty": "data",
+    "l": "links back",
+    "bend": 44
   }
 ];
 
