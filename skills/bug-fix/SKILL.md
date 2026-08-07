@@ -44,6 +44,8 @@ This skill modifies code and creates a commit — proactive invocation without a
 
 Check the most recent user message for the literal tag `<command-name>/bug-fix</command-name>` (or a leading `/bug-fix` the user typed). If present, the user explicitly opted in — skip this step and continue with Step 2.
 
+Also treat as opt-in (and skip this step) if the user, earlier in **this** conversation, explicitly approved fixing **this** bug — for example by choosing an `AskUserQuestion` option that named the bug and said to fix it, or by affirming a proposal of yours that did. Note the prior approval in one line of chat instead of re-asking; a fresh confirmation seconds after the user asked for exactly this is friction, not safety. **This does not extend to Step 5.** An approval given before the root cause was known cannot be approval of a fix nobody had seen yet, so Step 5's fix approval still happens on its own terms.
+
 Otherwise (proactive invocation), call `AskUserQuestion` once, naming the selected bug:
 
 - Question: "Fix bug #<N>: <title>? This will diagnose the root cause, modify code test-first, and on confirmation archive the bug and make one commit (no push)."
@@ -58,11 +60,12 @@ Build an accurate mental model before forming any theory. Read, don't skim:
 - The code paths the bug's triage points at — and read them **end to end**, following the actual control flow, not just the named function. (Per the debugging discipline: understand the path fully before hypothesising.)
 - Project orientation: `README`, `CLAUDE.md`, and any `docs/` relevant to the affected area.
 - **The last feature.** Check `features/` for the highest-version `feature-v<N>-*` folder and skim its design / plan / implement notes — a freshly shipped feature is a common source of new bugs, and its docs explain intended behaviour.
+- **The intent document, whenever the report questions whether the behaviour is a defect at all.** If it reads as "is this broken, or is this how it's meant to work?" — or borders on a feature request — go to whatever states intent for *that* area (the original design or goals doc, that feature's own design under `features/`, a product spec), not just the most recent feature. Explicit documented intent is what turns Step 4's works-as-intended disposition into an evidence-backed close rather than an opinion.
 - Recent history around the affected files: `git log --oneline -10 -- <path>` and `git log -p -1 -- <path>` where useful, to see what changed and why.
 
 Detect the project's tooling so you can run tests later — language-agnostic, read it from manifests + CI config (e.g. `package.json` scripts, `Makefile`, `pyproject.toml`, `cargo`, CI workflow files). Record the commands you'll reuse: `TEST`, and where they exist `LINT`, `TYPE_CHECK`, `BUILD`.
 
-Establish a **baseline**: run `TEST` (and `LINT` if quick) once now and record what already passes/fails. Pre-existing unrelated failures are not yours to fix and must not later be mistaken for a regression caused by your change.
+Establish a **baseline**: run `TEST` (and `LINT` if quick) and record what already passes/fails. Pre-existing unrelated failures are not yours to fix and must not later be mistaken for a regression caused by your change. **Start that run in the background before the reading above, not after it.** None of the grounding depends on its result, so a slow suite otherwise stalls the run for minutes doing nothing; collect the result before you start diagnosing in Step 4. Its role as the regression reference is unchanged.
 
 ## Step 3 — Review the bug and clarify with the user
 

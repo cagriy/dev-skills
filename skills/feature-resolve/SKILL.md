@@ -76,6 +76,13 @@ Apply the rules in this priority order. The first matching rule wins.
 
 **Rule C — No `version=` argument, the latest folder LACKS this stage's file.** The latest feature is still in progress on this stage.
 
+**Guard — a missing stage file may mean the stage was *skipped*, not left pending.** Check what else the latest folder holds before treating it as in-progress. For `stage=storm` and `stage=design` **only** (plan and implement cannot create a new feature, so the guard does not apply to them), fall straight through to **Rule D** — create-new at `N_max + 1`, without asking — when either of these holds:
+
+- **The latest folder contains a *later* stage's file** — `design`, `plan` or `implement` when `stage=storm`; `plan` or `implement` when `stage=design`. That feature started cold at a later stage, so its earlier stage was skipped rather than left pending, and continuing this stage into it is never the right answer. Expect this after any feature that began at `/feature-design`.
+- **The latest folder contains no stage file at all *and* no `feature-v<N>-tracker.html`**, and a `description=` differing from the folder's was provided. A folder this resolver created always carries a seeded tracker, so one with neither is out-of-band — a stray or hand-made directory, not a feature awaiting its first stage.
+
+In both cases there is exactly one sensible outcome, so the `AskUserQuestion` below would cost a round-trip and buy nothing. Record what happened in `notes` (e.g. `latest v<N_max> skipped <stage> — created new feature instead`) so the caller can surface the reasoning. Everything below applies only when the guard did **not** fire.
+
 - For `plan`/`implement`: also confirm the prerequisite stage file exists in `latest`. If not, stop with an error naming the missing prerequisite.
 - If `description=` was provided and matches `latest.description`, proceed with mode = **continue-existing**, version = `N_max`, folder = `latest.folder_path`.
 - If `description=` was provided and **differs** from `latest.description`: ask via `AskUserQuestion` — "Continue into `feature-v<N_max>-<latest.description>/` (folder name wins) or start a new feature `feature-v<N_max+1>-<new-desc>/`?" Honor the choice.
@@ -114,11 +121,13 @@ The tracker file path is `<folder_path>/feature-v<N>-tracker.html`.
 - If it does not exist, copy the plugin's template into place. Locate the template by searching the plugin install location:
 
   ```
-  find ~ -path "*/dev-skills/templates/feature-tracker.html" 2>/dev/null
+  find ~ -path "*dev-skills*/templates/feature-tracker.html" 2>/dev/null
   ```
 
+  - **First, try the running plugin's own copy** — no search needed. This skill's base directory was announced when it was invoked (`…/dev-skills/<version>/skills/feature-resolve`), so the template sits two levels up at `<base>/../../templates/feature-tracker.html`. If that file exists, use it: it is by definition the template matching the running plugin version.
+  - Otherwise run the `find` above. The `*dev-skills*` form is deliberate — an installed plugin lives at `…/plugins/cache/<marketplace>/dev-skills/<version>/templates/`, and the narrower `*/dev-skills/templates/…` pattern silently misses it, matching only a working clone.
   - If exactly one match: `cp <match> <folder_path>/feature-v<N>-tracker.html`.
-  - If multiple matches (e.g. `~/.claude/plugins/...` and a working clone in `~/Git/...`): prefer the one under `~/.claude/plugins/` since that is the installed plugin. If ambiguous, ask the user via `AskUserQuestion` which template to use.
+  - If multiple matches: prefer one under a `plugins/cache/` path (an installed plugin) at the **highest** version over a working clone. Do not key this on `~/.claude/` — a profile directory can live elsewhere (e.g. synced under `~/Library/Mobile Documents/`), and several versions are normally cached side by side. Ask the user via `AskUserQuestion` only if a genuine tie remains.
   - If zero matches: do not fail the whole resolution — emit a note in the output (`tracker_seed: skipped — template not found`) and let the caller decide whether to populate the tracker from scratch.
 
 Do **not** substitute any tokens (`{{FEATURE_VERSION}}`, etc.) — token replacement is the calling skill's responsibility. Tracker file lives as a raw template until each stage fills in its own section.

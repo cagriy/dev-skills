@@ -19,11 +19,13 @@ The tracker is a **generated artefact**: it carries no state of its own, so this
 - Locate the plugin template (mirror `feature-resolve`):
 
   ```bash
-  find ~ -path "*/dev-skills/templates/feature-tracker.html" 2>/dev/null
+  find ~ -path "*dev-skills*/templates/feature-tracker.html" 2>/dev/null
   ```
 
+  - **Try the running plugin's own copy first** — this skill's announced base directory is `…/dev-skills/<version>/skills/bug-tracker-render`, so the template is at `<base>/../../templates/feature-tracker.html`. Use it if it exists; no search needed, and it matches the running plugin version.
+  - Otherwise run the `find` above. The `*dev-skills*` form is deliberate — installed plugins live at `…/dev-skills/<version>/templates/`, which the narrower `*/dev-skills/templates/…` pattern silently misses.
   - Exactly one match → use it.
-  - Multiple matches → prefer the one under `~/.claude/plugins/` (the installed plugin).
+  - Multiple matches → prefer one under a `plugins/cache/` path at the **highest** version over a working clone. Don't key this on `~/.claude/`: a profile directory can live elsewhere, and versions are cached side by side.
   - Zero matches → do **not** fail. Output `bug-tracker-render: skipped — template not found` and stop. The bug folders are the durable record regardless.
 
 `tracker_file` = `<repo_root>/bugs/bugs-tracker.html`.
@@ -36,6 +38,8 @@ cp "<template>" "<tracker_file>"
 ```
 
 Always overwrite — the tracker holds no state of its own; everything is re-derived below.
+
+**Then `Read` the copied file once, before any `Edit` call.** The copy was made by a shell command, so the `Edit` tool has no read-state for it and *every* substitution below fails on its first attempt otherwise — roughly seventeen wasted tool calls per regeneration, all of which then have to be retried. Reading any portion of the file is enough to satisfy this; read it once here rather than discovering the problem at the first token.
 
 ## Step 3 — Set the bug-tracker chrome
 

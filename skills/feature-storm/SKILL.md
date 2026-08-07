@@ -46,7 +46,7 @@ Resolve the requirements statement:
 
 You must have a real requirements statement before continuing. If the user declines to provide one (e.g. answers "nevermind"), stop the skill cleanly with no files written.
 
-**Ground brownfield requirements before clarifying.** If the requirements cite prior feature versions (e.g. `v9`, `v11`) or existing code/config symbols, or propose changing the current repo's existing behaviour, do a quick grounding read of those (the prior storm/design docs, the named symbols, or the relevant code path) before the Step 3 clarification round — enough to make the questions and their options fact-based. Stay at product altitude: you're confirming what exists and what's load-bearing, not designing. Grounding covers external references too: fetch and read any linked design/spec artifact the brief cites (mockups, design-tool links, shared specs) before the Step 3 round, and when a named third-party service or API is load-bearing and the user's assumption about it is unverified (auth model, sync vs async, key handling), do a quick docs/web feasibility check first — the questions must be fact-based from the first round.
+**Ground brownfield requirements before clarifying.** If the requirements cite prior feature versions (e.g. `v9`, `v11`) or existing code/config symbols, name an existing feature area, plugin, tool namespace, or UI surface of this repo by its **everyday name rather than by symbol** (expect this to be the common case — users describe what they want colloquially, and a request naming no symbols at all can still sit on top of an architecture that cannot support it), or propose changing the current repo's existing behaviour, do a quick grounding read of those (the prior storm/design docs, the named symbols, or the relevant code path) before the Step 3 clarification round — enough to make the questions and their options fact-based. Stay at product altitude: you're confirming what exists and what's load-bearing, not designing. Grounding covers external references too: fetch and read any linked design/spec artifact the brief cites (mockups, design-tool links, shared specs) before the Step 3 round, and when a named third-party service or API is load-bearing and the user's assumption about it is unverified (auth model, sync vs async, key handling), do a quick docs/web feasibility check first — the questions must be fact-based from the first round.
 
 ## Step 2 — Resolve the feature folder via `feature-resolve`
 
@@ -111,7 +111,7 @@ Rules for generated ideas:
 
 ### Step 3b — Converge (clarify)
 
-Iteratively use `AskUserQuestion` (1–4 questions per call) to converge on the product picture. **Always present options with a recommendation** rather than open-ended prompts — the user can still pick "Other" to redirect. **Pace the bundle size to the user's footing:** for technically-uncertain or feasibility-gated features, open with the single highest-leverage question (or a short feasibility note) and expand to 3–4 question rounds only once the user is answering decisions rather than clarifying what's possible. **Sequence by dependency:** ask the foundational decisions whose answers constrain later questions first (e.g. where a component runs relative to its clients before how they communicate or authenticate), so a late-surfacing upstream fact doesn't invalidate answers already given. Cover at minimum:
+Iteratively use `AskUserQuestion` (1–4 questions per call) to converge on the product picture. **Always present options with a recommendation** rather than open-ended prompts — the user can still pick "Other" to redirect. **Verify any fact you put in an option.** Where an option description — or the reason your recommended option is the recommended one — rests on a claim about this codebase or an external service, confirm it with a quick search or read before the round goes out. A claim a later grep disproves costs you a reversal of your own recommendation mid-storm, which is more expensive than the ten seconds of checking and harder for the user to trust afterwards. **Pace the bundle size to the user's footing:** for technically-uncertain or feasibility-gated features, open with the single highest-leverage question (or a short feasibility note) and expand to 3–4 question rounds only once the user is answering decisions rather than clarifying what's possible. **Sequence by dependency:** ask the foundational decisions whose answers constrain later questions first (e.g. where a component runs relative to its clients before how they communicate or authenticate), so a late-surfacing upstream fact doesn't invalidate answers already given. Cover at minimum:
 
 - **Goals** — concrete outcomes the feature should achieve.
 - **Non-goals** — what is explicitly out of scope (deferred, not "won't ever do").
@@ -140,6 +140,8 @@ Anything else must be closed before the gate. If the same item is still unsettle
 ## Step 4 — Summarise and gate on approval
 
 You may only arrive here with the scope check at the end of Step 3 passed — every capability discussed is either in this version or explicitly deferred. If drafting the summary surfaces an item you cannot place on that boundary, go back to Step 3 and close it; do not present it as a hedge.
+
+Before drafting, re-read the project's own stated principles — its instruction or conventions file, an architecture charter, a stated product motto — and fold any that bear on this feature into the constraints bullet proactively. A project-wide principle the user takes as given is the likeliest thing to come back as a revise at this gate, and it is far cheaper to include than to be asked for.
 
 Produce a single ≤10-bullet summary of where the brainstorm has landed. Each bullet should be a complete, scannable statement (not a fragment). Aim to cover, in roughly this order: what the feature is, who it's for, top 1–2 goals, top 1–2 non-goals, scope boundary, key technical constraint(s), a notable risk or rejected alternative (when one exists), 1–2 open questions for design. Cut bullets rather than overshoot 10.
 
@@ -211,8 +213,13 @@ After writing, record the file's absolute path — Step 8 references it.
 `Read` the tracker file at `tracker_file`. The file should exist from Step 2; if it does not (e.g. `feature-resolve` noted `tracker_seed: skipped`), defensively copy the plugin template into place:
 
 ```bash
-find ~ -path "*/dev-skills/templates/feature-tracker.html" 2>/dev/null
-# cp the single match (or the ~/.claude/plugins/ one if multiple) to <tracker_file>
+# 1. Prefer the running plugin's own copy: this skill's announced base directory is
+#    .../dev-skills/<version>/skills/<slug>, so the template is at <base>/../../templates/.
+# 2. Else search — the *dev-skills* form is deliberate, since installed plugins live at
+#    .../dev-skills/<version>/templates/ which "*/dev-skills/templates/*" silently misses.
+find ~ -path "*dev-skills*/templates/feature-tracker.html" 2>/dev/null
+# cp the winner (base-dir copy first; else a plugins/cache/ match at the highest version;
+# else a working clone) to <tracker_file>. Copy, never symlink.
 ```
 
 If no template can be located, skip the tracker update and note that in the final summary — do **not** fail the whole skill on a missing template.
