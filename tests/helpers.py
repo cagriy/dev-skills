@@ -21,6 +21,10 @@ C4_TEMPLATE = TEMPLATES / "c4-diagram.html"
 WORKFLOW_SKILL = SKILLS / "diagram-update" / "SKILL.md"
 WORKFLOW_TEMPLATE = TEMPLATES / "workflow-diagram.html"
 
+# Model-only labelling helper. Its contract is a mix of herdr CLI facts (name
+# charset, --clear) and plugin invariants (silent skip, writes nothing).
+LABEL_SKILL = SKILLS / "set-herdr-label" / "SKILL.md"
+
 
 def fenced_blocks(text: str) -> list[str]:
     """All fenced code blocks in a markdown document, fence markers stripped."""

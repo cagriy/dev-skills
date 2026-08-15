@@ -33,6 +33,10 @@ If the user picks "No" or "Other", stop the skill immediately and do not start S
 
 ## Step 1 — Resolve the feature folder via `feature-resolve` *(main agent)*
 
+**Label the herdr pane.** Before anything else in this step, invoke `set-herdr-label` via the `Skill` tool with the single argument `feature-plan`, so a workspace of parallel agents shows which one is running this skill. It runs inline, writes nothing, prints nothing, and is a silent no-op outside a herdr terminal — **do not end your turn**, carry straight on with the rest of this step. It sits here rather than in Step 0 deliberately: a declined confirmation must never leave a label behind with no run to clear it.
+
+The label belongs to the main agent for the whole run. The planning subagent launched in Step 2 must never set or clear it — its brief does not mention it, and a subagent clearing the label mid-run would blank the pane while the plan is still being written.
+
 Parse `$ARGUMENTS` for an explicit version token only — `/feature-plan` does not take requirements text or a description (the description is authoritative from the feature folder; the requirements are authoritative from the design).
 
 - Look for a leading `v<N>` or `version <N>` (case-insensitive; bare `1` does **not** count — only `v1` / `v 1` / `version 1`). If found, record as `explicit_version` and strip from the input. Integer only — no minor versions.
@@ -78,7 +82,7 @@ The subagent starts with a fresh context and cannot see this conversation, so it
 
 When the subagent returns, verify before relaying:
 
-1. If the message starts with `BLOCKED:`, relay it to the user verbatim and stop — Step 11 does not run. (For a design-level blocker, the recommendation to the user is a new design version via `/feature-design`.)
+1. If the message starts with `BLOCKED:`, invoke `set-herdr-label` via the `Skill` tool with no argument to clear the label set in Step 1, then relay the message to the user verbatim and stop — Step 11 does not run, so this is the only place the label gets cleared on a halted run. (For a design-level blocker, the recommendation to the user is a new design version via `/feature-design`.)
 2. Otherwise run `test -f <stage_file>` — the plan file must exist. If it doesn't, or the final message isn't the Step 10 block, report the discrepancy to the user instead of relaying a success.
 3. If the summary's *Skill-improvement recommendations* line says lessons-capture was unavailable in the subagent, invoke `lessons-capture` via the `Skill` tool (argument `feature-plan`) from the main agent now, and substitute the returned entry into the summary before relaying.
 
@@ -381,6 +385,8 @@ Keep the block under ~35 lines — if the plan has more than 8 stages, group the
 
 First, output the subagent's Step 10 summary block to the user **verbatim** — do not compress, rewrite, or annotate it beyond fixing an obvious formatting break. This is the user's only view of the plan run.
 
+**Clear the herdr pane label.** Invoke `set-herdr-label` via the `Skill` tool with **no argument** — that clears the label set in Step 1 rather than setting a new one. Do this *before* the offer below, never after: whichever branch the user takes, this step can hand off or end without returning here, so a clear placed afterwards risks never running at all. It runs inline and prints nothing — **do not end your turn**, carry straight on.
+
 Then give the user a one-click way to continue into implementation. Call `AskUserQuestion` exactly once:
 
 - **question**: `"Continue with /feature-implement to build this plan stage-by-stage on the current branch?"`
@@ -409,6 +415,7 @@ Do not skip this step or substitute the AskUserQuestion with prose. The offer is
 - **Output path comes from `feature-resolve` only.** Never write to `docs/`, never construct `features/...` paths by hand. Step 1 is the single source of pathing.
 - **Integer versions only.** `v<N>` everywhere — no `v<N>.<M>`. The plan version matches the feature version; there is no separate plan minor-versioning.
 - **The design's open questions must be empty.** If design §8 has any open question, the run halts (`BLOCKED:`). The plan cannot resolve design ambiguity — only `/feature-design` can.
+- **Clear the herdr label before you stop.** However this run ends — normal completion, a `BLOCKED:` halt, a refusal, or an error surfaced to the user — invoke `set-herdr-label` with no argument before you stop. Step 11 covers the normal path and Step 2 covers the `BLOCKED:` relay; this covers every other one. A label that outlives its run leaves the pane advertising work that is no longer happening. The label is the main agent's alone — the planning subagent never touches it.
 - **TDD is non-optional for behavior-changing, host-testable stages.** Stages in a sanctioned non-red-first category (Step 5) carry their category label and one-line justification; everything else follows write → fail → code → pass.
 - **The planning core never prompts the user.** Steps 3–10 run without `AskUserQuestion` — in the subagent it is impossible, and the policy holds even in the direct-execution fallback. Only Steps 0, 1, and 11 may prompt, and only from the main agent.
 - **No silent scope or decision changes.** Divergence from the design lives in *Deviations from the design*; autonomous planning-level choices live in *Planning decisions taken*; both are surfaced in the Step 10 summary. Design-level ambiguity is never decided unilaterally — it halts.

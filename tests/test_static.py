@@ -15,6 +15,7 @@ from helpers import (
     DESIGN_SKILL,
     E2E_SKILL,
     FEATURE_SKILLS,
+    LABEL_SKILL,
     REPO,
     SKILLS,
     TEMPLATES,
@@ -712,6 +713,189 @@ class TestC4DiagramContract:
         assert re.search(r"does \*\*not\*\* call `lessons-capture`", skill), (
             "diagram-c4-update should state that it does not call lessons-capture"
         )
+
+
+class TestSetHerdrLabelContract:
+    """set-herdr-label is a model-only side-effect helper, not a chain skill.
+
+    Its contract has two halves that both break silently if edited casually.
+    The *plugin* half: model-only, writes nothing, no lessons-capture, no
+    Step 0 gate (it is invoked by the model mid-turn, so a gate would defeat
+    the point). The *herdr CLI* half: names are validated server-side against
+    ``^[a-z][a-z0-9_-]{0,31}$``, and neither ``""`` nor ``"-"`` passes that
+    check — ``--clear`` is the only way to unset a name. A well-meaning edit
+    that "simplifies" the empty case back to passing an empty string produces
+    a skill that fails every time it is asked to clear a label.
+    """
+
+    def skill_text(self):
+        return LABEL_SKILL.read_text()
+
+    def test_skill_exists(self):
+        assert LABEL_SKILL.exists(), "skills/set-herdr-label/SKILL.md is missing"
+
+    def test_is_model_only(self):
+        frontmatter = re.match(r"---\n(.*?)\n---\n", self.skill_text(), re.DOTALL)
+        assert frontmatter, "set-herdr-label: missing frontmatter"
+        frontmatter = frontmatter.group(1)
+        assert re.search(r"^user-invocable:\s*false\s*$", frontmatter, re.MULTILINE), (
+            "set-herdr-label must not be user-invocable"
+        )
+        for pin in ("model", "effort"):
+            assert not re.search(rf"^{pin}:", frontmatter, re.MULTILINE), (
+                f"set-herdr-label pins {pin} in frontmatter"
+            )
+
+    def test_writes_nothing_and_cannot_invoke_other_skills(self):
+        # It renames a pane and nothing else: no file writes, and without the
+        # Skill tool it cannot reach lessons-capture (the feature-mockup
+        # precedent). allowed-tools is the structural guard.
+        m = re.match(r"---\n(.*?)\n---\n", self.skill_text(), re.DOTALL)
+        tools = re.search(r"^allowed-tools:\s*(.+)$", m.group(1), re.MULTILINE)
+        assert tools, "set-herdr-label: no allowed-tools line"
+        for forbidden in ("Skill", "Write", "Edit", "AskUserQuestion"):
+            assert not re.search(rf"\b{forbidden}\b", tools.group(1)), (
+                f"set-herdr-label must not hold the {forbidden} tool"
+            )
+
+    def test_gates_on_herdr_env(self):
+        skill = self.skill_text()
+        assert "HERDR_ENV" in skill, "set-herdr-label never checks HERDR_ENV"
+        assert re.search(r'HERDR_ENV[^\n]*!=[^\n]*"1"', skill), (
+            "set-herdr-label must skip unless HERDR_ENV is exactly 1"
+        )
+
+    def test_targets_the_current_pane_by_env(self):
+        # The target is the pane this session runs in, read from the
+        # environment — never guessed by matching cwd against `herdr agent
+        # list`, which would rename someone else's pane on a cwd collision.
+        skill = self.skill_text()
+        assert "HERDR_PANE_ID" in skill, (
+            "set-herdr-label must target $HERDR_PANE_ID"
+        )
+        # Checked as a documented prohibition rather than absence of the
+        # string — `allowed-tools: Bash(herdr *)` permits `herdr agent list`,
+        # so prose is the only guard, and that sentence is worth keeping (the
+        # diagram-c4-update precedent).
+        assert re.search(r"never call `herdr agent list`", skill), (
+            "set-herdr-label must forbid discovering its target via "
+            "`herdr agent list` — a cwd match renames the wrong agent"
+        )
+
+    def test_empty_label_clears_rather_than_sending_an_empty_name(self):
+        skill = self.skill_text()
+        assert "--clear" in skill, (
+            "set-herdr-label must use `herdr agent rename --clear` for the "
+            "empty case; herdr rejects both an empty name and '-'"
+        )
+
+    def test_documents_the_name_charset_constraint(self):
+        # herdr validates names server-side; the skill must normalise before
+        # calling, or every label with a space or capital fails.
+        skill = self.skill_text()
+        assert "a-z0-9_-" in skill, (
+            "set-herdr-label must document herdr's accepted name charset"
+        )
+        assert "32" in skill, (
+            "set-herdr-label must document herdr's 32-character name limit"
+        )
+
+    def test_is_silent_on_skip(self):
+        skill = self.skill_text()
+        assert re.search(r"\bsilent|\bquiet|no output", skill, re.IGNORECASE), (
+            "set-herdr-label must document that skipping is silent"
+        )
+
+
+class TestHerdrLabelLifecycle:
+    """The four chain skills label the herdr pane for the length of a run.
+
+    Set once in Step 1 and cleared at the end, so a workspace of parallel
+    agents shows which skill each pane is running. Two placement rules carry
+    the weight, and both are regressions waiting to happen:
+
+    * The set lives in **Step 1, not Step 0**. Step 0 is the confirmation
+      gate; labelling before it means a declined confirmation strands a label
+      on a run that never started and has no end to clear it.
+    * The clear lives **before the final step's offer**, not after it. On the
+      chain-in branch the skill hands over through the `Skill` tool and never
+      returns to the step, so a trailing clear would silently never run.
+
+    The blocks are mirrored verbatim across all four skills (modulo the slug),
+    checked as a set for the same reason as the terminology block.
+    """
+
+    SET_RE = r"^\*\*Label the herdr pane\.\*\*.*$"
+    CLEAR_RE = r"^\*\*Clear the herdr pane label\.\*\*.*$"
+
+    def skill_text(self, slug):
+        return (SKILLS / slug / "SKILL.md").read_text()
+
+    def step_span(self, text, n):
+        """(start, end) offsets of `## Step <n>`'s section."""
+        start = re.search(rf"^## Step {n} —", text, re.MULTILINE)
+        assert start, f"no `## Step {n}` heading"
+        nxt = re.search(rf"^## Step {n + 1} —", text[start.end():], re.MULTILINE)
+        end = start.end() + nxt.start() if nxt else len(text)
+        return start.start(), end
+
+    def test_each_skill_sets_its_own_slug(self):
+        for slug in FEATURE_SKILLS:
+            line = re.search(self.SET_RE, self.skill_text(slug), re.MULTILINE)
+            assert line, f"{slug}: no herdr label-set block"
+            assert f"`{slug}`" in line.group(0), (
+                f"{slug}: labels the pane with something other than its own slug"
+            )
+
+    def test_each_skill_clears_with_no_argument(self):
+        for slug in FEATURE_SKILLS:
+            line = re.search(self.CLEAR_RE, self.skill_text(slug), re.MULTILINE)
+            assert line, f"{slug}: no herdr label-clear block"
+            assert "**no argument**" in line.group(0), (
+                f"{slug}: clear block does not state that it passes no argument"
+            )
+
+    def test_set_lives_in_step_1_not_step_0(self):
+        # A label set inside the Step 0 gate outlives a declined confirmation.
+        for slug in FEATURE_SKILLS:
+            text = self.skill_text(slug)
+            at = re.search(self.SET_RE, text, re.MULTILINE).start()
+            start, end = self.step_span(text, 1)
+            assert start < at < end, (
+                f"{slug}: the herdr label is set outside Step 1 — a declined "
+                f"Step 0 confirmation would strand it"
+            )
+
+    def test_clear_precedes_the_final_offer(self):
+        # Every chain skill ends with an AskUserQuestion offer; the clear has
+        # to come first or the hand-over branch skips it.
+        for slug in FEATURE_SKILLS:
+            text = self.skill_text(slug)
+            at = re.search(self.CLEAR_RE, text, re.MULTILINE).start()
+            offer = text.index("AskUserQuestion", at)
+            assert text.count("AskUserQuestion", at) >= 1, (
+                f"{slug}: no offer follows the clear block"
+            )
+            assert at < offer, f"{slug}: clear block does not precede the offer"
+
+    def test_clearing_before_any_stop_is_a_constraint(self):
+        # The enumerated exits cannot cover every halt, so the catch-all is
+        # what stops an unanticipated stop path from stranding a label.
+        for slug in FEATURE_SKILLS:
+            assert re.search(
+                r"\*\*Clear the herdr label before you stop\.\*\*",
+                self.skill_text(slug),
+            ), f"{slug}: no catch-all constraint clearing the label on early exits"
+
+    def test_blocks_are_mirrored_across_the_four_skills(self):
+        for label, pattern in (("set", self.SET_RE), ("clear", self.CLEAR_RE)):
+            seen = {}
+            for slug in FEATURE_SKILLS:
+                line = re.search(pattern, self.skill_text(slug), re.MULTILINE)
+                seen[slug] = line.group(0).replace(f"`{slug}`", "`<slug>`")
+            assert len(set(seen.values())) == 1, (
+                f"the herdr {label} block has drifted between feature-* skills"
+            )
 
 
 def test_no_stale_storm_section_references():

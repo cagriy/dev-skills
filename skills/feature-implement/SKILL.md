@@ -35,6 +35,10 @@ If the user picks "No" or "Other", stop immediately. Do not write any files, run
 
 ## Step 1 — Resolve the feature folder via `feature-resolve`
 
+**Label the herdr pane.** Before anything else in this step, invoke `set-herdr-label` via the `Skill` tool with the single argument `feature-implement`, so a workspace of parallel agents shows which one is running this skill. It runs inline, writes nothing, prints nothing, and is a silent no-op outside a herdr terminal — **do not end your turn**, carry straight on with the rest of this step. It sits here rather than in Step 0 deliberately: a declined confirmation must never leave a label behind with no run to clear it.
+
+The label belongs to the main agent for the whole run. Step 5's stage subagents must never set or clear it — their contract does not mention it, and a subagent clearing the label between units would blank the pane while stages are still landing.
+
 Parse `$ARGUMENTS` for an explicit version token only — `/feature-implement` does not take requirements text or a description.
 
 - Look for a leading `v<N>` or `version <N>` (case-insensitive; bare `1` does **not** count — only `v1` / `v 1` / `version 1`). If found, record as `explicit_version` and strip from the input. Integer only.
@@ -133,7 +137,7 @@ Only proceed past Step 3 when the working tree is clean and the branch is either
      - `{ "label": "File a bug", "description": "Hand off to /bug-submit to file the failing tests as a bug, then stop without implementing." }`
      - `{ "label": "Stop", "description": "Halt /feature-implement now and leave the repo untouched." }`
 
-   Act on the choice:
+   Act on the choice. **On any branch that stops the run** (*File a bug*, *Stop*, or an *Investigate now* that ends in one of those), invoke `set-herdr-label` via the `Skill` tool with no argument first, to clear the label set in Step 1 — Step 11 never runs on a halted baseline, so this is the only place it gets cleared.
    - **Investigate now** → do not enter the stage loop. Read the failing tests and the code they exercise and establish the root cause *with* the user (do not guess). Then, together: if the failures get resolved, re-run `TEST`; once the baseline is clean, resume from sub-point 8 and continue Step 3 normally. If the failures turn out to be real and out of scope for this feature, fall back to **File a bug** or **Stop** — never silently proceed on red.
    - **File a bug** → invoke the `bug-submit` skill via the `Skill` tool, passing a one-line description that names the failing tests and the `TEST` command as the argument. When it returns, **stop** `/feature-implement` without implementing, and tell the user to re-run it once the bug is fixed.
    - **Stop** (or "Other" with stop-like intent) → stop immediately. Make no edits and no commits; leave the repo untouched.
@@ -308,7 +312,7 @@ Stop the loop immediately (and tell the user) if any of the following happen:
 - A security issue is too large to fix within the stage and the plan didn't account for it.
 - The plan turns out to be wrong in a way that would require revising the design (not just the plan). Stop; recommend `/feature-design` to produce a new feature version.
 
-When stopping, leave the repo in the cleanest reasonable state: uncommitted partial work for the current stage stays uncommitted; never auto-revert the user's view of the tree without asking.
+When stopping, leave the repo in the cleanest reasonable state: uncommitted partial work for the current stage stays uncommitted; never auto-revert the user's view of the tree without asking. Whichever condition fired, invoke `set-herdr-label` via the `Skill` tool with no argument before you stop — a stopped run must not leave the pane labelled as if implementation were still under way.
 
 ## Step 7 — Final coverage & dead-code sweep
 
@@ -415,6 +419,8 @@ Keep the chat output under ~40 lines. Do not paste diffs or full file contents.
 
 The run ends with the implementation committed but **not pushed** — exactly the state the plugin's two eval skills score. Offer them now, after the summary, so quality metrics for this run are captured before anything is pushed.
 
+**Clear the herdr pane label.** Invoke `set-herdr-label` via the `Skill` tool with **no argument** — that clears the label set in Step 1 rather than setting a new one. Do this *before* the offer below, never after: whichever branch the user takes, this step can hand off or end without returning here, so a clear placed afterwards risks never running at all. It runs inline and prints nothing — **do not end your turn**, carry straight on.
+
 Ask via `AskUserQuestion` exactly once:
 
 - **question**: `"Run the eval suite on this implementation? evals-code-run scores the unpushed commits for duplication/bloat/inefficiency/security (logs to ~/.claude/evals/code.json); evals-e2e-run scores the feature's storm/design/plan artefacts and their consistency with the implementation (logs to ~/.claude/evals/design.json). Both are read-only towards the repo."`
@@ -443,6 +449,7 @@ When both return, relay the two score summaries to the user in compact form. If 
 - **Both files must exist on disk.** No implementation begins without the design and plan files confirmed present under the resolver-returned feature folder (Step 1 + Step 2). Never bypass the resolver.
 - **TDD as written in the plan is mandatory.** Behavior-changing stages: write test → confirm fail → implement → confirm pass. Scaffolding-only stages may skip the test cycle; the plan must mark them.
 - **Never build on a red test baseline.** If Step 3's `TEST` baseline shows any failing tests, stop before the stage loop and let the user investigate, file a bug (`/bug-submit`), or halt (Step 3 sub-point 9) — implementation never proceeds on top of pre-existing test failures. This gate holds even under autonomous "don't stop to ask" instructions; a truly headless run defaults to halting.
+- **Clear the herdr label before you stop.** However this run ends — normal completion, a red-baseline halt, a Step 6 stop condition, a refusal, or an error surfaced to the user — invoke `set-herdr-label` with no argument before you stop. Step 11 covers the normal path, Step 3 the red baseline and Step 6 the loop stops; this covers every other one. A label that outlives its run leaves the pane advertising work that is no longer happening. The label is the main agent's alone — Step 5's stage subagents never touch it.
 - **One commit per stage.** No batch commits across stages. No commits mid-stage. The commit-message format is the resume contract for Step 4 — do not deviate from `<type>(plan v<version>): Stage <N> — <title>`.
 - **Execution strategy changes only the executor.** Chunked subagent units run the identical `5a`–`5i` cycle and obey every constraint here — current branch only, no new branches, no pushes, one commit per stage with the exact message format. Units run strictly in order, never in parallel. Steps 7–11 always run in the main agent, never in a subagent (Step 11's accepted evals are delegated to subagents by design).
 - **The strategy is resolved by rule, never asked and never left to preference.** Chunked (`min(3, R)`) is the default; Direct applies only on an explicit user request, at `R ≤ 2`, or when the pre-scan leaves ≤1 delegatable stage. Do not reintroduce an `AskUserQuestion` here — across 30 recorded runs the same option was chosen 83% of the time and the question was dismissed in 8, so it cost a mandatory round-trip and bought nothing. Equally, do not turn it into free model discretion: under an autonomous instruction the cheap path is Direct, which is the failure this rule exists to prevent. Announce the resolved strategy in one line (with `R` and the partition) instead — that line is the run's only checkpoint before code lands.

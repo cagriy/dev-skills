@@ -37,6 +37,8 @@ If the user picks "No" or "Other", stop the skill immediately and do not start S
 
 ## Step 1 — Capture requirements
 
+**Label the herdr pane.** Before anything else in this step, invoke `set-herdr-label` via the `Skill` tool with the single argument `feature-design`, so a workspace of parallel agents shows which one is running this skill. It runs inline, writes nothing, prints nothing, and is a silent no-op outside a herdr terminal — **do not end your turn**, carry straight on with the rest of this step. It sits here rather than in Step 0 deliberately: a declined confirmation must never leave a label behind with no run to clear it.
+
 Parse `$ARGUMENTS`. Detect three pieces of input, any of which may be absent:
 
 - **Explicit version token.** Look for a leading `v<N>` or `version <N>` (case-insensitive; bare `1` does **not** count — only `v1` / `v 1` / `version 1`). If found, record as `explicit_version`; strip from remaining text. Integer only — no minor versions under this plugin's scheme.
@@ -404,6 +406,8 @@ Keep the chat output under ~30 lines. The file is the artifact; the chat is the 
 
 ## Step 11 — Offer to chain into /feature-plan
 
+**Clear the herdr pane label.** Invoke `set-herdr-label` via the `Skill` tool with **no argument** — that clears the label set in Step 1 rather than setting a new one. Do this *before* the offer below, never after: whichever branch the user takes, this step can hand off or end without returning here, so a clear placed afterwards risks never running at all. It runs inline and prints nothing — **do not end your turn**, carry straight on.
+
 After presenting the highlights, give the user a one-click way to continue into the planning skill. Call `AskUserQuestion` exactly once:
 
 - **question**: `"Continue with /feature-plan to produce a TDD-staged implementation plan for this design?"`
@@ -428,6 +432,7 @@ Do not skip this step or substitute the AskUserQuestion with prose. The offer is
 - **Integer versions only.** `v<N>` everywhere — no `v<N>.<M>` minor versions. No "next available version" math in this skill; the resolver decides.
 - **No open decisions.** §8 must be empty or "None — all decisions closed." before Step 8 begins.
 - **Clarify to exhaustion, not to a quota.** Step 4 is an interview that runs until the readiness test passes — a dry-drafted §5 with no guesses, no hedge language, an empty §8, every storm §7 item closed, the two-engineer test met, and a round that surfaced nothing new. Question count, elapsed rounds, and the user having already answered a few are not exit conditions. The one uncertainty allowed past it is appearance, which Step 5 closes with a rendered mockup.
+- **Clear the herdr label before you stop.** However this run ends — normal completion, a halt, a refusal, a stop condition, or an error surfaced to the user — invoke `set-herdr-label` with no argument before you stop. Step 11 covers the normal path; this covers every other one. A label that outlives its run leaves the pane advertising work that is no longer happening.
 - **Self-review is mandatory.** Step 7 must run even if the draft looks clean — security and efficiency gaps are usually invisible on the first pass.
 - **UI decisions come from the user, via the mockup.** When the feature has a user-visible surface, Step 5 runs and the design records the direction the user accepted — never a surface you invented and never one the user has not seen. `feature-mockup` owns the mockup files under `<feature_folder>/mockups/`; this skill only reads them and cites them.
 - **Tracker edits are defensive.** Substitute only tokens still literal `{{...}}`; never overwrite content placed by `/feature-storm` or any other skill. The progress bar's `data-stage="design"` entry is this skill's alone to touch.
