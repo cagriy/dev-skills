@@ -12,6 +12,9 @@ package = false
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# Puts the repo root on sys.path so `import scripts.usage_report` resolves;
+# testpaths alone only adds tests/.
+pythonpath = ["."]
 markers = [
     "llm: invokes a live LLM judge via the claude CLI; excluded by default, run explicitly with -m llm",
 ]
