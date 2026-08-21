@@ -1117,6 +1117,90 @@ class TestUsageReportLifecycle:
             "the usage-start block has drifted between feature-* skills"
         )
 
+    # --- The report call sites and their deliberate asymmetry ---------
+
+    REPORT_RE = r"^\*\*Report the run usage\.\*\*.*$"
+
+    def final_step_span(self, text):
+        """(start, end) offsets of the skill's highest-numbered Step section."""
+        last = max(int(n) for n in re.findall(r"^## Step (\d+) —", text, re.MULTILINE))
+        return step_span(text, last)
+
+    def test_each_skill_reports_with_its_own_slug(self):
+        for slug in FEATURE_SKILLS:
+            text = skill_text(slug)
+            line = re.search(self.REPORT_RE, text, re.MULTILINE)
+            assert line, f"{slug}: no usage-report block"
+            assert f"report {slug}" in line.group(0), (
+                f"{slug}: closes a usage window that is not its own — the "
+                f"marker is keyed on session and slug"
+            )
+            start, end = self.final_step_span(text)
+            assert start < line.start() < end, (
+                f"{slug}: the usage report is not in its final step, so an "
+                f"earlier return would leave the window open"
+            )
+
+    def test_report_precedes_the_offer_for_the_three_chaining_skills(self):
+        # These three hand over through the Skill tool on acceptance and never
+        # return to the step, so a report placed after the offer would
+        # silently never run — the same reasoning as the herdr label clear.
+        for slug in ("feature-storm", "feature-design", "feature-plan"):
+            text = skill_text(slug)
+            at = re.search(self.REPORT_RE, text, re.MULTILINE).start()
+            start, end = self.final_step_span(text)
+            offer = text.index("AskUserQuestion", start)
+            assert at < offer, (
+                f"{slug}: the usage report follows the chain offer — on the "
+                f"hand-over branch it would never run"
+            )
+
+    def test_implement_reports_after_the_eval_relay(self):
+        # The one deliberate asymmetry, and the one most likely to be tidied
+        # into line with the three above. feature-implement's final question
+        # hands over to nothing and control returns on every branch, so the
+        # report sits last — which is the only position that can include the
+        # eval subagents the user chose to run inside the measured window.
+        text = skill_text("feature-implement")
+        at = re.search(self.REPORT_RE, text, re.MULTILINE).start()
+        start, _ = self.final_step_span(text)
+        offer = text.index("AskUserQuestion", start)
+        relay = text.index("When both return", start)
+        assert at > offer, (
+            "feature-implement: the usage report precedes its eval offer, so "
+            "an accepted eval run falls outside the window it reports"
+        )
+        assert at > relay, (
+            "feature-implement: the usage report precedes the eval relay"
+        )
+
+    def test_reporting_before_any_stop_is_a_constraint(self):
+        # The enumerated early exits cannot cover every halt; without the
+        # catch-all an unanticipated stop leaves a marker and no log entry.
+        for slug in FEATURE_SKILLS:
+            assert re.search(
+                r"\*\*Report the run usage before you stop\.\*\*", skill_text(slug)
+            ), f"{slug}: no catch-all constraint reporting usage on early exits"
+
+    def test_early_exits_report_halted(self):
+        # A halted run still cost tokens. Each enumerated early exit has to
+        # say so, or those runs vanish from the log and skew every average.
+        exits = {
+            # Step 2's relay, not the Execution-model paragraph that also
+            # names the protocol — the relay is the code path that stops.
+            "feature-plan": ("If the message starts with `BLOCKED:`",),
+            "feature-implement": ("Tests already failing", "## Step 6 —"),
+        }
+        for slug, anchors in exits.items():
+            text = skill_text(slug)
+            for anchor in anchors:
+                where = text.index(anchor)
+                window = text[where : where + 4000]
+                assert "outcome=halted" in window, (
+                    f"{slug}: the early exit at {anchor!r} does not report "
+                    f"outcome=halted"
+                )
+
 
 
 def test_no_stale_storm_section_references():

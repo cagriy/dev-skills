@@ -574,6 +574,25 @@ def _substitute(text: str, token: str, html: str) -> str:
     return pattern.sub(lambda _: replacement, text)
 
 
+def _split_doc_comment(text: str) -> tuple[str, str]:
+    """(leading doc comment, rendered body).
+
+    The tracker template opens with an HTML comment legending every token by
+    name, so those names must survive as literal text. They are also the only
+    place a substitution would be actively destructive: the anchors carry a
+    `-->` that would close the doc comment early and spill the rest of the
+    legend onto the page as visible markup.
+    """
+    opened = text.find("<!--")
+    if opened == -1:
+        return "", text
+    closed = text.find("-->", opened)
+    if closed == -1:
+        return "", text
+    end = closed + len("-->")
+    return text[:end], text[end:]
+
+
 def apply_tracker(tracker_path, slug, chip_html, table_html) -> bool:
     """Write this stage's usage into the tracker. Silent no-op if it can't.
 
@@ -584,10 +603,11 @@ def apply_tracker(tracker_path, slug, chip_html, table_html) -> bool:
     if slug not in TRACKER_TOKENS:
         return False
     try:
-        text = original = Path(tracker_path).read_text(encoding="utf-8")
+        original = Path(tracker_path).read_text(encoding="utf-8")
     except OSError:
         return False
 
+    legend, text = _split_doc_comment(original)
     for stage, (chip_token, table_token) in TRACKER_TOKENS.items():
         if stage == slug:
             text = _substitute(text, chip_token, chip_html)
@@ -599,6 +619,7 @@ def apply_tracker(tracker_path, slug, chip_html, table_html) -> bool:
             text = text.replace(chip_token, _anchored(chip_token, ""))
             text = text.replace(table_token, _anchored(table_token, ""))
 
+    text = legend + text
     if text == original:
         return False
     try:

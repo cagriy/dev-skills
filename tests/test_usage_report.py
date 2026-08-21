@@ -701,3 +701,61 @@ def test_the_config_dir_honours_the_environment(tmp_path, monkeypatch):
     assert ur._config_dir() == tmp_path
     monkeypatch.delenv("CLAUDE_CONFIG_DIR")
     assert ur._config_dir().name == ".claude"
+
+
+class TestApplyTrackerAgainstTheShippedTemplate:
+    """The real template, not the minimal fixture.
+
+    `templates/feature-tracker.html` opens with an HTML doc comment that
+    legends every token by name — including the eight usage ones. A whole-file
+    substitution therefore rewrites the legend as well as the panel, and the
+    anchor comments it writes carry a `-->` that closes the doc comment early,
+    spilling the rest of the legend onto the page as visible markup. Nothing in
+    the minimal fixture has a legend, which is why this only shows up here.
+    """
+
+    TEMPLATE = REPO / "templates" / "feature-tracker.html"
+
+    def rendered(self, tmp_path, slug="feature-plan"):
+        tracker = tmp_path / "tracker.html"
+        tracker.write_text(self.TEMPLATE.read_text(), encoding="utf-8")
+        assert ur.apply_tracker(
+            tracker, slug, '<span class="chip usage">1m · 2 out</span>',
+            '<table class="usage"><tr><td>x</td></tr></table>',
+        )
+        return tracker.read_text(encoding="utf-8")
+
+    def doc_comment_end(self, text):
+        """Offset just past the leading doc comment's terminator."""
+        opened = text.index("<!--")
+        return text.index("-->", opened) + len("-->")
+
+    def test_the_doc_comment_is_not_reopened_or_closed_early(self, tmp_path):
+        original, rendered = self.TEMPLATE.read_text(), self.rendered(tmp_path)
+        assert rendered.count("<!--", 0, self.doc_comment_end(original)) == \
+            original.count("<!--", 0, self.doc_comment_end(original)), (
+            "apply_tracker wrote comment markers into the template's doc "
+            "comment; the first `-->` closes it early and the rest of the "
+            "legend renders as visible HTML"
+        )
+
+    def test_the_legend_keeps_its_literal_token_names(self, tmp_path):
+        rendered = self.rendered(tmp_path)
+        legend = rendered[: self.doc_comment_end(rendered)]
+        for chip_token, table_token in ur.TRACKER_TOKENS.values():
+            for token in (chip_token, table_token):
+                assert token in legend, (
+                    f"{token} was substituted inside the doc-comment legend, "
+                    f"which documents the token rather than rendering it"
+                )
+
+    def test_the_panel_is_still_filled(self, tmp_path):
+        # The guard must not cost the substitution it exists to protect.
+        rendered = self.rendered(tmp_path)
+        body = rendered[self.doc_comment_end(rendered) :]
+        assert body.count('<span class="chip usage">') == 1
+        assert body.count('<table class="usage">') == 1
+        assert not re.search(r"\{\{[A-Z_]*USAGE[A-Z_]*\}\}", body), (
+            "literal usage tokens left in the rendered body"
+        )
+
