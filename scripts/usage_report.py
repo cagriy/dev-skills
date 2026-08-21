@@ -14,10 +14,19 @@ otherwise (`write_start`, `read_start`, `append_log`, `apply_tracker`).
 
 from __future__ import annotations
 
+import argparse
 import json
+import os
+import re
+import sys
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
+
+# `slug` reaches a filename, so it is validated before any path is built with
+# it. `session_id` comes from the environment and reaches the same filename.
+SLUG_PATTERN = re.compile(r"^[a-z][a-z0-9-]{0,63}$")
+SESSION_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 
 # A gap longer than this that ends at a `user` entry is the user thinking, not
 # the run working, so it comes out of `run time` but stays in `elapsed`.
@@ -460,3 +469,246 @@ def log_entry(metrics: RunMetrics, context: RunContext) -> dict:
                   "web_search", "web_fetch"):
         entry[field] = _columns(metrics, field)
     return entry
+
+
+# The tracker tokens this reporter owns, one (chip, table) pair per chain
+# stage. Sole ownership is what makes the replace-on-re-run behaviour below
+# safe; tests/test_static.py pins these names against the shipped template.
+TRACKER_TOKENS = {
+    "feature-storm": ("{{BRAINSTORMING_USAGE_CHIP}}", "{{BRAINSTORMING_USAGE}}"),
+    "feature-design": ("{{DESIGN_USAGE_CHIP}}", "{{DESIGN_USAGE}}"),
+    "feature-plan": ("{{PLAN_USAGE_CHIP}}", "{{PLAN_USAGE}}"),
+    "feature-implement": ("{{IMPLEMENTATION_USAGE_CHIP}}", "{{IMPLEMENTATION_USAGE}}"),
+}
+
+
+def _now():
+    """The clock, as one seam so tests can pin it."""
+    return datetime.now(timezone.utc)
+
+
+def _stamp(moment) -> str:
+    return moment.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _config_dir():
+    return Path(os.environ.get("CLAUDE_CONFIG_DIR") or Path.home() / ".claude")
+
+
+def _usage_dir(config_dir):
+    return Path(config_dir) / "dev-skills" / "usage"
+
+
+def _checked(slug: str, session_id: str) -> None:
+    if not SLUG_PATTERN.match(slug or ""):
+        raise ValueError(f"slug {slug!r} is not a valid stage slug")
+    if not SESSION_PATTERN.match(session_id or ""):
+        raise ValueError("session id is not a valid identifier")
+
+
+def _marker_path(slug, session_id, state_dir):
+    _checked(slug, session_id)
+    return Path(state_dir) / f"{session_id}-{slug}.json"
+
+
+def write_start(slug, session_id, started, state_dir, cwd=None):
+    """Record where a run began. Returns the marker's path."""
+    path = _marker_path(slug, session_id, state_dir)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps({
+        "slug": slug,
+        "session_id": session_id,
+        "started": _stamp(started),
+        "cwd": cwd if cwd is not None else os.getcwd(),
+    }))
+    return path
+
+
+def read_start(slug, session_id, state_dir):
+    """The start marker for this run, or None if there isn't a readable one."""
+    try:
+        path = _marker_path(slug, session_id, state_dir)
+        marker = json.loads(path.read_text())
+    except (OSError, ValueError):
+        return None
+    return marker if isinstance(marker, dict) else None
+
+
+def append_log(entry, log_path) -> None:
+    """Append one JSON line.
+
+    A single O_APPEND write below PIPE_BUF is atomic on POSIX, so two herdr
+    sessions finishing a stage together cannot lose each other's entry — which
+    a read-modify-write JSON array would (design §5 Data model).
+    """
+    path = Path(log_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    line = json.dumps(entry, separators=(",", ":")) + "\n"
+    handle = os.open(path, os.O_APPEND | os.O_CREAT | os.O_WRONLY, 0o600)
+    try:
+        os.write(handle, line.encode("utf-8"))
+    finally:
+        os.close(handle)
+
+
+def _anchored(token: str, html: str) -> str:
+    """Rendered content wrapped in the anchors a later run replaces between."""
+    name = token.strip("{}")
+    return f"<!-- usage:{name} -->{html}<!-- /usage:{name} -->"
+
+
+def _substitute(text: str, token: str, html: str) -> str:
+    """Fill a token, whether it is still literal or already rendered.
+
+    The first run replaces the literal `{{TOKEN}}`; every run after that
+    replaces whatever sits between the anchors, so a re-run shows the new
+    figures rather than a second table (design §3 R10). These eight tokens have
+    exactly one owner, which is what makes overwriting safe here when the rest
+    of the plugin substitutes only-if-literal.
+    """
+    replacement = _anchored(token, html)
+    if token in text:
+        return text.replace(token, replacement)
+    name = re.escape(token.strip("{}"))
+    pattern = re.compile(f"<!-- usage:{name} -->.*?<!-- /usage:{name} -->", re.DOTALL)
+    return pattern.sub(lambda _: replacement, text)
+
+
+def apply_tracker(tracker_path, slug, chip_html, table_html) -> bool:
+    """Write this stage's usage into the tracker. Silent no-op if it can't.
+
+    Blanks the other stages' tokens to an empty anchored region rather than to
+    nothing at all: a stage that has not run yet must render as empty now and
+    still be fillable when it does run.
+    """
+    if slug not in TRACKER_TOKENS:
+        return False
+    try:
+        text = original = Path(tracker_path).read_text(encoding="utf-8")
+    except OSError:
+        return False
+
+    for stage, (chip_token, table_token) in TRACKER_TOKENS.items():
+        if stage == slug:
+            text = _substitute(text, chip_token, chip_html)
+            text = _substitute(text, table_token, table_html)
+        else:
+            # Only while still literal: an anchored region belongs to the stage
+            # that owns it, whether it holds that stage's figures or is empty
+            # pending its first run.
+            text = text.replace(chip_token, _anchored(chip_token, ""))
+            text = text.replace(table_token, _anchored(table_token, ""))
+
+    if text == original:
+        return False
+    try:
+        Path(tracker_path).write_text(text, encoding="utf-8")
+    except OSError:
+        return False
+    return True
+
+
+class _ArgError(Exception):
+    """An argparse complaint, raised rather than exited on."""
+
+
+class _Parser(argparse.ArgumentParser):
+    def error(self, message):
+        raise _ArgError(message)
+
+
+def _parse_args(argv):
+    parser = _Parser(prog="usage_report.py", add_help=False)
+    commands = parser.add_subparsers(dest="command", required=True)
+
+    start = commands.add_parser("start", add_help=False)
+    start.add_argument("--slug", required=True)
+
+    report = commands.add_parser("report", add_help=False)
+    report.add_argument("--slug", required=True)
+    report.add_argument("--tracker")
+    report.add_argument("--feature-version", type=int, default=None)
+    report.add_argument("--outcome", choices=("completed", "halted"), default="completed")
+    report.add_argument("--evals-included", action="store_true")
+
+    return parser.parse_args(argv)
+
+
+def _run_start(args) -> None:
+    session_id = os.environ.get("CLAUDE_CODE_SESSION_ID")
+    if not session_id:
+        return  # nothing to key a marker on; say nothing
+    write_start(args.slug, session_id, _now(), _usage_dir(_config_dir()) / "state")
+
+
+def _run_report(args) -> None:
+    session_id = os.environ.get("CLAUDE_CODE_SESSION_ID")
+    if not session_id:
+        print("usage report skipped — CLAUDE_CODE_SESSION_ID is not set")
+        return
+
+    config_dir = _config_dir()
+    usage_dir = _usage_dir(config_dir)
+    marker = read_start(args.slug, session_id, usage_dir / "state")
+    if marker is None:
+        print(
+            "usage report skipped — no start marker for this run "
+            "(cleared session, resumed run, or start never fired)"
+        )
+        return
+
+    # Never guess a start time: a fabricated window gives a plausible wrong
+    # number, which is worse than no number.
+    start = _parse_ts(marker.get("started"))
+    if start is None:
+        print("usage report skipped — the start marker has no readable timestamp")
+        return
+
+    transcript = resolve_transcript(session_id, config_dir)
+    if transcript is None:
+        print("usage report skipped — no transcript for this session")
+        return
+
+    end = _now()
+    metrics = collect(
+        transcript, transcript.parent / session_id / "subagents", start, end
+    )
+    context = RunContext(
+        slug=args.slug,
+        repo_name=Path(marker.get("cwd") or ".").name,
+        timestamp=_stamp(end),
+        feature_version=args.feature_version,
+        outcome=args.outcome,
+        evals_included=args.evals_included,
+    )
+
+    print(render_markdown(metrics, context))
+
+    try:
+        append_log(log_entry(metrics, context), usage_dir / "runs.jsonl")
+    except Exception as problem:
+        print(f"usage report skipped — log write failed: {problem}")
+
+    if args.tracker:
+        apply_tracker(args.tracker, args.slug, *render_tracker_html(metrics))
+
+    _marker_path(args.slug, session_id, usage_dir / "state").unlink(missing_ok=True)
+
+
+def main(argv=None) -> int:
+    """Always returns 0. Reporting must never fail the caller (design §3 R13)."""
+    try:
+        args = _parse_args(argv)
+    except (_ArgError, SystemExit) as problem:
+        print(f"usage report skipped — {problem}")
+        return 0
+
+    try:
+        (_run_start if args.command == "start" else _run_report)(args)
+    except Exception as problem:
+        print(f"usage report skipped — {problem}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

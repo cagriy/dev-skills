@@ -1,0 +1,40 @@
+<!doctype html>
+<!-- A minimal stand-in for templates/feature-tracker.html: four panels in the
+     shipped shape, carrying only the eight usage tokens apply_tracker owns.
+     Stage 4 pins TRACKER_TOKENS against the real template; this fixture keeps
+     Stage 3's unit tests independent of it. -->
+<html lang="en"><head><meta charset="utf-8"><title>Tracker</title></head><body>
+
+<section class="panel" id="panel-brainstorming">
+  <p class="section-timestamp">{{BRAINSTORMING_AT}}</p>{{BRAINSTORMING_USAGE_CHIP}}
+  <article class="panel-section">
+    <div class="bullets">{{BRAINSTORMING_BULLETS}}</div>
+    {{BRAINSTORMING_USAGE}}
+  </article>
+</section>
+
+<section class="panel" id="panel-design">
+  <p class="section-timestamp">{{DESIGN_AT}}</p>{{DESIGN_USAGE_CHIP}}
+  <article class="panel-section">
+    <div class="bullets">{{DESIGN_BULLETS}}</div>
+    {{DESIGN_USAGE}}
+  </article>
+</section>
+
+<section class="panel" id="panel-plan">
+  <p class="section-timestamp">{{PLAN_AT}}</p>{{PLAN_USAGE_CHIP}}
+  <article class="panel-section">
+    <div class="bullets">{{PLAN_BULLETS}}</div>
+    {{PLAN_USAGE}}
+  </article>
+</section>
+
+<section class="panel" id="panel-implementation">
+  <p class="section-timestamp">{{IMPLEMENTATION_AT}}</p>{{IMPLEMENTATION_USAGE_CHIP}}
+  <article class="panel-section">
+    <div class="bullets">{{IMPLEMENTATION_BULLETS}}</div>
+    {{IMPLEMENTATION_USAGE}}
+  </article>
+</section>
+
+</body></html>
