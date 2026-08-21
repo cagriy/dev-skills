@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mockup v1 — grouped-columns</title>
+<style>
+:root{--bg:#f9fafb;--surface:#fff;--surface-muted:#f3f4f6;--border:#e5e7eb;--text:#0f172a;--text-muted:#6b7280;--text-subtle:#9ca3af;--accent:#4f46e5;--accent-soft:#eef2ff;--shadow-sm:0 1px 2px rgba(15,23,42,.04);--shadow-md:0 1px 2px rgba(15,23,42,.04),0 12px 32px rgba(15,23,42,.06);--radius:14px;--radius-sm:8px;--mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;--sans:-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,system-ui,sans-serif;--term-bg:#12121a;--term-fg:#e4e4ea;--term-dim:#8a8a99;--term-accent:#a5b4fc;--term-border:#2f2f3d}
+@media (prefers-color-scheme:dark){:root{--bg:#0b0b0d;--surface:#131316;--surface-muted:#1a1a1f;--border:#26262b;--text:#f5f5f7;--text-muted:#a1a1aa;--text-subtle:#71717a;--accent:#818cf8;--accent-soft:rgba(129,140,248,.12);--shadow-sm:0 1px 2px rgba(0,0,0,.4);--shadow-md:0 1px 2px rgba(0,0,0,.4),0 12px 32px rgba(0,0,0,.32)}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);line-height:1.55;padding:32px 20px 64px}
+.wrap{max-width:1000px;margin:0 auto}
+.banner{background:var(--accent-soft);border:1px solid var(--accent);border-radius:var(--radius);padding:16px 20px;margin-bottom:28px}
+.banner h1{margin:0 0 6px;font-size:15px;letter-spacing:.02em;text-transform:uppercase;color:var(--accent)}
+.banner dl{margin:0;display:grid;grid-template-columns:max-content 1fr;gap:2px 14px;font-size:13.5px}
+.banner dt{color:var(--text-muted)}.banner dd{margin:0}
+.rev{display:inline-block;background:var(--accent);color:#fff;border-radius:999px;padding:1px 10px;font-size:11.5px;font-weight:600;margin-left:8px;vertical-align:middle}
+h2{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);margin:34px 0 12px;font-weight:600}
+.term{background:var(--term-bg);border-radius:var(--radius);padding:20px 22px;box-shadow:var(--shadow-md);overflow-x:auto}
+.term pre{margin:0;font-family:var(--mono);font-size:12.5px;line-height:1.65;color:var(--term-fg);white-space:pre}
+.term .dim{color:var(--term-dim)}
+.term h4{color:var(--term-accent);font-family:var(--sans);font-size:13.5px;margin:18px 0 8px;font-weight:600}
+table.chat{border-collapse:collapse;font-family:var(--mono);font-size:12px;color:var(--term-fg);margin:0;min-width:520px}
+table.chat th,table.chat td{border:1px solid var(--term-border);padding:3px 12px;text-align:right}
+table.chat th{color:var(--term-accent);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.05em}
+table.chat th:first-child,table.chat td:first-child{text-align:left}
+table.chat tr.grp td{color:var(--term-accent);font-weight:600;background:rgba(165,180,252,.07)}
+table.chat tr.sub td:first-child{padding-left:26px;color:var(--term-dim)}
+table.chat tr.tp td{background:rgba(165,180,252,.13)}
+.srcbox{margin-top:14px;background:var(--surface-muted);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px}
+.srcbox pre{margin:0;font-family:var(--mono);font-size:11px;line-height:1.55;color:var(--text-muted);white-space:pre;overflow-x:auto}
+.srcbox h5{margin:0 0 8px;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-subtle);font-weight:600}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-sm);padding:22px 24px}
+.chiprow{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.chip{font-family:var(--mono);font-size:11.5px;background:var(--surface-muted);border:1px solid var(--border);border-radius:999px;padding:3px 11px;color:var(--text-muted)}
+.chip.usage{background:var(--accent-soft);border-color:var(--accent);color:var(--accent);font-weight:600}
+.card h3{margin:0 0 4px;font-size:17px}
+.card ul{margin:10px 0 0;padding-left:20px;color:var(--text-muted);font-size:14px}
+table.usage{border-collapse:collapse;width:100%;margin-top:16px;font-family:var(--mono);font-size:12px}
+table.usage th{text-align:right;font-weight:600;color:var(--text-subtle);padding:5px 10px;border-bottom:1px solid var(--border);font-size:11px;text-transform:uppercase;letter-spacing:.05em}
+table.usage th:first-child{text-align:left}
+table.usage td{text-align:right;padding:4px 10px;color:var(--text-muted);border-bottom:1px solid var(--surface-muted)}
+table.usage td:first-child{text-align:left;color:var(--text)}
+table.usage tr.sub td:first-child{padding-left:24px;color:var(--text-subtle)}
+table.usage tr.grp td{padding-top:12px;font-weight:600;color:var(--text-subtle);text-transform:uppercase;font-size:10.5px;letter-spacing:.06em;border-bottom:none}
+table.usage tr.tp td{background:var(--accent-soft);color:var(--accent);font-weight:600}
+.note{font-size:13px;color:var(--text-subtle);margin-top:12px}
+.formula{background:var(--surface);border:1px solid var(--accent);border-left-width:3px;border-radius:var(--radius-sm);padding:14px 18px;margin-top:14px}
+.formula h4{margin:0 0 6px;font-size:13px;color:var(--accent)}
+.formula p{margin:5px 0;font-size:13.5px;color:var(--text-muted)}
+.formula code{font-family:var(--mono);font-size:12.5px;background:var(--surface-muted);padding:1px 6px;border-radius:4px;color:var(--text)}
+</style></head><body><div class="wrap">
+
+<div class="banner">
+  <h1>Mockup — not shipping code<span class="rev">Revision 2</span><span class="rev" style="background:#16a34a">Accepted 2026-08-21</span></h1>
+  <dl>
+    <dt>Feature</dt><dd>v1 — usage-report</dd>
+    <dt>Name</dt><dd><strong>grouped-columns</strong></dd>
+    <dt>Shows</dt><dd>The end-of-run usage report as a rendered markdown table in chat, plus the matching tracker panel table.</dd>
+    <dt>Changed</dt><dd>Rev 2 — terminal block replaced by a markdown table (chat renders it natively); added a <strong>throughput</strong> row in output tokens/sec.</dd>
+    <dt>Distinct</dt><dd>Three labelled groups with main, subagents and total as separate columns — the split is itemised per metric, not summarised.</dd>
+    <dt>Trade-off</dt><dd>Answers "where did the tokens go" directly; ~18 rows and needs a reasonably wide terminal to render without wrapping.</dd>
+    <dt>Language</dt><dd>Follows templates/feature-tracker.html — same palette, radii and mono/sans stacks.</dd>
+  </dl>
+</div>
+
+<h2>Chat — /feature-plan close, table as rendered</h2>
+<div class="term">
+<pre class="dim">Saved:   features/feature-v1-usage-report/feature-plan-v1-usage-report.md
+Tracker: features/feature-v1-usage-report/feature-v1-tracker.html
+
+**Plan:** v1 — 6 stages, TDD throughout</pre>
+<h4>Run usage</h4>
+<table class="chat">
+<thead><tr><th>metric</th><th>main</th><th>subagents</th><th>total</th></tr></thead>
+<tbody>
+<tr class="grp"><td>time</td><td></td><td></td><td></td></tr>
+<tr><td>elapsed</td><td>—</td><td>—</td><td>8m 08s</td></tr>
+<tr><td>run time</td><td>—</td><td>—</td><td>5m 31s</td></tr>
+<tr class="grp"><td>tokens</td><td></td><td></td><td></td></tr>
+<tr><td>input_tokens</td><td>52</td><td>0</td><td>52</td></tr>
+<tr><td>output_tokens</td><td>21,723</td><td>4,201</td><td>25,924</td></tr>
+<tr class="sub"><td>thinking_tokens</td><td>9,379</td><td>1,004</td><td>10,383</td></tr>
+<tr><td>cache_write</td><td>139,500</td><td>38,220</td><td>177,720</td></tr>
+<tr class="sub"><td>ephemeral_1h</td><td>139,500</td><td>38,220</td><td>177,720</td></tr>
+<tr class="sub"><td>ephemeral_5m</td><td>0</td><td>0</td><td>0</td></tr>
+<tr><td>cache_read</td><td>9,109,158</td><td>652,592</td><td>9,761,750</td></tr>
+<tr class="grp"><td>requests</td><td></td><td></td><td></td></tr>
+<tr><td>model</td><td>26</td><td>14</td><td>40</td></tr>
+<tr><td>web_search</td><td>0</td><td>0</td><td>0</td></tr>
+<tr><td>web_fetch</td><td>0</td><td>0</td><td>0</td></tr>
+<tr class="grp"><td>throughput</td><td></td><td></td><td></td></tr>
+<tr class="tp"><td>output tok/s</td><td>—</td><td>—</td><td>76.0</td></tr>
+</tbody>
+</table>
+<pre class="dim">standard tier · standard speed · 3 subagents · outcome completed</pre>
+
+<div class="srcbox">
+  <h5>What the skill actually emits (markdown source)</h5>
+<pre>### Run usage
+
+| metric | main | subagents | total |
+|---|---:|---:|---:|
+| **time** | | | |
+| elapsed | — | — | 8m 08s |
+| run time | — | — | 5m 31s |
+| **tokens** | | | |
+| input_tokens | 52 | 0 | 52 |
+| output_tokens | 21,723 | 4,201 | 25,924 |
+| &nbsp;&nbsp;thinking_tokens | 9,379 | 1,004 | 10,383 |
+| cache_write | 139,500 | 38,220 | 177,720 |
+| &nbsp;&nbsp;ephemeral_1h | 139,500 | 38,220 | 177,720 |
+| &nbsp;&nbsp;ephemeral_5m | 0 | 0 | 0 |
+| cache_read | 9,109,158 | 652,592 | 9,761,750 |
+| **requests** | | | |
+| model | 26 | 14 | 40 |
+| web_search | 0 | 0 | 0 |
+| web_fetch | 0 | 0 | 0 |
+| **throughput** | | | |
+| output tok/s | — | — | 76.0 |
+
+standard tier · standard speed · 3 subagents · outcome completed</pre>
+</div>
+</div>
+
+<div class="formula">
+  <h4>Throughput — recommended formula</h4>
+  <p><code>output tok/s = total output_tokens ÷ summed per-request time</code>, where per-request time runs from the preceding transcript entry to the last entry of that request, summed over main <em>and</em> subagent requests.</p>
+  <p>Measured on a real <code>/feature-storm</code> run: request time was <strong>86%</strong> of active time — the other 14% is tool execution and file I/O, which the model does not spend generating. Same run: <code>output/active</code> gives 65.5 tok/s, this gives <strong>76.0</strong>.</p>
+  <p><code>(output + cache_read) ÷ active</code> gives 27,538 — cache_read is 420× the output on that run, so it swamps the numerator and the figure reports context re-reading, not generation speed.</p>
+  <p>Computed <strong>once across main + subagents</strong>, not per column: subagents run in parallel, so a per-column figure would read as a slowdown that never happened.</p>
+</div>
+
+<h2>Tracker — Plan panel</h2>
+<div class="card">
+  <div class="chiprow">
+    <span class="chip">Updated 2026-08-21 15:04 UTC</span>
+    <span class="chip usage">8m 08s · 25,924 out · 76.0 tok/s</span>
+  </div>
+  <h3>Plan</h3>
+  <ul>
+    <li>Six TDD stages, one commit each</li>
+    <li>Script built before any skill wiring, so call sites land green</li>
+  </ul>
+  <table class="usage">
+    <thead><tr><th>Metric</th><th>Main</th><th>Subagents</th><th>Total</th></tr></thead>
+    <tbody>
+      <tr class="grp"><td colspan="4">Time</td></tr>
+      <tr><td>elapsed</td><td>—</td><td>—</td><td>8m 08s</td></tr>
+      <tr><td>run time</td><td>—</td><td>—</td><td>5m 31s</td></tr>
+      <tr class="grp"><td colspan="4">Tokens</td></tr>
+      <tr><td>input_tokens</td><td>52</td><td>0</td><td>52</td></tr>
+      <tr><td>output_tokens</td><td>21,723</td><td>4,201</td><td>25,924</td></tr>
+      <tr class="sub"><td>thinking_tokens</td><td>9,379</td><td>1,004</td><td>10,383</td></tr>
+      <tr><td>cache_write</td><td>139,500</td><td>38,220</td><td>177,720</td></tr>
+      <tr class="sub"><td>ephemeral_1h</td><td>139,500</td><td>38,220</td><td>177,720</td></tr>
+      <tr class="sub"><td>ephemeral_5m</td><td>0</td><td>0</td><td>0</td></tr>
+      <tr><td>cache_read</td><td>9,109,158</td><td>652,592</td><td>9,761,750</td></tr>
+      <tr class="grp"><td colspan="4">Requests</td></tr>
+      <tr><td>model</td><td>26</td><td>14</td><td>40</td></tr>
+      <tr><td>web_search</td><td>0</td><td>0</td><td>0</td></tr>
+      <tr><td>web_fetch</td><td>0</td><td>0</td><td>0</td></tr>
+      <tr class="grp"><td colspan="4">Throughput</td></tr>
+      <tr class="tp"><td>output tok/s</td><td>—</td><td>—</td><td>76.0</td></tr>
+    </tbody>
+  </table>
+  <p class="note">Same row order as the chat table, so the two surfaces read identically. Panel chip carries elapsed, output and throughput as the headline.</p>
+</div>
+
+</div></body></html>

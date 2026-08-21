@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mockup v1 — headline-detail</title>
+<style>
+:root{--bg:#f9fafb;--surface:#fff;--surface-muted:#f3f4f6;--border:#e5e7eb;--text:#0f172a;--text-muted:#6b7280;--text-subtle:#9ca3af;--accent:#4f46e5;--accent-soft:#eef2ff;--shadow-sm:0 1px 2px rgba(15,23,42,.04);--shadow-md:0 1px 2px rgba(15,23,42,.04),0 12px 32px rgba(15,23,42,.06);--radius:14px;--radius-sm:8px;--mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;--sans:-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,system-ui,sans-serif;--term-bg:#12121a;--term-fg:#e4e4ea;--term-dim:#8a8a99;--term-accent:#a5b4fc}
+@media (prefers-color-scheme:dark){:root{--bg:#0b0b0d;--surface:#131316;--surface-muted:#1a1a1f;--border:#26262b;--text:#f5f5f7;--text-muted:#a1a1aa;--text-subtle:#71717a;--accent:#818cf8;--accent-soft:rgba(129,140,248,.12);--shadow-sm:0 1px 2px rgba(0,0,0,.4);--shadow-md:0 1px 2px rgba(0,0,0,.4),0 12px 32px rgba(0,0,0,.32)}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);line-height:1.55;padding:32px 20px 64px}
+.wrap{max-width:960px;margin:0 auto}
+.banner{background:var(--accent-soft);border:1px solid var(--accent);border-radius:var(--radius);padding:16px 20px;margin-bottom:28px}
+.banner h1{margin:0 0 6px;font-size:15px;letter-spacing:.02em;text-transform:uppercase;color:var(--accent)}
+.banner dl{margin:0;display:grid;grid-template-columns:max-content 1fr;gap:2px 14px;font-size:13.5px}
+.banner dt{color:var(--text-muted)}.banner dd{margin:0}
+h2{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);margin:34px 0 12px;font-weight:600}
+.term{background:var(--term-bg);border-radius:var(--radius);padding:20px 22px;box-shadow:var(--shadow-md);overflow-x:auto}
+.term pre{margin:0;font-family:var(--mono);font-size:12.5px;line-height:1.65;color:var(--term-fg);white-space:pre}
+.term .dim{color:var(--term-dim)}.term .hl{color:var(--term-accent);font-weight:600}.term .new{background:rgba(165,180,252,.13);display:block}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-sm);padding:22px 24px}
+.chiprow{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.chip{font-family:var(--mono);font-size:11.5px;background:var(--surface-muted);border:1px solid var(--border);border-radius:999px;padding:3px 11px;color:var(--text-muted)}
+.chip.usage{background:var(--accent-soft);border-color:var(--accent);color:var(--accent);font-weight:600}
+.card h3{margin:0 0 4px;font-size:17px}
+.card ul{margin:10px 0 0;padding-left:20px;color:var(--text-muted);font-size:14px}
+details.usage{margin-top:16px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface-muted);padding:0}
+details.usage summary{cursor:pointer;padding:10px 14px;font-family:var(--mono);font-size:12px;color:var(--text);list-style:none}
+details.usage summary::-webkit-details-marker{display:none}
+details.usage summary::before{content:"▸ ";color:var(--text-subtle)}
+details.usage[open] summary::before{content:"▾ "}
+details.usage pre{margin:0;padding:2px 14px 14px 26px;font-family:var(--mono);font-size:12px;line-height:1.6;color:var(--text-muted);white-space:pre;overflow-x:auto}
+.note{font-size:13px;color:var(--text-subtle);margin-top:12px}
+.legend{display:inline-block;width:10px;height:10px;border-radius:2px;background:rgba(165,180,252,.35);margin-right:6px;vertical-align:middle}
+</style></head><body><div class="wrap">
+
+<div class="banner">
+  <h1>Mockup — not shipping code <span style="background:#6b7280;color:#fff;border-radius:999px;padding:1px 10px;font-size:11.5px;font-weight:600;margin-left:8px">Not chosen</span></h1>
+  <dl>
+    <dt>Feature</dt><dd>v1 — usage-report</dd>
+    <dt>Name</dt><dd><strong>headline-detail</strong></dd>
+    <dt>Shows</dt><dd>The end-of-run usage block appended to a chain skill's closing summary, plus the matching collapsed tracker panel block.</dd>
+    <dt>Distinct</dt><dd>One headline line carries the whole answer; the itemised fields are indented beneath it, so the block can be read in one line or in full.</dd>
+    <dt>Trade-off</dt><dd>Fastest to scan across many runs, and the only one that stays useful when you are not looking for a breakdown. Sub-totals are parenthesised rather than columnar, so per-metric subagent shares are less directly comparable.</dd>
+    <dt>Language</dt><dd>Follows templates/feature-tracker.html — same palette, radii and mono/sans stacks.</dd>
+  </dl>
+</div>
+
+<h2><span class="legend"></span>Terminal — /feature-implement close, evals included in the window</h2>
+<div class="term"><pre><span class="dim">**Implementation:** v1 — 6 stages, all green
+6 commits on main, not pushed
+
+**Evals**
+- code: duplication 4% · bloat 0% · inefficiency 7% · security 0%
+- e2e:  design_quality 92 · plan_consistency 88</span>
+<span class="new">
+<span class="hl">usage · 41m 12s elapsed (32m 47s active) · 128,430 out · 61.2M cached · 214 requests</span>
+  time            elapsed 41m 12s     run time 32m 47s
+  requests        214  (58 main + 156 subagent, 11 agents)
+  input_tokens    1,204
+  output_tokens   128,430  (thinking 41,882)
+  cache_write     1,842,600  (1h 1,842,600 · 5m 0)
+  cache_read      61,204,918
+  web             search 0 · fetch 0
+  service         standard tier · standard speed
+<span class="dim">  includes evals-code-run + evals-e2e-run</span>
+</span></pre></div>
+
+<h2><span class="legend"></span>Tracker — Implementation panel (new block highlighted, collapsed by default)</h2>
+<div class="card">
+  <div class="chiprow">
+    <span class="chip">Updated 2026-08-21 15:41 UTC</span>
+    <span class="chip usage">41m 12s · 128,430 out · 214 req</span>
+  </div>
+  <h3>Implementation</h3>
+  <ul>
+    <li>Six stages committed on <code>main</code>, one commit per stage</li>
+    <li>Dead-code sweep clean; evals run and logged</li>
+  </ul>
+  <details class="usage">
+    <summary>usage · 41m 12s elapsed (32m 47s active) · 128,430 out · 61.2M cached</summary>
+<pre>time            elapsed 41m 12s     run time 32m 47s
+requests        214  (58 main + 156 subagent, 11 agents)
+input_tokens    1,204
+output_tokens   128,430  (thinking 41,882)
+cache_write     1,842,600  (1h 1,842,600 · 5m 0)
+cache_read      61,204,918
+web             search 0 · fetch 0
+service         standard tier · standard speed
+includes evals-code-run + evals-e2e-run</pre>
+  </details>
+  <p class="note">Collapsed by default so the panel keeps its current height; the headline stays visible in the chip and in the summary row.</p>
+</div>
+
+</div></body></html>
