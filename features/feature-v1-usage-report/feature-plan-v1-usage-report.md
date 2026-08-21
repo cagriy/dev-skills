@@ -275,3 +275,36 @@ Then re-run one stage on the same feature and confirm its tracker panel shows th
 ## Deviations from the design
 
 None — plan matches design v1 exactly.
+
+## Deviations from plan
+
+Recorded during implementation; each is a refinement within the stage's intent,
+not a change of contract.
+
+1. **Stage 3 — `apply_tracker` blanks the other six tokens to an *empty anchored
+   region*, not to a bare empty string.** Design §5 *Data model* says the
+   reporter "blanks any of the other six that are still literal (to the empty
+   string)". Taken literally, the first stage to report would delete the other
+   three stages' tokens outright, and those stages could never fill them when
+   they later ran — the tracker would only ever show one stage's usage. The
+   implementation therefore replaces a still-literal foreign token with
+   `<!-- usage:TOKEN --><!-- /usage:TOKEN -->`, which renders as nothing (the
+   design's requirement) while leaving the anchor its owning stage fills on its
+   own run. A foreign token that is *already* anchored is never touched, whether
+   it holds figures or is empty. `tests/test_usage_report.py::TestApplyTracker`
+   pins both halves.
+2. **Stage 3 — the session id is validated alongside the slug.** Design §5
+   *Security* requires `slug` to be checked against `^[a-z][a-z0-9-]{0,63}$`
+   before it reaches a filename. `session_id` reaches the same filename and
+   comes from the environment, so it is checked the same way against
+   `^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$`.
+3. **Stage 3 — `write_start` takes an optional trailing `cwd=` argument.** The
+   design's signature is `write_start(slug, session_id, started, state_dir)` and
+   the marker records `cwd`; the keyword defaults to `os.getcwd()`, so the
+   documented call is unchanged and the tests get a deterministic value.
+4. **Stage 2 — `RunMetrics` carries `subagent_count` and a
+   `output_tokens_per_second` property beyond the design's
+   `RunMetrics(main, subagents, total, timings)`.** The footer line and the log
+   entry both need the subagent count, and it is derived where the subagent
+   files are counted. `RunContext` is the "footer context" the plan's Stage 2
+   step 3 refers to, shared by `render_markdown` and `log_entry`.
