@@ -69,6 +69,26 @@
                                     test results, coverage,
                                     deviations, etc.
 
+      Run usage (all eight owned by usage-report — never by the
+      panel's own skill):
+        {{BRAINSTORMING_USAGE_CHIP}}, {{DESIGN_USAGE_CHIP}},
+        {{PLAN_USAGE_CHIP}}, {{IMPLEMENTATION_USAGE_CHIP}}
+                                    headline chip beside the panel's
+                                    timestamp chip, e.g.
+                                    "8m 08s · 25,924 out · 76.0 tok/s"
+        {{BRAINSTORMING_USAGE}}, {{DESIGN_USAGE}},
+        {{PLAN_USAGE}}, {{IMPLEMENTATION_USAGE}}
+                                    <table class="usage"> below the
+                                    panel's Highlights bullets
+
+      These eight are the one exception to the substitute-only-if-
+      literal rule: usage-report fills its own stage's pair and blanks
+      the other six on every run, so a re-run shows the latest figures
+      rather than a second table. Safe because they have exactly one
+      owner. Note the template has TWO consumers — usage-report and
+      bug-tracker-render, which blanks all twenty feature-panel
+      tokens — so adding or renaming one here is a two-skill change.
+
     Progress stepper (Storming → Design → Plan → Implement):
       The four <li class="step" data-stage="…"> elements track stage
       lifecycle via data-state="pending|complete". The raw template
@@ -584,6 +604,71 @@
       font-variant-numeric: tabular-nums;
     }
 
+    /* Run-usage chip and table (both filled by usage-report) --------- */
+
+    .chip.usage {
+      display: inline-block;
+      margin: 0 0 16px 8px;
+      padding: 4px 12px;
+      background: var(--accent-soft);
+      border: 1px solid var(--accent);
+      border-radius: 999px;
+      font-family: var(--mono);
+      font-size: 11.5px;
+      font-weight: 600;
+      color: var(--accent);
+      letter-spacing: 0.02em;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* The usage fragment sits outside .prose, so it carries its own
+       table rules rather than inheriting the ones above. */
+    table.usage {
+      border-collapse: collapse;
+      width: 100%;
+      margin-top: 16px;
+      font-family: var(--mono);
+      font-size: 12px;
+      font-variant-numeric: tabular-nums;
+    }
+    table.usage th {
+      text-align: right;
+      padding: 5px 10px;
+      border-bottom: 1px solid var(--border);
+      font-weight: 600;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-subtle);
+    }
+    table.usage td {
+      text-align: right;
+      padding: 4px 10px;
+      border-bottom: 1px solid var(--surface-muted);
+      color: var(--text-muted);
+    }
+    table.usage th:first-child,
+    table.usage td:first-child { text-align: left; }
+    table.usage td:first-child { color: var(--text); }
+    table.usage tr.grp td {
+      padding-top: 12px;
+      border-bottom: none;
+      font-weight: 600;
+      font-size: 10.5px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-subtle);
+    }
+    table.usage tr.sub td:first-child {
+      padding-left: 24px;
+      color: var(--text-subtle);
+    }
+    table.usage tr.tp td {
+      background: var(--accent-soft);
+      font-weight: 600;
+      color: var(--accent);
+    }
+
     /* Footer --------------------------------------------------------- */
 
     .feature-footer {
@@ -924,9 +1009,11 @@
     <section class="panel active" role="tabpanel"
              id="panel-brainstorming" aria-labelledby="tab-brainstorming">
       <p class="section-timestamp">{{BRAINSTORMING_AT}}</p>
+      {{BRAINSTORMING_USAGE_CHIP}}
       <article class="panel-section">
         <h2 class="section-label">Highlights</h2>
         <div class="bullets">{{BRAINSTORMING_BULLETS}}</div>
+        {{BRAINSTORMING_USAGE}}
       </article>
       <article class="panel-section">
         <h2 class="section-label">Detail</h2>
@@ -937,9 +1024,11 @@
     <section class="panel" role="tabpanel"
              id="panel-design" aria-labelledby="tab-design" hidden>
       <p class="section-timestamp">{{DESIGN_AT}}</p>
+      {{DESIGN_USAGE_CHIP}}
       <article class="panel-section">
         <h2 class="section-label">Highlights</h2>
         <div class="bullets">{{DESIGN_BULLETS}}</div>
+        {{DESIGN_USAGE}}
       </article>
       <article class="panel-section">
         <h2 class="section-label">Detail</h2>
@@ -950,9 +1039,11 @@
     <section class="panel" role="tabpanel"
              id="panel-plan" aria-labelledby="tab-plan" hidden>
       <p class="section-timestamp">{{PLAN_AT}}</p>
+      {{PLAN_USAGE_CHIP}}
       <article class="panel-section">
         <h2 class="section-label">Highlights</h2>
         <div class="bullets">{{PLAN_BULLETS}}</div>
+        {{PLAN_USAGE}}
       </article>
       <article class="panel-section">
         <h2 class="section-label">Detail</h2>
@@ -963,9 +1054,11 @@
     <section class="panel" role="tabpanel"
              id="panel-implementation" aria-labelledby="tab-implementation" hidden>
       <p class="section-timestamp">{{IMPLEMENTATION_AT}}</p>
+      {{IMPLEMENTATION_USAGE_CHIP}}
       <article class="panel-section">
         <h2 class="section-label">Highlights</h2>
         <div class="bullets">{{IMPLEMENTATION_BULLETS}}</div>
+        {{IMPLEMENTATION_USAGE}}
       </article>
       <article class="panel-section">
         <h2 class="section-label">Detail</h2>

@@ -25,6 +25,14 @@ WORKFLOW_TEMPLATE = TEMPLATES / "workflow-diagram.html"
 # charset, --clear) and plugin invariants (silent skip, writes nothing).
 LABEL_SKILL = SKILLS / "set-herdr-label" / "SKILL.md"
 
+# The run-usage reporter. The compute and the schema knowledge live in the
+# script; the skill is a thin runner; the template carries the tokens the
+# script fills — and bug-tracker-render is that template's second consumer.
+USAGE_SCRIPT = REPO / "scripts" / "usage_report.py"
+USAGE_SKILL = SKILLS / "usage-report" / "SKILL.md"
+TRACKER_TEMPLATE = TEMPLATES / "feature-tracker.html"
+BUG_TRACKER_SKILL = SKILLS / "bug-tracker-render" / "SKILL.md"
+
 
 def fenced_blocks(text: str) -> list[str]:
     """All fenced code blocks in a markdown document, fence markers stripped."""

@@ -39,7 +39,7 @@ cp "<template>" "<tracker_file>"
 
 Always overwrite — the tracker holds no state of its own; everything is re-derived below.
 
-**Then `Read` the copied file once, before any `Edit` call.** The copy was made by a shell command, so the `Edit` tool has no read-state for it and *every* substitution below fails on its first attempt otherwise — roughly seventeen wasted tool calls per regeneration, all of which then have to be retried. Reading any portion of the file is enough to satisfy this; read it once here rather than discovering the problem at the first token.
+**Then `Read` the copied file once, before any `Edit` call.** The copy was made by a shell command, so the `Edit` tool has no read-state for it and *every* substitution below fails on its first attempt otherwise — roughly twenty-five wasted tool calls per regeneration, all of which then have to be retried. Reading any portion of the file is enough to satisfy this; read it once here rather than discovering the problem at the first token.
 
 ## Step 3 — Set the bug-tracker chrome
 
@@ -49,7 +49,7 @@ These tokens are literal in the fresh copy. Use `Edit`, and for any token that o
 - `{{FEATURE_TITLE}}` → `Bug Tracker`.
 - `{{FEATURE_VERSION}}` → empty string, and `{{FEATURE_SLUG}}` → empty string (both hidden on the bug view).
 - `{{GENERATED_AT}}` → `date -u +%Y-%m-%d`.
-- Each of the twelve feature-panel tokens → empty string (those panels are hidden, but don't leave literal `{{...}}` in the file): `{{BRAINSTORMING_AT}}`, `{{BRAINSTORMING_BULLETS}}`, `{{BRAINSTORMING_DETAILS}}`, `{{DESIGN_AT}}`, `{{DESIGN_BULLETS}}`, `{{DESIGN_DETAILS}}`, `{{PLAN_AT}}`, `{{PLAN_BULLETS}}`, `{{PLAN_DETAILS}}`, `{{IMPLEMENTATION_AT}}`, `{{IMPLEMENTATION_BULLETS}}`, `{{IMPLEMENTATION_DETAILS}}`.
+- Each of the twenty feature-panel tokens → empty string (those panels are hidden, but don't leave literal `{{...}}` in the file): `{{BRAINSTORMING_AT}}`, `{{BRAINSTORMING_BULLETS}}`, `{{BRAINSTORMING_DETAILS}}`, `{{BRAINSTORMING_USAGE_CHIP}}`, `{{BRAINSTORMING_USAGE}}`, `{{DESIGN_AT}}`, `{{DESIGN_BULLETS}}`, `{{DESIGN_DETAILS}}`, `{{DESIGN_USAGE_CHIP}}`, `{{DESIGN_USAGE}}`, `{{PLAN_AT}}`, `{{PLAN_BULLETS}}`, `{{PLAN_DETAILS}}`, `{{PLAN_USAGE_CHIP}}`, `{{PLAN_USAGE}}`, `{{IMPLEMENTATION_AT}}`, `{{IMPLEMENTATION_BULLETS}}`, `{{IMPLEMENTATION_DETAILS}}`, `{{IMPLEMENTATION_USAGE_CHIP}}`, `{{IMPLEMENTATION_USAGE}}`. The last eight are the run-usage tokens `usage-report` fills on a feature tracker; the bug tracker has no run to report, so they blank like the rest.
 
 ## Step 4 — Gather the bugs
 

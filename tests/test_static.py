@@ -10,6 +10,7 @@ literals must stay consistent with their consumers.
 import re
 
 from helpers import (
+    BUG_TRACKER_SKILL,
     C4_SKILL,
     C4_TEMPLATE,
     DESIGN_SKILL,
@@ -19,6 +20,8 @@ from helpers import (
     REPO,
     SKILLS,
     TEMPLATES,
+    TRACKER_TEMPLATE,
+    USAGE_SCRIPT,
     WORKFLOW_SKILL,
     WORKFLOW_TEMPLATE,
     cited_sections,
@@ -102,6 +105,25 @@ STALE_STORM_REFERENCES = (
 
 # `{{TOKEN}}` appears in prose as a meta-placeholder, not a real template token.
 GENERIC_TOKEN_NAMES = {"TOKEN"}
+
+# The eight usage tokens, keyed by the tracker panel each pair must sit in
+# (the `id="panel-<key>"` sections of templates/feature-tracker.html). Chip
+# first, table second — the order render_tracker_html returns them in.
+USAGE_TOKENS = {
+    "brainstorming": ("{{BRAINSTORMING_USAGE_CHIP}}", "{{BRAINSTORMING_USAGE}}"),
+    "design": ("{{DESIGN_USAGE_CHIP}}", "{{DESIGN_USAGE}}"),
+    "plan": ("{{PLAN_USAGE_CHIP}}", "{{PLAN_USAGE}}"),
+    "implementation": ("{{IMPLEMENTATION_USAGE_CHIP}}", "{{IMPLEMENTATION_USAGE}}"),
+}
+
+# Every feature-panel token. bug-tracker-render blanks all of them by name —
+# it is the template's second consumer, and the one nothing in the bug
+# workflow reminds you about. Twelve before the usage tokens, twenty after.
+FEATURE_PANEL_TOKENS = tuple(
+    "{{%s_%s}}" % (prefix, suffix)
+    for prefix in ("BRAINSTORMING", "DESIGN", "PLAN", "IMPLEMENTATION")
+    for suffix in ("AT", "BULLETS", "DETAILS", "USAGE_CHIP", "USAGE")
+)
 
 
 def all_skill_files():
@@ -896,6 +918,91 @@ class TestHerdrLabelLifecycle:
             assert len(set(seen.values())) == 1, (
                 f"the herdr {label} block has drifted between feature-* skills"
             )
+
+
+class TestUsageReportLifecycle:
+    """The four chain skills report what a run cost, via the usage-report helper.
+
+    Modelled on TestHerdrLabelLifecycle, and needed for the same reason: the
+    feature is spread across six files that nothing else forces to agree. The
+    tracker template carries eight tokens, `scripts/usage_report.py` is the
+    only thing that fills them, `skills/usage-report/SKILL.md` is the only
+    skill that names them, and `bug-tracker-render` — the template's *second*
+    consumer — has to blank them, or every regenerated bug tracker renders
+    literal `{{DESIGN_USAGE}}` text.
+    """
+
+    def panel_span(self, text, panel):
+        """(start, end) offsets of the tracker template's `panel-<panel>` section."""
+        start = text.find(f'id="panel-{panel}"')
+        assert start != -1, f"no `id=\"panel-{panel}\"` section in the template"
+        return start, text.index("</section>", start)
+
+    def test_eight_usage_tokens_exist_in_the_template(self):
+        text = TRACKER_TEMPLATE.read_text()
+        for panel, tokens in USAGE_TOKENS.items():
+            start, end = self.panel_span(text, panel)
+            for token in tokens:
+                assert token in text, (
+                    f"{token} not in templates/feature-tracker.html"
+                )
+                # Searched within the span, not by first index — the doc
+                # comment at the top of the template legends all eight.
+                assert token in text[start:end], (
+                    f"{token} sits outside the {panel} panel"
+                )
+
+    def test_the_rendered_chip_and_table_are_styled_by_the_template(self):
+        # The script owns the markup, the template owns its presentation, and
+        # nothing makes the two agree: a renamed class renders an unstyled
+        # table rather than failing anything.
+        script, template = USAGE_SCRIPT.read_text(), TRACKER_TEMPLATE.read_text()
+        for markup, selector in (
+            ('<span class="chip usage">', ".chip.usage"),
+            ('<table class="usage">', "table.usage"),
+        ):
+            assert markup in script, f"usage_report.py no longer renders {markup}"
+            assert selector in template, (
+                f"templates/feature-tracker.html has no `{selector}` rule, so "
+                f"{markup} renders unstyled"
+            )
+
+    def test_script_token_map_matches_the_template(self):
+        # Read as text, not imported: TRACKER_TOKENS is the script's half of
+        # the contract and this asserts it names exactly the eight tokens the
+        # template above was just shown to carry.
+        block = re.search(
+            r"^TRACKER_TOKENS[^=]*= \{(.*?)^\}", USAGE_SCRIPT.read_text(),
+            re.DOTALL | re.MULTILINE,
+        )
+        assert block, "scripts/usage_report.py: no TRACKER_TOKENS mapping"
+        named = set(re.findall(r"\{\{[A-Z0-9_]+\}\}", block.group(1)))
+        expected = {token for pair in USAGE_TOKENS.values() for token in pair}
+        assert named == expected, (
+            "TRACKER_TOKENS disagrees with the template's usage tokens: "
+            f"{named ^ expected}"
+        )
+
+    def test_bug_tracker_render_blanks_twenty_tokens(self):
+        # The bug tracker hides the feature panels but still renders their
+        # text, so a token it does not blank leaks as a literal `{{...}}`.
+        line = next(
+            (
+                line
+                for line in BUG_TRACKER_SKILL.read_text().splitlines()
+                if "feature-panel tokens" in line
+            ),
+            None,
+        )
+        assert line, "bug-tracker-render: no feature-panel blanking instruction"
+        assert "twelve" not in line, (
+            "bug-tracker-render still says twelve feature-panel tokens"
+        )
+        assert "twenty" in line, (
+            "bug-tracker-render must blank all twenty feature-panel tokens"
+        )
+        missing = [token for token in FEATURE_PANEL_TOKENS if token not in line]
+        assert not missing, f"bug-tracker-render does not blank {missing}"
 
 
 def test_no_stale_storm_section_references():
