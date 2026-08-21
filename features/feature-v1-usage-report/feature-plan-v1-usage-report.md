@@ -308,3 +308,25 @@ not a change of contract.
    entry both need the subagent count, and it is derived where the subagent
    files are counted. `RunContext` is the "footer context" the plan's Stage 2
    step 3 refers to, shared by `render_markdown` and `log_entry`.
+5. **Stage 5 — sole token ownership is asserted as sole *filling*
+   ownership, with `bug-tracker-render` carved out.** Stage 5 step 1 specifies
+   a test that the eight tokens appear in `skills/usage-report/SKILL.md` "and
+   in no other `SKILL.md`", which Stage 4 of this same plan makes impossible —
+   it adds all eight to `bug-tracker-render`'s blanking list. Implemented as
+   design §5's wording instead ("filled only by `usage-report`"):
+   `test_usage_report_owns_the_usage_tokens` allows exactly the two skills the
+   design names and fails on any third, so a second *writer* is still caught.
+6. **Stage 4 — `bug-tracker-render`'s "roughly seventeen wasted tool calls"
+   figure was updated to twenty-five.** It counted the seventeen Step 3
+   substitutions exactly; adding eight tokens made it stale in the same edit
+   that added them.
+7. **Stage 6 — in `feature-plan` and `feature-implement` the start block sits
+   after the label block's main-agent note**, not between the label line and
+   that note. Design §5 puts it "immediately after the `set-herdr-label`
+   block", and the note is part of that block; splitting them would have
+   stranded the label's own rationale a paragraph away from it.
+8. **Tests — `step_span` and `skill_text` moved from `TestHerdrLabelLifecycle`
+   into `tests/helpers.py`,** which also gained the four path constants the new
+   assertions read. Stage 6 step 1 calls for *reusing* the herdr class's
+   `step_span` technique; extracting it was the way to reuse rather than copy
+   it. `TestHerdrLabelLifecycle`'s own assertions are untouched.
