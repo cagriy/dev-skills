@@ -296,3 +296,167 @@ def _subagent_files(subagent_dir):
         return sorted(Path(subagent_dir).glob("agent-*.jsonl"))
     except OSError:
         return []
+
+
+@dataclass(frozen=True)
+class RunContext:
+    """Everything the report needs that the transcript cannot supply."""
+
+    slug: str
+    repo_name: str = ""
+    timestamp: str = ""
+    feature_version: int | None = None
+    outcome: str = "completed"
+    evals_included: bool = False
+
+
+# Total-column-only rows. Their keys are deliberately not Usage field names, so
+# a row's source is unambiguously one or the other.
+_TOTAL_ONLY = {
+    "elapsed": lambda m: _duration(m.timings.elapsed_seconds),
+    "run": lambda m: _duration(m.timings.run_seconds),
+    "tok/s": lambda m: _rate(m.output_tokens_per_second),
+}
+
+# The report's shape, from the accepted grouped-columns mockup: (group, rows),
+# each row (label, source, indented). Both renderers walk this one spec, so the
+# chat table and the tracker table cannot drift apart.
+_ROW_GROUPS = (
+    ("time", (
+        ("elapsed", "elapsed", False),
+        ("run time", "run", False),
+    )),
+    ("tokens", (
+        ("input_tokens", "input_tokens", False),
+        ("output_tokens", "output_tokens", False),
+        ("thinking_tokens", "thinking_tokens", True),
+        ("cache_write", "cache_write", False),
+        ("ephemeral_1h", "ephemeral_1h", True),
+        ("ephemeral_5m", "ephemeral_5m", True),
+        ("cache_read", "cache_read", False),
+    )),
+    ("requests", (
+        ("model", "requests", False),
+        ("web_search", "web_search", False),
+        ("web_fetch", "web_fetch", False),
+    )),
+    ("throughput", (
+        ("output tok/s", "tok/s", False),
+    )),
+)
+
+
+def _duration(seconds) -> str:
+    seconds = max(0, int(seconds))
+    hours, rest = divmod(seconds, 3600)
+    minutes, secs = divmod(rest, 60)
+    if hours:
+        return f"{hours}h {minutes:02d}m {secs:02d}s"
+    if minutes:
+        return f"{minutes}m {secs:02d}s"
+    return f"{seconds}s"
+
+
+def _rate(value) -> str:
+    return "—" if value is None else f"{value:.1f}"
+
+
+def _cells(metrics: RunMetrics, source: str) -> tuple:
+    """The three column cells for one row, already formatted."""
+    if source in _TOTAL_ONLY:
+        return ("—", "—", _TOTAL_ONLY[source](metrics))
+    columns = (metrics.main, metrics.subagents, metrics.total)
+    return tuple(f"{getattr(column, source):,}" for column in columns)
+
+
+def render_markdown(metrics: RunMetrics, footer: RunContext) -> str:
+    """The chat table. Chat renders markdown tables natively, so this is one."""
+    lines = [
+        "### Run usage",
+        "",
+        "| metric | main | subagents | total |",
+        "|---|---:|---:|---:|",
+    ]
+    for group, rows in _ROW_GROUPS:
+        lines.append(f"| **{group}** | | | |")
+        for label, source, indented in rows:
+            name = f"&nbsp;&nbsp;{label}" if indented else label
+            lines.append(f"| {name} | " + " | ".join(_cells(metrics, source)) + " |")
+    lines += ["", _footer_line(metrics, footer)]
+    return "\n".join(lines)
+
+
+def _footer_line(metrics: RunMetrics, footer: RunContext) -> str:
+    tier = metrics.total.service_tier or "unknown"
+    speed = metrics.total.speed or "unknown"
+    return (
+        f"{tier} tier · {speed} speed · {metrics.subagent_count} subagents "
+        f"· outcome {footer.outcome}"
+    )
+
+
+def render_tracker_html(metrics: RunMetrics) -> tuple:
+    """The tracker panel's headline chip and usage table, as a pair of strings.
+
+    The chip must never read `Updated <date>`: feature-list derives a feature's
+    last-activity date by matching that shape in the tracker's chips.
+    """
+    chip = (
+        '<span class="chip usage">'
+        f"{_duration(metrics.timings.elapsed_seconds)} · "
+        f"{metrics.total.output_tokens:,} out · "
+        f"{_rate(metrics.output_tokens_per_second)} tok/s</span>"
+    )
+
+    rows = [
+        '<table class="usage">',
+        "<thead><tr><th>Metric</th><th>Main</th><th>Subagents</th>"
+        "<th>Total</th></tr></thead>",
+        "<tbody>",
+    ]
+    for group, group_rows in _ROW_GROUPS:
+        rows.append(f'<tr class="grp"><td colspan="4">{group.capitalize()}</td></tr>')
+        for label, source, indented in group_rows:
+            css = ' class="sub"' if indented else ' class="tp"' if source == "tok/s" else ""
+            cells = "".join(f"<td>{cell}</td>" for cell in _cells(metrics, source))
+            rows.append(f"<tr{css}><td>{label}</td>{cells}</tr>")
+    rows += ["</tbody>", "</table>"]
+    return chip, "\n".join(rows)
+
+
+def _columns(metrics: RunMetrics, field: str) -> dict:
+    return {
+        "main": getattr(metrics.main, field),
+        "subagents": getattr(metrics.subagents, field),
+        "total": getattr(metrics.total, field),
+    }
+
+
+def log_entry(metrics: RunMetrics, context: RunContext) -> dict:
+    """The one JSONL line for this run.
+
+    Built from an explicit field list rather than by copying and filtering an
+    entry, so no conversation content can reach the log by omission (design §5
+    Security).
+    """
+    entry = {
+        "repo_name": context.repo_name,
+        "timestamp": context.timestamp,
+        "slug": context.slug,
+        "feature_version": context.feature_version,
+        "outcome": context.outcome,
+        "evals_included": context.evals_included,
+        "elapsed_seconds": metrics.timings.elapsed_seconds,
+        "run_seconds": metrics.timings.run_seconds,
+        "request_seconds": metrics.timings.request_seconds,
+        "output_tokens_per_second": metrics.output_tokens_per_second,
+        "subagent_count": metrics.subagent_count,
+        "service_tier": metrics.total.service_tier,
+        "speed": metrics.total.speed,
+        "models": list(metrics.total.models),
+    }
+    for field in ("requests", "output_tokens", "thinking_tokens", "input_tokens",
+                  "cache_write", "ephemeral_1h", "ephemeral_5m", "cache_read",
+                  "web_search", "web_fetch"):
+        entry[field] = _columns(metrics, field)
+    return entry

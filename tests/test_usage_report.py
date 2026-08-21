@@ -6,6 +6,7 @@ schema change fails here rather than silently reporting zeros.
 """
 
 import json
+import re
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -51,6 +52,14 @@ def main_entries():
 
 def windowed_main():
     return ur.window_entries(main_entries(), START, END)
+
+
+@pytest.fixture
+def metrics(session):
+    """The RunMetrics the fixture session yields over the fixture window."""
+    config_dir, session_id = session
+    transcript = ur.resolve_transcript(session_id, config_dir)
+    return ur.collect(transcript, transcript.parent / session_id / "subagents", START, END)
 
 
 @pytest.fixture
@@ -179,11 +188,7 @@ class TestThroughput:
 
 
 class TestCollect:
-    def test_main_and_subagent_columns_split(self, session):
-        config_dir, session_id = session
-        transcript = ur.resolve_transcript(session_id, config_dir)
-        metrics = ur.collect(transcript, transcript.parent / session_id / "subagents", START, END)
-
+    def test_main_and_subagent_columns_split(self, metrics):
         assert metrics.main.output_tokens == 350
         assert metrics.main.requests == 3
         # 30 + 40 from the depth-1 agent, 20 from the depth-2 one
@@ -191,11 +196,7 @@ class TestCollect:
         assert metrics.subagents.requests == 3
         assert metrics.subagent_count == 2
 
-    def test_totals_are_the_two_columns_summed(self, session):
-        config_dir, session_id = session
-        transcript = ur.resolve_transcript(session_id, config_dir)
-        metrics = ur.collect(transcript, transcript.parent / session_id / "subagents", START, END)
-
+    def test_totals_are_the_two_columns_summed(self, metrics):
         assert metrics.total.input_tokens == 22
         assert metrics.total.output_tokens == 440
         assert metrics.total.thinking_tokens == 150
@@ -208,11 +209,7 @@ class TestCollect:
         assert metrics.total.requests == 6
         assert metrics.total.models == ("claude-haiku-4-5", "claude-opus-5")
 
-    def test_timings_take_elapsed_from_main_and_request_time_from_both(self, session):
-        config_dir, session_id = session
-        transcript = ur.resolve_transcript(session_id, config_dir)
-        metrics = ur.collect(transcript, transcript.parent / session_id / "subagents", START, END)
-
+    def test_timings_take_elapsed_from_main_and_request_time_from_both(self, metrics):
         assert metrics.timings.elapsed_seconds == 60
         assert metrics.timings.run_seconds == 20
         assert metrics.timings.request_seconds == 47  # 17 main + 24 + 6 subagent
@@ -227,10 +224,7 @@ class TestCollect:
         assert metrics.subagent_count == 0
         assert metrics.total.output_tokens == 350
 
-    def test_conversation_content_never_reaches_the_metrics(self, session):
-        config_dir, session_id = session
-        transcript = ur.resolve_transcript(session_id, config_dir)
-        metrics = ur.collect(transcript, transcript.parent / session_id / "subagents", START, END)
+    def test_conversation_content_never_reaches_the_metrics(self, metrics):
         assert SECRET not in json.dumps(metrics, default=repr)
 
 
@@ -263,3 +257,170 @@ def test_the_fixture_window_is_the_one_the_tests_assume():
     assert stamps[0] == "2026-08-21T11:59:00.000Z"
     assert stamps[-1] == ts(1, 30)
     assert END - START == timedelta(minutes=1)
+
+
+# --- Stage 2: rendering and the log entry ----------------------------------
+
+# Golden strings, compared whole. A substring check would silently tolerate a
+# row-order drift away from the accepted grouped-columns mockup.
+EXPECTED_MARKDOWN = """### Run usage
+
+| metric | main | subagents | total |
+|---|---:|---:|---:|
+| **time** | | | |
+| elapsed | — | — | 1m 00s |
+| run time | — | — | 20s |
+| **tokens** | | | |
+| input_tokens | 16 | 6 | 22 |
+| output_tokens | 350 | 90 | 440 |
+| &nbsp;&nbsp;thinking_tokens | 120 | 30 | 150 |
+| cache_write | 3,000 | 900 | 3,900 |
+| &nbsp;&nbsp;ephemeral_1h | 2,500 | 500 | 3,000 |
+| &nbsp;&nbsp;ephemeral_5m | 500 | 400 | 900 |
+| cache_read | 12,000 | 2,500 | 14,500 |
+| **requests** | | | |
+| model | 3 | 3 | 6 |
+| web_search | 1 | 0 | 1 |
+| web_fetch | 2 | 0 | 2 |
+| **throughput** | | | |
+| output tok/s | — | — | 9.4 |
+
+standard tier · standard speed · 2 subagents · outcome completed"""
+
+EXPECTED_CHIP = '<span class="chip usage">1m 00s · 440 out · 9.4 tok/s</span>'
+
+EXPECTED_TRACKER_TABLE = """<table class="usage">
+<thead><tr><th>Metric</th><th>Main</th><th>Subagents</th><th>Total</th></tr></thead>
+<tbody>
+<tr class="grp"><td colspan="4">Time</td></tr>
+<tr><td>elapsed</td><td>—</td><td>—</td><td>1m 00s</td></tr>
+<tr><td>run time</td><td>—</td><td>—</td><td>20s</td></tr>
+<tr class="grp"><td colspan="4">Tokens</td></tr>
+<tr><td>input_tokens</td><td>16</td><td>6</td><td>22</td></tr>
+<tr><td>output_tokens</td><td>350</td><td>90</td><td>440</td></tr>
+<tr class="sub"><td>thinking_tokens</td><td>120</td><td>30</td><td>150</td></tr>
+<tr><td>cache_write</td><td>3,000</td><td>900</td><td>3,900</td></tr>
+<tr class="sub"><td>ephemeral_1h</td><td>2,500</td><td>500</td><td>3,000</td></tr>
+<tr class="sub"><td>ephemeral_5m</td><td>500</td><td>400</td><td>900</td></tr>
+<tr><td>cache_read</td><td>12,000</td><td>2,500</td><td>14,500</td></tr>
+<tr class="grp"><td colspan="4">Requests</td></tr>
+<tr><td>model</td><td>3</td><td>3</td><td>6</td></tr>
+<tr><td>web_search</td><td>1</td><td>0</td><td>1</td></tr>
+<tr><td>web_fetch</td><td>2</td><td>0</td><td>2</td></tr>
+<tr class="grp"><td colspan="4">Throughput</td></tr>
+<tr class="tp"><td>output tok/s</td><td>—</td><td>—</td><td>9.4</td></tr>
+</tbody>
+</table>"""
+
+# The exact field set of design §5 Data model, in its documented order.
+EXPECTED_LOG_FIELDS = [
+    "repo_name", "timestamp", "slug", "feature_version", "outcome",
+    "evals_included", "elapsed_seconds", "run_seconds", "request_seconds",
+    "output_tokens_per_second", "subagent_count", "service_tier", "speed",
+    "models", "requests", "output_tokens", "thinking_tokens", "input_tokens",
+    "cache_write", "ephemeral_1h", "ephemeral_5m", "cache_read", "web_search",
+    "web_fetch",
+]
+
+
+def context(**overrides):
+    fields = dict(
+        slug="feature-plan",
+        repo_name="dev-skills",
+        timestamp="2026-08-21T12:01:00Z",
+        feature_version=1,
+        outcome="completed",
+        evals_included=False,
+    )
+    fields.update(overrides)
+    return ur.RunContext(**fields)
+
+
+def empty_metrics():
+    return ur.RunMetrics(ur.Usage(), ur.Usage(), ur.Usage(), ur.Timings())
+
+
+class TestRenderMarkdown:
+    def test_matches_the_accepted_mockup(self, metrics):
+        assert ur.render_markdown(metrics, context()) == EXPECTED_MARKDOWN
+
+    def test_a_zero_request_run_renders_an_em_dash_rather_than_dividing_by_zero(self):
+        table = ur.render_markdown(empty_metrics(), context())
+        assert "| output tok/s | — | — | — |" in table
+
+    def test_a_clamped_duration_renders_as_zero_seconds(self):
+        table = ur.render_markdown(empty_metrics(), context())
+        assert "| elapsed | — | — | 0s |" in table
+
+    def test_the_outcome_comes_from_the_context(self, metrics):
+        table = ur.render_markdown(metrics, context(outcome="halted"))
+        assert table.endswith("· outcome halted")
+
+
+class TestRenderTrackerHtml:
+    def test_chip_matches_the_accepted_mockup(self, metrics):
+        chip, _ = ur.render_tracker_html(metrics)
+        assert chip == EXPECTED_CHIP
+
+    def test_the_chip_is_never_mistakable_for_a_timestamp_chip(self, metrics):
+        """feature-list derives last_activity from `Updated <date>` chips."""
+        chip, _ = ur.render_tracker_html(metrics)
+        assert re.search(r"Updated\s+\d", chip) is None
+
+    def test_table_matches_the_accepted_mockup(self, metrics):
+        _, table = ur.render_tracker_html(metrics)
+        assert table == EXPECTED_TRACKER_TABLE
+
+    def test_both_surfaces_carry_the_same_row_order(self, metrics):
+        markdown = ur.render_markdown(metrics, context())
+        _, table = ur.render_tracker_html(metrics)
+        # [1:] drops the header row, which matches the same shape
+        labels = re.findall(r"^\| (?:&nbsp;&nbsp;)?([a-z_ /]+) \|", markdown, re.MULTILINE)[1:]
+        cells = re.findall(r"<tr[^>]*><td>([a-z_ /]+)</td>", table)
+        assert labels == cells
+
+
+class TestLogEntry:
+    def test_exact_field_set_in_order(self, metrics):
+        assert list(ur.log_entry(metrics, context())) == EXPECTED_LOG_FIELDS
+
+    def test_columns_carry_all_three_keys(self, metrics):
+        entry = ur.log_entry(metrics, context())
+        assert entry["output_tokens"] == {"main": 350, "subagents": 90, "total": 440}
+        assert entry["requests"] == {"main": 3, "subagents": 3, "total": 6}
+
+    def test_scalars_come_from_the_metrics_and_the_context(self, metrics):
+        entry = ur.log_entry(metrics, context(evals_included=True))
+        assert entry["elapsed_seconds"] == 60
+        assert entry["run_seconds"] == 20
+        assert entry["request_seconds"] == 47
+        assert entry["output_tokens_per_second"] == 9.4
+        assert entry["subagent_count"] == 2
+        assert entry["models"] == ["claude-haiku-4-5", "claude-opus-5"]
+        assert entry["evals_included"] is True
+
+    def test_feature_version_is_null_when_unresolved(self, metrics):
+        entry = ur.log_entry(metrics, context(feature_version=None))
+        assert entry["feature_version"] is None
+        assert json.loads(json.dumps(entry))["feature_version"] is None
+
+    def test_evals_included_is_always_present(self, metrics):
+        assert "evals_included" in ur.log_entry(metrics, context())
+
+    def test_the_serialised_entry_stays_under_2048_bytes(self):
+        """Below PIPE_BUF a single O_APPEND write of one line is atomic."""
+        fat = ur.Usage(**{f: 999_999_999 for f in ur.NUMERIC_FIELDS},
+                       models=("claude-opus-5", "claude-haiku-4-5"),
+                       service_tier="standard", speed="standard")
+        metrics = ur.RunMetrics(fat, fat, fat + fat, ur.Timings(999999, 999999, 999999), 99)
+        entry = ur.log_entry(metrics, context(slug="feature-implement"))
+        assert len(json.dumps(entry).encode()) < 2048
+
+
+class TestNoConversationContentLeaks:
+    def test_the_secret_reaches_neither_renderer_nor_the_log_entry(self, metrics):
+        chip, table = ur.render_tracker_html(metrics)
+        assert SECRET not in ur.render_markdown(metrics, context())
+        assert SECRET not in chip
+        assert SECRET not in table
+        assert SECRET not in json.dumps(ur.log_entry(metrics, context()))
