@@ -847,7 +847,7 @@
         </span>
         <span class="step-label">Plan</span>
       </li>
-      <li class="step" data-stage="implement" data-state="pending">
+      <li class="step" data-stage="implement" data-state="complete">
         <span class="step-indicator" aria-hidden="true">
           <span class="step-check">&#10003;</span>
           <span class="step-number">4</span>
@@ -1108,14 +1108,79 @@
 
     <section class="panel" role="tabpanel"
              id="panel-implementation" aria-labelledby="tab-implementation" hidden>
-      <p class="section-timestamp">Awaiting /feature-implement</p>
+      <p class="section-timestamp">Updated 2026-08-21 15:25 UTC</p>
       <article class="panel-section">
         <h2 class="section-label">Highlights</h2>
-        <div class="bullets"><p class="empty">Not yet filled — pending /feature-implement.</p></div>
+        <div class="bullets"><ul><li>Stages completed: 8/8</li><li>Tests: 156/156 passing (7 llm-marked tests deselected by default)</li><li>New tests added: 97 (59 → 156)</li><li>Design coverage: 16/16 requirements verified by tests</li><li>Pre-existing failures excluded: None — the baseline was fully green</li><li>Dead-code orphans removed: None; no analyzer configured for this repo</li><li>Deviations from plan: 9, all recorded in the plan file</li><li>Stage 7's live integration check caught a tracker defect no unit test could reach</li><li>Final commit: b531f59</li><li>Branch left ahead of origin/main by 12 commits — this skill never pushes</li></ul></div>
       </article>
       <article class="panel-section">
         <h2 class="section-label">Detail</h2>
-        <div class="prose"><p class="empty">Not yet filled — pending /feature-implement.</p></div>
+        <div class="prose"><h3>Stages completed</h3>
+<table><thead><tr><th>Stage</th><th>Title</th><th>Commit</th></tr></thead><tbody><tr><td>Stage 1</td><td>Transcript aggregation core</td><td><code>87f2d4c</code></td></tr><tr><td>Stage 2</td><td>Rendering and the log entry</td><td><code>951d878</code></td></tr><tr><td>Stage 3</td><td>CLI, start marker, log append, tracker application</td><td><code>ecc5aaa</code></td></tr><tr><td>Stage 4</td><td>Tracker template tokens, chip and table styling, and the bug tracker's blanking list</td><td><code>d2d3f62</code></td></tr><tr><td>Stage 5</td><td>The <code>usage-report</code> skill</td><td><code>025daaa</code></td></tr><tr><td>Stage 6</td><td>Start call sites in the four chain skills</td><td><code>b6eeddb</code></td></tr><tr><td>Stage 7</td><td>Report call sites, placement asymmetry, and early-exit catch-alls</td><td><code>f918105</code></td></tr><tr><td>Stage 8</td><td>Documentation</td><td><code>b531f59</code></td></tr></tbody></table>
+
+<h3>Tests &amp; lint</h3>
+<p><code>uv run pytest</code> — <strong>156 passed, 7 deselected</strong>. The suite grew from 59 to 156:
+73 unit tests across 18 classes in the new <code>tests/test_usage_report.py</code>, plus
+<code>TestUsageReportLifecycle</code> in <code>tests/test_static.py</code> guarding the call sites,
+token ownership and the report-placement asymmetry.</p>
+<p><strong>Baseline failures excluded from regression gating:</strong> none. The tree was fully green
+(59 passed) before the first stage, so every failure seen during the run was one this work introduced
+and was fixed within its stage.</p>
+<p><strong>Lint / format / type / build / dead-code:</strong> this repo configures none, so all five
+slots were recorded as <em>no baseline</em> and skipped. A whole-project dead-code sweep was therefore
+not run; a reference check confirmed all 47 symbols in <code>scripts/usage_report.py</code> are
+referenced. Adopting <code>vulture</code> would let the next run gate this properly.</p>
+
+<h3>Design coverage</h3>
+<table><thead><tr><th>Requirement</th><th>Verified by</th></tr></thead><tbody>
+<tr><td>R1 start marker keyed on session + slug</td><td><code>TestWriteStart</code>, <code>TestMain</code></td></tr>
+<tr><td>R2 report computes the window and emits</td><td><code>TestCollect</code>, <code>TestMain</code></td></tr>
+<tr><td>R3 token breakdown main / subagents / total</td><td><code>TestAggregate</code>, <code>TestRenderMarkdown</code></td></tr>
+<tr><td>R4 elapsed and run time</td><td><code>TestTimings</code></td></tr>
+<tr><td>R5 output tok/s</td><td><code>TestThroughput</code></td></tr>
+<tr><td>R6 footer: tier, speed, subagents, outcome</td><td><code>TestRenderMarkdown</code></td></tr>
+<tr><td>R7 markdown table titled <em>Run usage</em></td><td><code>TestRenderMarkdown</code> (golden string)</td></tr>
+<tr><td>R8 exactly one JSONL entry per run</td><td><code>TestAppendLog</code>, <code>TestMain</code></td></tr>
+<tr><td>R9 tracker panel gets figures + chip</td><td><code>TestApplyTracker</code>, <code>TestRenderTrackerHtml</code></td></tr>
+<tr><td>R10 re-run replaces that stage's content</td><td><code>TestApplyTracker</code></td></tr>
+<tr><td>R11 halted run still reports and logs</td><td><code>TestLogEntry</code>, <code>TestMain</code></td></tr>
+<tr><td>R12 each request counted once</td><td><code>TestAggregate</code> (dedup by <code>requestId</code>)</td></tr>
+<tr><td>R13 reporting never fails the caller</td><td><code>TestMain</code> (every failure path exits 0)</td></tr>
+<tr><td>R14 no conversation content leaks</td><td><code>TestLogEntry</code> (secret-shaped fixture)</td></tr>
+<tr><td>R15 concurrent runs never lose entries</td><td><code>TestAppendLog</code> (interleaved appends)</td></tr>
+<tr><td>R16 fast on multi-MB transcripts</td><td><code>TestIterEntries</code>; live: 0.049 s on 834 KB</td></tr>
+</tbody></table>
+
+<h3>Deviations from plan</h3>
+<p>Nine, all recorded in the plan's <em>Deviations from plan</em> section. Two are substantive:</p>
+<ul>
+<li><strong>Blanking is anchored, not empty (Stage 3).</strong> Design §5 said the reporter blanks other
+stages' tokens "to the empty string". Taken literally, the first stage to report would delete the other
+three stages' tokens outright and they could never fill them afterwards, so a tracker would only ever
+show one stage's usage. They are blanked to an empty anchored region instead — renders as nothing, stays
+fillable.</li>
+<li><strong>Substitution is confined to the rendered body (Stage 7).</strong> Found by Stage 7's live
+integration check, which is the only place it could be found. The template opens with a doc comment
+legending every token by name; a whole-file substitution filled the legend too, and the
+<code>--&gt;</code> in the anchors it wrote closed that comment about 80 lines early, spilling the legend
+onto the page as visible markup. Stage 3's unit tests could not catch it — they run against a minimal
+fixture with no legend, exactly the drift that stage's own risk note predicted. A new test class now
+pins the behaviour against the shipped template.</li>
+</ul>
+<p>The other seven are minor API and test-scoping details.</p>
+
+<h3>Notes</h3>
+<ul>
+<li><strong>Not pushed.</strong> The branch is 12 commits ahead of <code>origin/main</code>; run
+<code>/push</code> when ready.</li>
+<li><strong>Wiki edits are uncommitted.</strong> <code>Skills-Reference.md</code>,
+<code>Architecture.md</code> and <code>Conventions.md</code> are edited in
+<code>../dev-skills.wiki</code> and publish only when that repo is committed and pushed separately.</li>
+<li><strong>One visual check outstanding.</strong> The Chrome extension was not connected, so the usage
+chip and table were verified structurally and by CSS rule rather than by eye.</li>
+<li>This tracker was seeded before the usage tokens existed, so it carries none of them — the
+purely-additive no-op the design specifies for pre-existing trackers.</li>
+</ul></div>
       </article>
     </section>
 
