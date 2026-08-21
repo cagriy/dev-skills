@@ -330,3 +330,22 @@ not a change of contract.
    assertions read. Stage 6 step 1 calls for *reusing* the herdr class's
    `step_span` technique; extracting it was the way to reuse rather than copy
    it. `TestHerdrLabelLifecycle`'s own assertions are untouched.
+
+9. **Stage 7 — `apply_tracker` substitutes only in the rendered body, never in
+   the template's doc comment.** Found by Stage 7 step 5's integration check,
+   which is the only place it could be found. `templates/feature-tracker.html`
+   opens with an HTML comment legending every token by name, and Stage 4 added
+   the eight usage names to it as planned. A whole-file substitution therefore
+   filled the legend as well as the panel — and the `-->` in the anchor comments
+   it writes closed the doc comment ~80 lines early, spilling the rest of the
+   legend onto the page as visible markup and rendering a stray usage table
+   there. This is exactly the hazard `CLAUDE.md` records for the Issues markers.
+   Stage 3's `apply_tracker` tests could not catch it: they run against
+   `tests/fixtures/usage-tracker-min.html`, which has no legend — the fixture
+   drift Stage 3's own risk note predicted, and which Stage 4's token-name
+   pinning did not close. `_split_doc_comment` now holds the legend aside, and
+   `TestApplyTrackerAgainstTheShippedTemplate` pins the behaviour against the
+   real template rather than the fixture. The skills' existing twelve tokens
+   never hit this because they are filled by an LLM `Edit` under CLAUDE.md's
+   "rendered body only" instruction; deterministic code needed the rule in code.
+
