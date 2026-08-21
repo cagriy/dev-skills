@@ -214,6 +214,8 @@ Two rules keep this cheap and honest:
 
 ### 5b. Invoke `feature-mockup`
 
+`feature-mockup` writes each page under `<feature_folder>/mockups/` and publishes it as a Claude Artifact, so the user reviews a hosted page by link instead of a `file://` path. The `Artifact` tool asks that the `artifact-design` skill be loaded before any artifact page is written, and `feature-mockup` holds no `Skill` tool of its own — so **when this session offers both an `Artifact` tool and an `artifact-design` skill, load `artifact-design` via the `Skill` tool now**, immediately before the invocation below. It runs inline and writes nothing: do not end your turn, carry straight on. When either is absent, skip this and invoke the mockup directly — it falls back to presenting local files.
+
 Invoke it via the `Skill` tool with the argument string:
 
 ```
@@ -224,9 +226,9 @@ Use the `feature_folder` and `version` recorded in Step 2 verbatim. Pass `kind=m
 
 ### 5c. Fold the outcome into the design
 
-Parse the returned result block and record `status`, `kind`, `mockup_dir`, `chosen_mockup`, `alternatives`, `design_language`, `decisions`, and `open_ui_questions`. Then:
+Parse the returned result block and record `status`, `kind`, `mockup_dir`, `chosen_mockup`, `artifact_urls`, `alternatives`, `design_language`, `decisions`, and `open_ui_questions`. Then:
 
-- **`status: accepted`** — carry `decisions` into the design: each item becomes concrete content in §5 (*Interfaces* for the surface itself, *Architecture / components* for the components it reuses or adds), and the accepted mockup is referenced from §5 by relative path (`./mockups/<chosen_mockup>`). Record each rejected entry in `alternatives` in §6 as one line plus why it lost. Any `open_ui_questions` must be closed by looping back to Step 4 for one more round — they may **not** be parked in §8, which has to stay empty.
+- **`status: accepted`** — carry `decisions` into the design: each item becomes concrete content in §5 (*Interfaces* for the surface itself, *Architecture / components* for the components it reuses or adds), and the accepted mockup is referenced from §5 by relative path (`./mockups/<chosen_mockup>`) plus, when `artifact_urls` holds a link for that filename, its artifact URL alongside. Cite both: the URL is what a reader clicks, the relative path is what still resolves in a clone with no network. Record each rejected entry in `alternatives` in §6 as one line plus why it lost, with its own artifact URL when there is one. Any `open_ui_questions` must be closed by looping back to Step 4 for one more round — they may **not** be parked in §8, which has to stay empty.
 - **`status: declined` or `not-applicable`** — note it in one line and continue to Step 6. Neither blocks the design; §5 then describes the surface in prose as it always did.
 - **Skipped at 5a** — §5 records which named condition applied in one line, and for *Appearance already settled* also cites the user's artefact (path, URL, or the prior feature's accepted mockup) as the source of the surface's appearance. A skipped mockup is not an excuse for a vaguer §5: the surface still gets flows, states and placement specified.
 
@@ -346,7 +348,7 @@ First `Read` the tracker file once — `feature-resolve` seeded it via a shell c
 
 - `{{DESIGN_AT}}` → `Updated <YYYY-MM-DD HH:MM UTC>` (the timestamp chip text — no surrounding HTML).
 - `{{DESIGN_BULLETS}}` → an `<ul>` of 5–10 design highlights, one `<li>` per bullet, plain text content (no markdown — convert any markdown to HTML).
-- `{{DESIGN_DETAILS}}` → free-form HTML rendering the design in increasing detail, drawn from the design file written in Step 6. When Step 5 produced an accepted mockup, include a relative-path `<a href="./mockups/<chosen_mockup>">` link to it near the top of this block so the tracker doubles as the way back to the approved visual. Cover §1 (Summary) → §2 (Goals & Non-goals) → §5 (Architecture / data / interfaces / failure / security / performance / testing — pick the sub-sections that matter most for this feature) → §7 (Risks) → §9 (Rollout). Use `<h3>` for top-level section titles, `<h4>` for sub-sections, `<p>` / `<ul>` / `<table>` for content. Order content from highest-level to most detailed so a reader can stop reading at any depth. Skip §6 if empty and skip §8 (it's always "None").
+- `{{DESIGN_DETAILS}}` → free-form HTML rendering the design in increasing detail, drawn from the design file written in Step 6. When Step 5 produced an accepted mockup, include a relative-path `<a href="./mockups/<chosen_mockup>">` link to it near the top of this block so the tracker doubles as the way back to the approved visual — and, when `artifact_urls` holds a link for that filename, a second `<a>` to the published artifact beside it, which is the one that still works when the tracker is shared. Cover §1 (Summary) → §2 (Goals & Non-goals) → §5 (Architecture / data / interfaces / failure / security / performance / testing — pick the sub-sections that matter most for this feature) → §7 (Risks) → §9 (Rollout). Use `<h3>` for top-level section titles, `<h4>` for sub-sections, `<p>` / `<ul>` / `<table>` for content. Order content from highest-level to most detailed so a reader can stop reading at any depth. Skip §6 if empty and skip §8 (it's always "None").
 
 **Storm and future-stage placeholders** — substitute with the empty placeholder *only if still literal*. If `/feature-storm` ran, `{{BRAINSTORMING_*}}` will already be content and you skip them:
 
@@ -384,7 +386,7 @@ In chat, output a short, scannable summary so the user does not need to open the
 ```
 Saved: <stage_file path>
 Tracker: <tracker_file path>
-Mockup: <path to the accepted mockup> (<its name>)   ← omit this line when Step 5 was skipped or returned declined / not-applicable
+Mockup: <artifact URL of the accepted mockup, when published> — <path to the accepted mockup> (<its name>)   ← omit this line when Step 5 was skipped or returned declined / not-applicable
 
 **Feature:** v<N> — <human-readable title>
 
@@ -439,7 +441,7 @@ Do not skip this step or substitute the AskUserQuestion with prose. The offer is
 - **Clear the herdr label before you stop.** However this run ends — normal completion, a halt, a refusal, a stop condition, or an error surfaced to the user — invoke `set-herdr-label` with no argument before you stop. Step 11 covers the normal path; this covers every other one. A label that outlives its run leaves the pane advertising work that is no longer happening.
 - **Report the run usage before you stop.** However this run ends — normal completion, a halt, a refusal, a stop condition, or an error surfaced to the user — invoke `usage-report` with `report feature-design, outcome=halted` before you stop (Step 11's normal path passes `outcome=completed` instead). This covers every exit Step 11 does not. A halted run still cost tokens, and one that never reports vanishes from the log and skews every average drawn from it.
 - **Self-review is mandatory.** Step 7 must run even if the draft looks clean — security and efficiency gaps are usually invisible on the first pass.
-- **UI decisions come from the user, via the mockup.** When the feature has a user-visible surface, Step 5 runs and the design records the direction the user accepted — never a surface you invented and never one the user has not seen. `feature-mockup` owns the mockup files under `<feature_folder>/mockups/`; this skill only reads them and cites them.
+- **UI decisions come from the user, via the mockup.** When the feature has a user-visible surface, Step 5 runs and the design records the direction the user accepted — never a surface you invented and never one the user has not seen. `feature-mockup` owns the mockup files under `<feature_folder>/mockups/` and their published artifacts; this skill only reads them and cites them, by URL and relative path both.
 - **Tracker edits are defensive.** Substitute only tokens still literal `{{...}}`; never overwrite content placed by `/feature-storm` or any other skill. The progress bar's `data-stage="design"` entry is this skill's alone to touch.
 - **`docs/` is read-only legacy.** Step 3 may read legacy designs for context but never writes there. The empty-placeholder pattern in `feature-resolve` + Step 8 ensures the tracker renders cleanly regardless of whether prior stages ran.
 - **No symlinks.** If a defensive tracker template copy is needed in Step 8, always copy — never link.

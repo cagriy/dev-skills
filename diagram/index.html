@@ -354,8 +354,8 @@
 <div id="page">
   <header class="top">
     <div class="chiprow">
-      <span class="vchip">dev-skills v0.3.35</span>
-      <span class="vchip">generated 2026-08-15 17:27 UTC</span>
+      <span class="vchip">dev-skills v0.3.37</span>
+      <span class="vchip">generated 2026-08-21 16:12 UTC</span>
       <span class="vchip">by /diagram-update</span>
       <a class="vchip" href="c4.html">architecture diagram &#8594;</a>
     </div>
@@ -460,7 +460,7 @@ const GROUPS = [
     "id": "internal",
     "name": "Shared helpers",
     "accent": "#0ea5a4",
-    "desc": "Internal skills the others load inline so one rule lives in one place: pathing, mockups, reflection, bug-tracker rendering, herdr pane labelling."
+    "desc": "Internal skills the others load inline so one rule lives in one place: pathing, mockups, reflection, bug-tracker rendering, herdr pane labelling, run usage reporting."
   },
   {
     "id": "bugs",
@@ -549,7 +549,7 @@ const SKILLS = [
       {
         "k": "s1",
         "t": "Capture requirements",
-        "d": "Parses the arguments into an optional version token, a candidate short title, and the requirements text. If the requirements are thin it asks once. Requirements that name prior versions, existing symbols, or a feature area by its everyday name trigger a grounding read first, so the very first question is fact-based. It opens by labelling the herdr pane with this skill's own name — placed here rather than in the confirmation step, so a declined run never strands a label with no end to clear it."
+        "d": "Parses the arguments into an optional version token, a candidate short title, and the requirements text. If the requirements are thin it asks once. Requirements that name prior versions, existing symbols, or a feature area by its everyday name trigger a grounding read first, so the very first question is fact-based. It opens by labelling the herdr pane with this skill's own name — placed here rather than in the confirmation step, so a declined run never strands a label with no end to clear it. The usage window opens here too, and for the same reason: the closing step measures from this marker to report what the run cost."
       },
       {
         "k": "s2",
@@ -598,7 +598,7 @@ const SKILLS = [
       {
         "k": "s9",
         "t": "Offer design",
-        "d": "Asks once whether to continue into feature-design, and on yes invokes it with the resolved version so the downstream resolver lands in the same folder. Declining prints a single next-step line. It clears the herdr pane label first, before the offer, because the hand-off branch leaves this step without returning and a trailing clear would never run.",
+        "d": "Asks once whether to continue into feature-design, and on yes invokes it with the resolved version so the downstream resolver lands in the same folder. Declining prints a single next-step line. It reports the run's usage and clears the herdr pane label first, before the offer, because the hand-off branch leaves this step without returning and anything placed after it would never run.",
         "gate": true
       }
     ]
@@ -621,7 +621,7 @@ const SKILLS = [
       {
         "k": "s1",
         "t": "Capture requirements",
-        "d": "Resolves the requirements from the arguments, a just-completed storm, or the surrounding discussion. With none of those, and no context at all, it lets the resolver look for a brainstorm still awaiting its design rather than scanning folders itself, and only asks the user when that comes back empty. It opens by labelling the herdr pane with this skill's own name — placed here rather than in the confirmation step, so a declined run never strands a label with no end to clear it."
+        "d": "Resolves the requirements from the arguments, a just-completed storm, or the surrounding discussion. With none of those, and no context at all, it lets the resolver look for a brainstorm still awaiting its design rather than scanning folders itself, and only asks the user when that comes back empty. It opens by labelling the herdr pane with this skill's own name — placed here rather than in the confirmation step, so a declined run never strands a label with no end to clear it. The usage window opens here too, and for the same reason: the closing step measures from this marker to report what the run cost."
       },
       {
         "k": "s2",
@@ -648,13 +648,13 @@ const SKILLS = [
       {
         "k": "s5b",
         "t": "Run mockup",
-        "d": "Loads feature-mockup with the feature folder, version, a one-line statement of what the user will see, and any partial visual reference the user supplied. The helper runs inline and returns the accepted direction as parseable decisions.",
+        "d": "Loads feature-mockup with the feature folder, version, a one-line statement of what the user will see, and any partial visual reference the user supplied. Where the session has both an artifact tool and the artifact-design skill, it loads that skill first, since the mockup helper holds no Skill tool of its own. The helper runs inline and returns the accepted direction as parseable decisions.",
         "wrap": "mock"
       },
       {
         "k": "s5c",
         "t": "Fold decisions",
-        "d": "Carries the returned decisions into the design's interfaces and components, the rejected alternatives into the alternatives section, and a relative link to the accepted page into the design and tracker. Any UI question left open goes back through the clarification round rather than into the open-questions section.",
+        "d": "Carries the returned decisions into the design's interfaces and components, the rejected alternatives into the alternatives section, and a link to the accepted page — its artifact URL and its relative path — into the design and the tracker. Any UI question left open goes back through the clarification round rather than into the open-questions section.",
         "wrap": "mock"
       },
       {
@@ -685,7 +685,7 @@ const SKILLS = [
       {
         "k": "s11",
         "t": "Offer plan",
-        "d": "Asks once whether to continue into feature-plan and, on yes, invokes it with the resolved version. Declining prints a single next-step line. It clears the herdr pane label first, before the offer, because the hand-off branch leaves this step without returning and a trailing clear would never run.",
+        "d": "Asks once whether to continue into feature-plan and, on yes, invokes it with the resolved version. Declining prints a single next-step line. It reports the run's usage and clears the herdr pane label first, before the offer, because the hand-off branch leaves this step without returning and anything placed after it would never run.",
         "gate": true
       }
     ]
@@ -708,12 +708,12 @@ const SKILLS = [
       {
         "k": "s1",
         "t": "Resolve paths",
-        "d": "Parses an optional version token and loads feature-resolve for the folder, plan path, tracker and the design it must plan against. This stays in the main agent deliberately, because the resolver may need to ask about an overwrite and the subagent cannot ask anything. It opens by labelling the herdr pane with this skill's own name — placed here rather than in the confirmation step, so a declined run never strands a label with no end to clear it."
+        "d": "Parses an optional version token and loads feature-resolve for the folder, plan path, tracker and the design it must plan against. This stays in the main agent deliberately, because the resolver may need to ask about an overwrite and the subagent cannot ask anything. It opens by labelling the herdr pane with this skill's own name — placed here rather than in the confirmation step, so a declined run never strands a label with no end to clear it. The usage window opens here too, and for the same reason: the closing step measures from this marker to report what the run cost."
       },
       {
         "k": "s2",
         "t": "Launch subagent",
-        "d": "Launches exactly one general-purpose subagent and waits. The brief is self-contained: the resolution block verbatim, the full text of the planning steps, the no-questions rule, the halt protocol, and the return contract. Nothing runs in parallel with it. A blocked return clears the herdr label before relaying, since the closing step never runs on a halt."
+        "d": "Launches exactly one general-purpose subagent and waits. The brief is self-contained: the resolution block verbatim, the full text of the planning steps, the no-questions rule, the halt protocol, and the return contract. Nothing runs in parallel with it. A blocked return reports the run as halted and clears the herdr label before relaying, since the closing step never runs on a halt."
       },
       {
         "k": "s3",
@@ -774,7 +774,7 @@ const SKILLS = [
       {
         "k": "s11",
         "t": "Offer implement",
-        "d": "Relays the summary unmodified, then asks whether to continue into feature-implement. Which option is recommended depends on the deviations section: none recommends proceeding, any deviation recommends pausing to fold them back into a new design version first. It clears the herdr pane label first, before the offer, because the hand-off branch leaves this step without returning and a trailing clear would never run.",
+        "d": "Relays the summary unmodified, then asks whether to continue into feature-implement. Which option is recommended depends on the deviations section: none recommends proceeding, any deviation recommends pausing to fold them back into a new design version first. It reports the run's usage and clears the herdr pane label first, before the offer, because the hand-off branch leaves this step without returning and anything placed after it would never run.",
         "gate": true
       }
     ]
@@ -798,7 +798,7 @@ const SKILLS = [
       {
         "k": "s1",
         "t": "Resolve paths",
-        "d": "Parses an optional version token and loads feature-resolve, which picks the latest feature that has a plan but no implementation and refuses outright when no plan exists anywhere. It opens by labelling the herdr pane with this skill's own name — placed here rather than in the confirmation step, so a declined run never strands a label with no end to clear it."
+        "d": "Parses an optional version token and loads feature-resolve, which picks the latest feature that has a plan but no implementation and refuses outright when no plan exists anywhere. It opens by labelling the herdr pane with this skill's own name — placed here rather than in the confirmation step, so a declined run never strands a label with no end to clear it. The usage window opens here too, and for the same reason: the closing step measures from this marker to report what the run cost."
       },
       {
         "k": "s2",
@@ -808,7 +808,7 @@ const SKILLS = [
       {
         "k": "s3",
         "t": "Repo readiness",
-        "d": "Confirms a clean tree, warns if the branch is not the default one, syncs with the remote, and detects the project's test, lint, format, type-check and build commands from manifests and CI. It then baselines the suite, and a suite that is already red halts the run: investigate, file a bug, or stop. It never builds on red, even under autonomous instructions. Any branch that stops the run clears the herdr label first, because the closing step never runs on a halted baseline.",
+        "d": "Confirms a clean tree, warns if the branch is not the default one, syncs with the remote, and detects the project's test, lint, format, type-check and build commands from manifests and CI. It then baselines the suite, and a suite that is already red halts the run: investigate, file a bug, or stop. It never builds on red, even under autonomous instructions. Any branch that stops the run reports the usage as halted and clears the herdr label first, because the closing step never runs on a halted baseline.",
         "gate": true
       },
       {
@@ -879,7 +879,7 @@ const SKILLS = [
       {
         "k": "s6",
         "t": "Stop conditions",
-        "d": "Halts the loop and consults the user on an undiagnosable failure, a decision the plan and design do not cover, a tree dirtied by something else, an oversized security issue, or a plan that turns out to need a design change. Completed stages stay committed and partial work stays uncommitted. Whichever condition fired, the herdr label is cleared before stopping.",
+        "d": "Halts the loop and consults the user on an undiagnosable failure, a decision the plan and design do not cover, a tree dirtied by something else, an oversized security issue, or a plan that turns out to need a design change. Completed stages stay committed and partial work stays uncommitted. Whichever condition fired, the run is reported as halted and the herdr label cleared before stopping — the stages that did land still cost tokens and belong in the log.",
         "gate": true
       },
       {
@@ -906,7 +906,7 @@ const SKILLS = [
       {
         "k": "s11",
         "t": "Offer evals",
-        "d": "Asks once whether to score the run. On consent it launches both eval skills in two parallel read-only subagents, which is safe because they touch different log files, and relays their scores. Declining, or an eval failing, never fails the implementation run. It clears the herdr pane label first, before the offer, because the hand-off branch leaves this step without returning and a trailing clear would never run.",
+        "d": "Asks once whether to score the run. On consent it launches both eval skills in two parallel read-only subagents, which is safe because they touch different log files, and relays their scores. Declining, or an eval failing, never fails the implementation run. It clears the herdr pane label before the offer, then reports the run's usage last of all — uniquely among the four, because this final question hands over to nothing and only from here do the eval subagents fall inside the measured window.",
         "gate": true,
         "par": [
           "evals-code-run",
@@ -965,7 +965,7 @@ const SKILLS = [
     "g": "internal",
     "inv": "agent",
     "internal": true,
-    "purpose": "Shows the user what a feature will look like and returns the direction they chose as concrete design decisions.",
+    "purpose": "Shows the user what a feature will look like — as a published artifact, not a file path — and returns the direction they chose as concrete design decisions.",
     "steps": [
       {
         "k": "s1",
@@ -983,25 +983,30 @@ const SKILLS = [
         "d": "Decides whether this is a brand-new surface or a modification to one that already exists, from the grounding rather than from the caller's guess. That classification alone decides the shape of what gets drawn next."
       },
       {
-        "k": "s4",
-        "t": "Build mockups",
-        "d": "Writes self-contained offline HTML under the feature's mockups folder and nowhere else. A new surface gets one overall view showing screens, states and how it slots into existing navigation; a modification gets two to four uniquely named alternatives that each differ on a real axis and render the change in context."
+        "k": "s4a",
+        "t": "Write pages",
+        "d": "Writes self-contained offline HTML under the feature's mockups folder and nowhere else; that file is the source of record, committed with the feature and read again by the plan and implementation stages. A new surface gets one overall view showing screens, states and how it slots into existing navigation; a modification gets two to four uniquely named alternatives that each differ on a real axis and render the change in context. Pages are written as artifact content — a title, inline styles and markup, no document wrapper — so they look the same hosted and opened from disk."
+      },
+      {
+        "k": "s4b",
+        "t": "Publish artifacts",
+        "d": "Publishes each page as a Claude Artifact, so the user reviews a hosted page by clicking a link in the conversation instead of hunting for a file path. Publishing the same file path again redeploys to the same URL, which is what keeps a revised direction's link stable while a genuinely new direction gets its own. A session with no artifact tool, or a failed publish, drops to presenting the local file in one line and never blocks the run."
       },
       {
         "k": "s5",
         "t": "Iterate choice",
-        "d": "Presents the pages and asks the user to accept, redirect or choose between alternatives, one question per round. Revisions overwrite the same file, genuinely new directions get new names, and three rounds without convergence force an explicit settle, hand-back or drop. Mandatory even under autonomous instructions, because the user's choice is the output.",
+        "d": "Presents the pages as links and asks the user to accept, redirect or choose between alternatives, one question per round. Revisions overwrite the same file and republish to the same URL, so the link the user already holds stays live; genuinely new directions get new names and new links, and three rounds without convergence force an explicit settle, hand-back or drop. Mandatory even under autonomous instructions, because the user's choice is the output.",
         "gate": true
       },
       {
         "k": "s6",
         "t": "Record outcome",
-        "d": "Marks the accepted page as accepted with the date and every rejected page as not chosen, keeping them all. The rejected files are the record of what was considered and feed the design's alternatives section."
+        "d": "Marks the accepted page as accepted with the date and every rejected page as not chosen, keeping them all, then republishes whichever pages had their banner changed so the hosted copies carry the same verdict. The rejected files are the record of what was considered and feed the design's alternatives section."
       },
       {
         "k": "s7",
         "t": "Return decisions",
-        "d": "Echoes a fixed block: status, kind, directory, chosen file, alternatives, design language, the concrete UI decisions and any open UI question. The decisions line is the payload the caller designs against. It runs inline, so the caller continues in the same turn."
+        "d": "Echoes a fixed block: status, kind, directory, chosen file, the artifact links, alternatives, design language, the concrete UI decisions and any open UI question. The decisions line is the payload the caller designs against, and the links are keyed by filename so the caller can cite the accepted page by URL and by relative path both. It runs inline, so the caller continues in the same turn."
       }
     ]
   },
@@ -1272,6 +1277,30 @@ const SKILLS = [
         "k": "s4",
         "t": "Rename pane",
         "d": "Runs one herdr command: the normalised name, or --clear to unset it. The flag is the only mechanism that works, since herdr rejects both an empty string and a bare dash. A rejected name is re-normalised once; any other failure is dropped in silence rather than interrupting the work in flight."
+      }
+    ]
+  },
+  {
+    "slug": "usage-report",
+    "g": "internal",
+    "inv": "agent",
+    "internal": true,
+    "purpose": "Reports what a chain run cost: a usage table in chat, one line in the durable log, and the same figures in that stage's tracker panel.",
+    "steps": [
+      {
+        "k": "s1",
+        "t": "Locate script",
+        "d": "Finds the plugin's usage_report.py — first at the running plugin's own base directory, then by a bounded search whose pattern also matches an installed plugin cache rather than only a working clone. Zero matches prints one skipped line and stops. It never reimplements any part of the measurement as a fallback, because a plausible wrong number is worse than no number."
+      },
+      {
+        "k": "s2",
+        "t": "Run script",
+        "d": "Runs the script with the system interpreter in one of two modes: start records the moment the run began, report measures that window to now. The script owns every piece of transcript knowledge — which files carry the numbers, how requests are deduplicated, how the window is applied — so this skill holds no schema of its own and a format change stays a one-file fix."
+      },
+      {
+        "k": "s3",
+        "t": "Relay output",
+        "d": "Relays the script's output verbatim: either the run usage table, or a single line beginning 'usage report skipped'. In the same run the script appends the log line and writes the figures into the tracker panel between its own anchors. Only numbers, timestamps and identifiers ever leave the transcript, and no failure here can fail, block or slow the calling skill."
       }
     ]
   },
@@ -1990,6 +2019,78 @@ const EDGES = [
     "t": "set-herdr-label.s1",
     "ty": "call",
     "l": "clear the label"
+  },
+  {
+    "f": "feature-storm.s1",
+    "t": "usage-report.s1",
+    "ty": "call",
+    "l": "start window"
+  },
+  {
+    "f": "feature-storm.s9",
+    "t": "usage-report.s1",
+    "ty": "call",
+    "l": "report run"
+  },
+  {
+    "f": "feature-design.s1",
+    "t": "usage-report.s1",
+    "ty": "call",
+    "l": "start window"
+  },
+  {
+    "f": "feature-design.s11",
+    "t": "usage-report.s1",
+    "ty": "call",
+    "l": "report run"
+  },
+  {
+    "f": "feature-plan.s1",
+    "t": "usage-report.s1",
+    "ty": "call",
+    "l": "start window"
+  },
+  {
+    "f": "feature-plan.s2",
+    "t": "usage-report.s1",
+    "ty": "call",
+    "l": "report on BLOCKED"
+  },
+  {
+    "f": "feature-plan.s11",
+    "t": "usage-report.s1",
+    "ty": "call",
+    "l": "report run"
+  },
+  {
+    "f": "feature-implement.s1",
+    "t": "usage-report.s1",
+    "ty": "call",
+    "l": "start window"
+  },
+  {
+    "f": "feature-implement.s3",
+    "t": "usage-report.s1",
+    "ty": "call",
+    "l": "report on halt"
+  },
+  {
+    "f": "feature-implement.s6",
+    "t": "usage-report.s1",
+    "ty": "call",
+    "l": "report on stop"
+  },
+  {
+    "f": "feature-implement.s11",
+    "t": "usage-report.s1",
+    "ty": "call",
+    "l": "report run, evals included"
+  },
+  {
+    "f": "usage-report.s2",
+    "t": "bug-tracker-render.s3",
+    "ty": "data",
+    "l": "shared tracker tokens"
   }
 ];
 
@@ -2292,23 +2393,38 @@ const OV_NODES = [
     "y": 30
   },
   {
+    "slug": "remote-check",
+    "x": 2,
+    "y": 165
+  },
+  {
     "slug": "feature-resolve",
-    "x": 30,
+    "x": 15,
     "y": 165
   },
   {
     "slug": "feature-mockup",
-    "x": 45,
+    "x": 30,
+    "y": 165
+  },
+  {
+    "slug": "usage-report",
+    "x": 44,
     "y": 165
   },
   {
     "slug": "lessons-capture",
-    "x": 61,
+    "x": 56,
     "y": 165
   },
   {
     "slug": "bug-tracker-render",
-    "x": 78,
+    "x": 70,
+    "y": 165
+  },
+  {
+    "slug": "set-herdr-label",
+    "x": 86,
     "y": 165
   },
   {
@@ -2360,16 +2476,6 @@ const OV_NODES = [
     "slug": "release",
     "x": 73,
     "y": 435
-  },
-  {
-    "slug": "remote-check",
-    "x": 5,
-    "y": 165
-  },
-  {
-    "slug": "set-herdr-label",
-    "x": 90,
-    "y": 165
   }
 ];
 
@@ -2556,6 +2662,30 @@ const OV_EDGES = [
   {
     "f": "feature-implement",
     "t": "set-herdr-label",
+    "ty": "call",
+    "l": ""
+  },
+  {
+    "f": "feature-storm",
+    "t": "usage-report",
+    "ty": "call",
+    "l": ""
+  },
+  {
+    "f": "feature-design",
+    "t": "usage-report",
+    "ty": "call",
+    "l": ""
+  },
+  {
+    "f": "feature-plan",
+    "t": "usage-report",
+    "ty": "call",
+    "l": ""
+  },
+  {
+    "f": "feature-implement",
+    "t": "usage-report",
     "ty": "call",
     "l": ""
   }

@@ -336,6 +336,7 @@ class TestFeatureMockupContract:
         "kind",
         "mockup_dir",
         "chosen_mockup",
+        "artifact_urls",
         "alternatives",
         "design_language",
         "decisions",
@@ -343,8 +344,8 @@ class TestFeatureMockupContract:
         "notes",
     )
     # Keys feature-design must consume when it folds the mockup into the design.
-    CONSUMED_KEYS = ("status", "chosen_mockup", "alternatives", "decisions",
-                     "open_ui_questions")
+    CONSUMED_KEYS = ("status", "chosen_mockup", "artifact_urls", "alternatives",
+                     "decisions", "open_ui_questions")
     INPUT_SLOTS = ("feature_folder=", "version=", "feature=", "references=")
     # The named skip conditions of feature-design's fire/skip rule. A mockup is
     # not free — it costs the user a round of attention — so the decision must
@@ -472,6 +473,65 @@ class TestFeatureMockupContract:
         )
         assert "skipped only when it genuinely has none" not in intro, (
             "feature-design intro restates a looser rule than Step 5a's four named exits"
+        )
+
+    def test_publishes_each_mockup_as_an_artifact(self):
+        # A file:// path is a bad review surface: the user has to leave the
+        # conversation, find the file, and open it, and it cannot be shared.
+        # The page is published as a Claude Artifact so the round-trip is a
+        # click on a link in the same conversation.
+        text = self.MOCKUP_SKILL.read_text()
+        allowed = next(
+            l for l in self.frontmatter().splitlines() if l.startswith("allowed-tools:")
+        )
+        assert re.search(r"\bArtifact\b", allowed), (
+            "feature-mockup cannot publish mockups: Artifact missing from allowed-tools"
+        )
+        assert re.search(r"publish.{0,120}artifact", text, re.S | re.I), (
+            "feature-mockup never instructs publishing the mockup as an artifact"
+        )
+
+    def test_artifact_publishing_degrades_to_the_local_file(self):
+        # The Artifact tool is not present in every session. Publishing is the
+        # preferred presentation, never a precondition — a session without it
+        # must still get its mockup, presented as a local path.
+        text = self.MOCKUP_SKILL.read_text()
+        assert re.search(
+            r"(Artifact tool is (not|un)available|artifact.{0,80}not available|"
+            r"cannot publish|publishing fails)",
+            text,
+            re.I,
+        ), "feature-mockup never states the fallback when publishing is unavailable"
+        assert re.search(r"fall back.{0,160}(local|file)", text, re.S | re.I), (
+            "feature-mockup never falls back to the local mockup file"
+        )
+
+    def test_the_mockup_file_remains_the_source_of_record(self):
+        # Publishing must not turn into "write it to a scratch dir and host it":
+        # /feature-plan and /feature-implement read the accepted page out of the
+        # feature folder, and the design links it by relative path.
+        text = self.MOCKUP_SKILL.read_text()
+        assert "mockup-v<N>-<name>.html" in text, (
+            "feature-mockup no longer documents its on-disk filename convention"
+        )
+        assert re.search(
+            r"<feature_folder>/mockups/.{0,400}(source|record|committed|repo)",
+            text,
+            re.S | re.I,
+        ), (
+            "feature-mockup must keep the file under <feature_folder>/mockups/ as "
+            "the source of record, with the artifact as its published view"
+        )
+
+    def test_republishing_a_revision_keeps_the_same_url(self):
+        # Revisions overwrite the same file; the Artifact contract makes that a
+        # redeploy to the same URL. A run that publishes a fresh artifact per
+        # round invalidates the link the user is comparing against.
+        text = self.MOCKUP_SKILL.read_text()
+        assert re.search(r"same (file path|URL).{0,200}(redeploy|republish|same URL)", text, re.S | re.I) or \
+            re.search(r"(redeploy|republish).{0,200}same (file path|URL)", text, re.S | re.I), (
+            "feature-mockup never states that re-publishing the same file path "
+            "updates the same artifact URL"
         )
 
     def test_supplied_references_outrank_the_grounded_digest(self):
