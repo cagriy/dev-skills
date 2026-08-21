@@ -22,6 +22,7 @@ from helpers import (
     TEMPLATES,
     TRACKER_TEMPLATE,
     USAGE_SCRIPT,
+    USAGE_SKILL,
     WORKFLOW_SKILL,
     WORKFLOW_TEMPLATE,
     cited_sections,
@@ -1003,6 +1004,89 @@ class TestUsageReportLifecycle:
         )
         missing = [token for token in FEATURE_PANEL_TOKENS if token not in line]
         assert not missing, f"bug-tracker-render does not blank {missing}"
+
+    # --- The helper skill itself --------------------------------------
+
+    def test_usage_report_is_internal_only(self):
+        frontmatter = re.match(r"---\n(.*?)\n---\n", USAGE_SKILL.read_text(), re.DOTALL)
+        assert frontmatter, "usage-report: missing frontmatter"
+        frontmatter = frontmatter.group(1)
+        assert re.search(r"^user-invocable:\s*false\s*$", frontmatter, re.MULTILINE), (
+            "usage-report must not be user-invocable — it is a call-site helper"
+        )
+        assert not re.search(
+            r"^disable-model-invocation:\s*true", frontmatter, re.MULTILINE
+        ), (
+            "usage-report must stay model-invocable — the four chain skills "
+            "invoke it through the Skill tool"
+        )
+        for pin in ("model", "effort"):
+            assert not re.search(rf"^{pin}:", frontmatter, re.MULTILINE), (
+                f"usage-report pins {pin} in frontmatter"
+            )
+
+    def test_usage_report_owns_the_usage_tokens(self):
+        tokens = {token for pair in USAGE_TOKENS.values() for token in pair}
+        missing = sorted(t for t in tokens if t not in USAGE_SKILL.read_text())
+        assert not missing, f"usage-report does not name its own tokens: {missing}"
+        # Sole *filling* owner. bug-tracker-render is the one other skill
+        # allowed to name them, and it blanks rather than fills (design §5
+        # C6); anyone else naming them would be a second writer.
+        for skill_file in all_skill_files():
+            if skill_file.parent.name in ("usage-report", "bug-tracker-render"):
+                continue
+            also = sorted(t for t in tokens if t in skill_file.read_text())
+            assert not also, f"{skill_file.parent.name} also names {also}"
+
+    def test_usage_chip_is_never_a_timestamp_chip(self):
+        # feature-list derives a feature's last-activity date by matching
+        # `Updated <date>` in the tracker's chips. A usage chip in that shape
+        # makes every feature report the wrong date, and nothing else catches
+        # it — feature-list would simply read a plausible wrong number.
+        text = USAGE_SKILL.read_text()
+        assert "feature-list" in text, (
+            "usage-report must name feature-list as the reason for the chip shape"
+        )
+        constraint = next(
+            (line for line in text.splitlines() if "`Updated`" in line), None
+        )
+        assert constraint, "usage-report never states the feature-list chip constraint"
+        assert "never" in constraint.lower(), (
+            f"the chip constraint is not stated as a prohibition: {constraint!r}"
+        )
+
+    def test_usage_report_never_calls_feature_resolve(self):
+        text = USAGE_SKILL.read_text()
+        assert "feature-resolve" in text, (
+            "usage-report should record that it never calls feature-resolve — it "
+            "takes its pathing as input (the feature-mockup precedent)"
+        )
+        for line in text.splitlines():
+            if "feature-resolve" in line:
+                assert "never" in line.lower(), (
+                    "usage-report mentions feature-resolve outside a "
+                    f"'never calls' sentence: {line!r}"
+                )
+
+    def test_the_skill_holds_no_transcript_schema_knowledge(self):
+        # All schema knowledge stays in scripts/usage_report.py, so a
+        # transcript-format change is a one-file fix (design §5, C2).
+        text = USAGE_SKILL.read_text()
+        leaked = [
+            field
+            for field in (
+                "requestId",
+                "output_tokens_details",
+                "cache_creation_input_tokens",
+                "cache_read_input_tokens",
+                "ephemeral_1h_input_tokens",
+                "ephemeral_5m_input_tokens",
+                "server_tool_use",
+                "service_tier",
+            )
+            if field in text
+        ]
+        assert not leaked, f"usage-report names transcript schema fields: {leaked}"
 
 
 def test_no_stale_storm_section_references():
