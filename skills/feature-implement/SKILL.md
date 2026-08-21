@@ -39,6 +39,8 @@ If the user picks "No" or "Other", stop immediately. Do not write any files, run
 
 The label belongs to the main agent for the whole run. Step 5's stage subagents must never set or clear it — their contract does not mention it, and a subagent clearing the label between units would blank the pane while stages are still landing.
 
+**Start the usage window.** Immediately after the label, invoke `usage-report` via the `Skill` tool with the argument `start feature-implement`, so the final step can report what this run cost. It runs inline, prints nothing, and is a silent no-op when `CLAUDE_CODE_SESSION_ID` is unset — **do not end your turn**, carry straight on with the rest of this step. It sits here rather than in Step 0 for the same reason the label does: a declined confirmation must never leave a start marker behind with no report to clear it.
+
 Parse `$ARGUMENTS` for an explicit version token only — `/feature-implement` does not take requirements text or a description.
 
 - Look for a leading `v<N>` or `version <N>` (case-insensitive; bare `1` does **not** count — only `v1` / `v 1` / `version 1`). If found, record as `explicit_version` and strip from the input. Integer only.

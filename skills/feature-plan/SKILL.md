@@ -37,6 +37,8 @@ If the user picks "No" or "Other", stop the skill immediately and do not start S
 
 The label belongs to the main agent for the whole run. The planning subagent launched in Step 2 must never set or clear it — its brief does not mention it, and a subagent clearing the label mid-run would blank the pane while the plan is still being written.
 
+**Start the usage window.** Immediately after the label, invoke `usage-report` via the `Skill` tool with the argument `start feature-plan`, so the final step can report what this run cost. It runs inline, prints nothing, and is a silent no-op when `CLAUDE_CODE_SESSION_ID` is unset — **do not end your turn**, carry straight on with the rest of this step. It sits here rather than in Step 0 for the same reason the label does: a declined confirmation must never leave a start marker behind with no report to clear it.
+
 Parse `$ARGUMENTS` for an explicit version token only — `/feature-plan` does not take requirements text or a description (the description is authoritative from the feature folder; the requirements are authoritative from the design).
 
 - Look for a leading `v<N>` or `version <N>` (case-insensitive; bare `1` does **not** count — only `v1` / `v 1` / `version 1`). If found, record as `explicit_version` and strip from the input. Integer only — no minor versions.

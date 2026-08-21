@@ -35,6 +35,8 @@ If the user picks "No" or "Other", stop immediately and do not start Step 1. Do 
 
 **Label the herdr pane.** Before anything else in this step, invoke `set-herdr-label` via the `Skill` tool with the single argument `feature-storm`, so a workspace of parallel agents shows which one is running this skill. It runs inline, writes nothing, prints nothing, and is a silent no-op outside a herdr terminal — **do not end your turn**, carry straight on with the rest of this step. It sits here rather than in Step 0 deliberately: a declined confirmation must never leave a label behind with no run to clear it.
 
+**Start the usage window.** Immediately after the label, invoke `usage-report` via the `Skill` tool with the argument `start feature-storm`, so the final step can report what this run cost. It runs inline, prints nothing, and is a silent no-op when `CLAUDE_CODE_SESSION_ID` is unset — **do not end your turn**, carry straight on with the rest of this step. It sits here rather than in Step 0 for the same reason the label does: a declined confirmation must never leave a start marker behind with no report to clear it.
+
 Parse `$ARGUMENTS`. Detect three pieces of input, any of which may be absent:
 
 - **Explicit version token.** Look for a leading `v<major>` or `version <major>` (case-insensitive; bare `1` does **not** count — only `v1` / `v 1` / `version 1`). If found, record it as `explicit_version` and strip it from the remaining text. Note: under this plugin's scheme, versions are integers only — no minor versions.

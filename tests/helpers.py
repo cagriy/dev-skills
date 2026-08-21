@@ -34,6 +34,25 @@ TRACKER_TEMPLATE = TEMPLATES / "feature-tracker.html"
 BUG_TRACKER_SKILL = SKILLS / "bug-tracker-render" / "SKILL.md"
 
 
+def skill_text(slug: str) -> str:
+    """The full SKILL.md source of one skill, by slug."""
+    return (SKILLS / slug / "SKILL.md").read_text()
+
+
+def step_span(text: str, n: int) -> tuple[int, int]:
+    """(start, end) offsets of a skill's `## Step <n> —` section.
+
+    Shared by the lifecycle classes that assert *where* a mirrored block sits:
+    a block's step is as load-bearing as its wording, and offsets are the only
+    way to check it.
+    """
+    start = re.search(rf"^## Step {n} —", text, re.MULTILINE)
+    assert start, f"no `## Step {n}` heading"
+    nxt = re.search(rf"^## Step {n + 1} —", text[start.end():], re.MULTILINE)
+    end = start.end() + nxt.start() if nxt else len(text)
+    return start.start(), end
+
+
 def fenced_blocks(text: str) -> list[str]:
     """All fenced code blocks in a markdown document, fence markers stripped."""
     return re.findall(r"^```[a-z]*\n(.*?)^```", text, re.DOTALL | re.MULTILINE)

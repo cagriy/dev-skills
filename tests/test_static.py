@@ -30,6 +30,8 @@ from helpers import (
     design_template_sections,
     plan_quality_rubric,
     plan_template_sections,
+    skill_text,
+    step_span,
     storm_quality_rubric,
     storm_template_sections,
 )
@@ -851,20 +853,9 @@ class TestHerdrLabelLifecycle:
     SET_RE = r"^\*\*Label the herdr pane\.\*\*.*$"
     CLEAR_RE = r"^\*\*Clear the herdr pane label\.\*\*.*$"
 
-    def skill_text(self, slug):
-        return (SKILLS / slug / "SKILL.md").read_text()
-
-    def step_span(self, text, n):
-        """(start, end) offsets of `## Step <n>`'s section."""
-        start = re.search(rf"^## Step {n} —", text, re.MULTILINE)
-        assert start, f"no `## Step {n}` heading"
-        nxt = re.search(rf"^## Step {n + 1} —", text[start.end():], re.MULTILINE)
-        end = start.end() + nxt.start() if nxt else len(text)
-        return start.start(), end
-
     def test_each_skill_sets_its_own_slug(self):
         for slug in FEATURE_SKILLS:
-            line = re.search(self.SET_RE, self.skill_text(slug), re.MULTILINE)
+            line = re.search(self.SET_RE, skill_text(slug), re.MULTILINE)
             assert line, f"{slug}: no herdr label-set block"
             assert f"`{slug}`" in line.group(0), (
                 f"{slug}: labels the pane with something other than its own slug"
@@ -872,7 +863,7 @@ class TestHerdrLabelLifecycle:
 
     def test_each_skill_clears_with_no_argument(self):
         for slug in FEATURE_SKILLS:
-            line = re.search(self.CLEAR_RE, self.skill_text(slug), re.MULTILINE)
+            line = re.search(self.CLEAR_RE, skill_text(slug), re.MULTILINE)
             assert line, f"{slug}: no herdr label-clear block"
             assert "**no argument**" in line.group(0), (
                 f"{slug}: clear block does not state that it passes no argument"
@@ -881,9 +872,9 @@ class TestHerdrLabelLifecycle:
     def test_set_lives_in_step_1_not_step_0(self):
         # A label set inside the Step 0 gate outlives a declined confirmation.
         for slug in FEATURE_SKILLS:
-            text = self.skill_text(slug)
+            text = skill_text(slug)
             at = re.search(self.SET_RE, text, re.MULTILINE).start()
-            start, end = self.step_span(text, 1)
+            start, end = step_span(text, 1)
             assert start < at < end, (
                 f"{slug}: the herdr label is set outside Step 1 — a declined "
                 f"Step 0 confirmation would strand it"
@@ -893,7 +884,7 @@ class TestHerdrLabelLifecycle:
         # Every chain skill ends with an AskUserQuestion offer; the clear has
         # to come first or the hand-over branch skips it.
         for slug in FEATURE_SKILLS:
-            text = self.skill_text(slug)
+            text = skill_text(slug)
             at = re.search(self.CLEAR_RE, text, re.MULTILINE).start()
             offer = text.index("AskUserQuestion", at)
             assert text.count("AskUserQuestion", at) >= 1, (
@@ -907,14 +898,14 @@ class TestHerdrLabelLifecycle:
         for slug in FEATURE_SKILLS:
             assert re.search(
                 r"\*\*Clear the herdr label before you stop\.\*\*",
-                self.skill_text(slug),
+                skill_text(slug),
             ), f"{slug}: no catch-all constraint clearing the label on early exits"
 
     def test_blocks_are_mirrored_across_the_four_skills(self):
         for label, pattern in (("set", self.SET_RE), ("clear", self.CLEAR_RE)):
             seen = {}
             for slug in FEATURE_SKILLS:
-                line = re.search(pattern, self.skill_text(slug), re.MULTILINE)
+                line = re.search(pattern, skill_text(slug), re.MULTILINE)
                 seen[slug] = line.group(0).replace(f"`{slug}`", "`<slug>`")
             assert len(set(seen.values())) == 1, (
                 f"the herdr {label} block has drifted between feature-* skills"
@@ -1087,6 +1078,45 @@ class TestUsageReportLifecycle:
             if field in text
         ]
         assert not leaked, f"usage-report names transcript schema fields: {leaked}"
+
+    # --- The start call sites in the four chain skills -----------------
+
+    START_RE = r"^\*\*Start the usage window\.\*\*.*$"
+
+    def test_each_skill_starts_usage_with_its_own_slug(self):
+        for slug in FEATURE_SKILLS:
+            line = re.search(self.START_RE, skill_text(slug), re.MULTILINE)
+            assert line, f"{slug}: no usage-start block"
+            assert f"`start {slug}`" in line.group(0), (
+                f"{slug}: opens the usage window with something other than its "
+                f"own slug — the marker is keyed on session and slug, so a "
+                f"wrong one is reported by whichever skill owns it"
+            )
+
+    def test_start_lives_in_step_1_not_step_0(self):
+        # Same reasoning as the herdr label beside it: Step 0 is the
+        # confirmation gate, and a marker written before it outlives a
+        # declined run with no report to clear it.
+        for slug in FEATURE_SKILLS:
+            text = skill_text(slug)
+            at = re.search(self.START_RE, text, re.MULTILINE).start()
+            start, end = step_span(text, 1)
+            assert start < at < end, (
+                f"{slug}: the usage window is opened outside Step 1 — a "
+                f"declined Step 0 confirmation would strand the marker"
+            )
+
+    def test_start_blocks_are_mirrored(self):
+        seen = {
+            re.search(self.START_RE, skill_text(slug), re.MULTILINE)
+            .group(0)
+            .replace(slug, "<slug>")
+            for slug in FEATURE_SKILLS
+        }
+        assert len(seen) == 1, (
+            "the usage-start block has drifted between feature-* skills"
+        )
+
 
 
 def test_no_stale_storm_section_references():
