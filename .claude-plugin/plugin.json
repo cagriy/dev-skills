@@ -1,7 +1,7 @@
 {
   "name": "dev",
   "description": "TDD-driven feature workflow: design, plan, and implement features end-to-end.",
-  "version": "0.3.38",
+  "version": "0.3.39",
   "author": {
     "name": "Cagri Yucel"
   }

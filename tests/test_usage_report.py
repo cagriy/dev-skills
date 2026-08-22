@@ -265,36 +265,42 @@ def test_the_fixture_window_is_the_one_the_tests_assume():
 # row-order drift away from the accepted grouped-columns mockup.
 EXPECTED_MARKDOWN = """### Run usage
 
-| metric | main | subagents | total |
-|---|---:|---:|---:|
-| **time** | | | |
-| elapsed | — | — | 1m 00s |
-| run time | — | — | 20s |
-| **tokens** | | | |
-| input_tokens | 16 | 6 | 22 |
-| output_tokens | 350 | 90 | 440 |
-| &nbsp;&nbsp;thinking_tokens | 120 | 30 | 150 |
-| cache_write | 3,000 | 900 | 3,900 |
-| &nbsp;&nbsp;ephemeral_1h | 2,500 | 500 | 3,000 |
-| &nbsp;&nbsp;ephemeral_5m | 500 | 400 | 900 |
-| cache_read | 12,000 | 2,500 | 14,500 |
-| **requests** | | | |
-| model | 3 | 3 | 6 |
-| web_search | 1 | 0 | 1 |
-| web_fetch | 2 | 0 | 2 |
-| **throughput** | | | |
-| output tok/s | — | — | 9.4 |
+| metric | main | subagents | total | metric | main | subagents | total |
+|---|---:|---:|---:|---|---:|---:|---:|
+| **time** | | | | **tokens** | | | |
+| elapsed | — | — | 1m 00s | input_tokens | 16 | 6 | 22 |
+| run time | — | — | 20s | output_tokens | 350 | 90 | 440 |
+| **requests** | | | | ↳ thinking_tokens | 120 | 30 | 150 |
+| model | 3 | 3 | 6 | cache_write | 3,000 | 900 | 3,900 |
+| web_search | 1 | 0 | 1 | ↳ ephemeral_1h | 2,500 | 500 | 3,000 |
+| web_fetch | 2 | 0 | 2 | ↳ ephemeral_5m | 500 | 400 | 900 |
+| **throughput** | | | | cache_read | 12,000 | 2,500 | 14,500 |
+| output tok/s | — | — | 9.4 | | | | |
 
 standard tier · standard speed · 2 subagents · outcome completed"""
 
 EXPECTED_CHIP = '<span class="chip usage">1m 00s · 440 out · 9.4 tok/s</span>'
 
-EXPECTED_TRACKER_TABLE = """<table class="usage">
+# The HTML halves indent their sub-rows with the template's `tr.sub` padding,
+# not the markdown table's `↳` — the glyph exists only because chat has no CSS.
+EXPECTED_TRACKER_TABLE = """<div class="usage-pair">
+<table class="usage">
 <thead><tr><th>Metric</th><th>Main</th><th>Subagents</th><th>Total</th></tr></thead>
 <tbody>
 <tr class="grp"><td colspan="4">Time</td></tr>
 <tr><td>elapsed</td><td>—</td><td>—</td><td>1m 00s</td></tr>
 <tr><td>run time</td><td>—</td><td>—</td><td>20s</td></tr>
+<tr class="grp"><td colspan="4">Requests</td></tr>
+<tr><td>model</td><td>3</td><td>3</td><td>6</td></tr>
+<tr><td>web_search</td><td>1</td><td>0</td><td>1</td></tr>
+<tr><td>web_fetch</td><td>2</td><td>0</td><td>2</td></tr>
+<tr class="grp"><td colspan="4">Throughput</td></tr>
+<tr class="tp"><td>output tok/s</td><td>—</td><td>—</td><td>9.4</td></tr>
+</tbody>
+</table>
+<table class="usage">
+<thead><tr><th>Metric</th><th>Main</th><th>Subagents</th><th>Total</th></tr></thead>
+<tbody>
 <tr class="grp"><td colspan="4">Tokens</td></tr>
 <tr><td>input_tokens</td><td>16</td><td>6</td><td>22</td></tr>
 <tr><td>output_tokens</td><td>350</td><td>90</td><td>440</td></tr>
@@ -303,14 +309,9 @@ EXPECTED_TRACKER_TABLE = """<table class="usage">
 <tr class="sub"><td>ephemeral_1h</td><td>2,500</td><td>500</td><td>3,000</td></tr>
 <tr class="sub"><td>ephemeral_5m</td><td>500</td><td>400</td><td>900</td></tr>
 <tr><td>cache_read</td><td>12,000</td><td>2,500</td><td>14,500</td></tr>
-<tr class="grp"><td colspan="4">Requests</td></tr>
-<tr><td>model</td><td>3</td><td>3</td><td>6</td></tr>
-<tr><td>web_search</td><td>1</td><td>0</td><td>1</td></tr>
-<tr><td>web_fetch</td><td>2</td><td>0</td><td>2</td></tr>
-<tr class="grp"><td colspan="4">Throughput</td></tr>
-<tr class="tp"><td>output tok/s</td><td>—</td><td>—</td><td>9.4</td></tr>
 </tbody>
-</table>"""
+</table>
+</div>"""
 
 # The exact field set of design §5 Data model, in its documented order.
 EXPECTED_LOG_FIELDS = [
@@ -346,11 +347,28 @@ class TestRenderMarkdown:
 
     def test_a_zero_request_run_renders_an_em_dash_rather_than_dividing_by_zero(self):
         table = ur.render_markdown(empty_metrics(), context())
-        assert "| output tok/s | — | — | — |" in table
+        assert "| output tok/s | — | — | — | | | | |" in table
 
     def test_a_clamped_duration_renders_as_zero_seconds(self):
         table = ur.render_markdown(empty_metrics(), context())
-        assert "| elapsed | — | — | 0s |" in table
+        assert "| elapsed | — | — | 0s | input_tokens | 0 | 0 | 0 |" in table
+
+    def test_no_html_entity_reaches_chat(self, metrics):
+        """Chat renders the table's markdown but not HTML entities.
+
+        The `&nbsp;&nbsp;` indent this replaced showed up in the terminal
+        verbatim, which is invisible to a golden string that also carries it.
+        """
+        assert "&" not in ur.render_markdown(metrics, context())
+
+    def test_every_row_carries_the_same_eight_columns(self, metrics):
+        """A half rendered short would produce a ragged table, not an error."""
+        rows = [
+            line for line in ur.render_markdown(metrics, context()).splitlines()
+            if line.startswith("|")
+        ]
+        assert len(rows) == 11  # header, alignment rule, nine body rows
+        assert {len(row.split("|")) for row in rows} == {10}  # 8 cells + 2 ends
 
     def test_the_outcome_comes_from_the_context(self, metrics):
         table = ur.render_markdown(metrics, context(outcome="halted"))
@@ -372,12 +390,26 @@ class TestRenderTrackerHtml:
         assert table == EXPECTED_TRACKER_TABLE
 
     def test_both_surfaces_carry_the_same_row_order(self, metrics):
+        """Each markdown half must match the HTML table rendered from it."""
         markdown = ur.render_markdown(metrics, context())
-        _, table = ur.render_tracker_html(metrics)
-        # [1:] drops the header row, which matches the same shape
-        labels = re.findall(r"^\| (?:&nbsp;&nbsp;)?([a-z_ /]+) \|", markdown, re.MULTILINE)[1:]
-        cells = re.findall(r"<tr[^>]*><td>([a-z_ /]+)</td>", table)
-        assert labels == cells
+        _, tables = ur.render_tracker_html(metrics)
+        body = [
+            line.split("|")[1:-1]
+            for line in markdown.splitlines()
+            if line.startswith("|")
+        ][2:]  # drop the header row and the alignment rule
+        halves = [
+            [
+                cells[0].strip().removeprefix(ur._SUB)
+                for cells in body
+                if cells[0].strip() and not cells[0].strip().startswith("**")
+            ]
+            for body in ([row[:4] for row in body], [row[4:] for row in body])
+        ]
+        for half, table in zip(halves, tables.split("</table>")):
+            # Digits are in the class deliberately: without them `ephemeral_1h`
+            # and `ephemeral_5m` drop out of the comparison on both sides.
+            assert half == re.findall(r"<tr[^>]*><td>([a-z0-9_ /]+)</td>", table)
 
 
 class TestLogEntry:

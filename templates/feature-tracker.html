@@ -78,8 +78,9 @@
                                     "8m 08s · 25,924 out · 76.0 tok/s"
         {{BRAINSTORMING_USAGE}}, {{DESIGN_USAGE}},
         {{PLAN_USAGE}}, {{IMPLEMENTATION_USAGE}}
-                                    <table class="usage"> below the
-                                    panel's Highlights bullets
+                                    <div class="usage-pair"> of two
+                                    <table class="usage"> halves, below
+                                    the panel's Highlights bullets
 
       These eight are the one exception to the substitute-only-if-
       literal rule: usage-report fills its own stage's pair and blanks
@@ -619,6 +620,22 @@
       color: var(--accent);
       letter-spacing: 0.02em;
       font-variant-numeric: tabular-nums;
+    }
+
+    /* The usage fragment is two halves side by side — the small total-only
+       groups beside the token breakdown — reflowing to stacked when the panel
+       is narrow. Each half is an ordinary table.usage, so every rule below
+       applies to both unchanged. */
+    .usage-pair {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0 28px;
+      align-items: flex-start;
+    }
+    .usage-pair > table.usage {
+      flex: 1 1 320px;
+      width: auto;
+      min-width: 0;
     }
 
     /* The usage fragment sits outside .prose, so it carries its own

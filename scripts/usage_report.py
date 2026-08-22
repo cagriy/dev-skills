@@ -20,6 +20,7 @@ import os
 import re
 import sys
 from dataclasses import dataclass
+from itertools import zip_longest
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -330,19 +331,14 @@ _TOTAL_ONLY = {
 # The report's shape, from the accepted grouped-columns mockup: (group, rows),
 # each row (label, source, indented). Both renderers walk this one spec, so the
 # chat table and the tracker table cannot drift apart.
-_ROW_GROUPS = (
+#
+# The spec is two halves because the report renders them side by side — the
+# small total-only groups on the left, the token breakdown on the right. Nine
+# rows and eight rows zip into a nine-row table instead of a seventeen-row one.
+_LEFT_GROUPS = (
     ("time", (
         ("elapsed", "elapsed", False),
         ("run time", "run", False),
-    )),
-    ("tokens", (
-        ("input_tokens", "input_tokens", False),
-        ("output_tokens", "output_tokens", False),
-        ("thinking_tokens", "thinking_tokens", True),
-        ("cache_write", "cache_write", False),
-        ("ephemeral_1h", "ephemeral_1h", True),
-        ("ephemeral_5m", "ephemeral_5m", True),
-        ("cache_read", "cache_read", False),
     )),
     ("requests", (
         ("model", "requests", False),
@@ -353,6 +349,27 @@ _ROW_GROUPS = (
         ("output tok/s", "tok/s", False),
     )),
 )
+
+_RIGHT_GROUPS = (
+    ("tokens", (
+        ("input_tokens", "input_tokens", False),
+        ("output_tokens", "output_tokens", False),
+        ("thinking_tokens", "thinking_tokens", True),
+        ("cache_write", "cache_write", False),
+        ("ephemeral_1h", "ephemeral_1h", True),
+        ("ephemeral_5m", "ephemeral_5m", True),
+        ("cache_read", "cache_read", False),
+    )),
+)
+
+# Marks a sub-total row in the chat table. A literal glyph rather than the
+# `&nbsp;&nbsp;` this replaced: chat renders the table's markdown but not HTML
+# entities, so the entity reached the terminal verbatim. The tracker has CSS
+# for the job (`tr.sub`) and needs no glyph.
+_SUB = "\u21b3 "
+
+# The four cells of a blank row, used to pad the shorter half.
+_BLANK = ("", "", "", "")
 
 
 def _duration(seconds) -> str:
@@ -378,19 +395,51 @@ def _cells(metrics: RunMetrics, source: str) -> tuple:
     return tuple(f"{getattr(column, source):,}" for column in columns)
 
 
+@dataclass(frozen=True)
+class _Row:
+    """One rendered row of one column half."""
+
+    label: str
+    cells: tuple  # ("", "", "") for a group heading
+    kind: str  # "group" | "sub" | "rate" | ""
+
+
+def _half(metrics: RunMetrics, groups) -> list:
+    """One column half's rows, group headings included, in render order."""
+    rows = []
+    for group, group_rows in groups:
+        rows.append(_Row(group, ("", "", ""), "group"))
+        for label, source, indented in group_rows:
+            kind = "sub" if indented else "rate" if source == "tok/s" else ""
+            rows.append(_Row(label, _cells(metrics, source), kind))
+    return rows
+
+
+def _md_cells(row: _Row) -> tuple:
+    """One half's four markdown cells: the metric name and its figures."""
+    if row.kind == "group":
+        return (f"**{row.label}**",) + row.cells
+    label = f"{_SUB}{row.label}" if row.kind == "sub" else row.label
+    return (label,) + row.cells
+
+
 def render_markdown(metrics: RunMetrics, footer: RunContext) -> str:
     """The chat table. Chat renders markdown tables natively, so this is one."""
+    header = "| metric | main | subagents | total |"
     lines = [
         "### Run usage",
         "",
-        "| metric | main | subagents | total |",
-        "|---|---:|---:|---:|",
+        header + header[1:],
+        "|---|---:|---:|---:|---|---:|---:|---:|",
     ]
-    for group, rows in _ROW_GROUPS:
-        lines.append(f"| **{group}** | | | |")
-        for label, source, indented in rows:
-            name = f"&nbsp;&nbsp;{label}" if indented else label
-            lines.append(f"| {name} | " + " | ".join(_cells(metrics, source)) + " |")
+    halves = (_half(metrics, _LEFT_GROUPS), _half(metrics, _RIGHT_GROUPS))
+    for left, right in zip_longest(*halves):
+        cells = (_md_cells(left) if left else _BLANK) + (
+            _md_cells(right) if right else _BLANK
+        )
+        # An empty cell renders as `| |` rather than `|  |`, so a group
+        # heading's row reads the same as it did when it spanned the table.
+        lines.append("|" + "".join(f" {cell} |" if cell else " |" for cell in cells))
     lines += ["", _footer_line(metrics, footer)]
     return "\n".join(lines)
 
@@ -417,20 +466,30 @@ def render_tracker_html(metrics: RunMetrics) -> tuple:
         f"{_rate(metrics.output_tokens_per_second)} tok/s</span>"
     )
 
+    halves = (_LEFT_GROUPS, _RIGHT_GROUPS)
+    tables = "\n".join(_tracker_table(metrics, groups) for groups in halves)
+    return chip, f'<div class="usage-pair">\n{tables}\n</div>'
+
+
+def _tracker_table(metrics: RunMetrics, groups) -> str:
+    """One half, as a table. The pair sits side by side in `.usage-pair`."""
     rows = [
         '<table class="usage">',
         "<thead><tr><th>Metric</th><th>Main</th><th>Subagents</th>"
         "<th>Total</th></tr></thead>",
         "<tbody>",
     ]
-    for group, group_rows in _ROW_GROUPS:
-        rows.append(f'<tr class="grp"><td colspan="4">{group.capitalize()}</td></tr>')
-        for label, source, indented in group_rows:
-            css = ' class="sub"' if indented else ' class="tp"' if source == "tok/s" else ""
-            cells = "".join(f"<td>{cell}</td>" for cell in _cells(metrics, source))
-            rows.append(f"<tr{css}><td>{label}</td>{cells}</tr>")
+    for row in _half(metrics, groups):
+        if row.kind == "group":
+            rows.append(
+                f'<tr class="grp"><td colspan="4">{row.label.capitalize()}</td></tr>'
+            )
+            continue
+        css = f' class="{"sub" if row.kind == "sub" else "tp"}"' if row.kind else ""
+        cells = "".join(f"<td>{cell}</td>" for cell in row.cells)
+        rows.append(f"<tr{css}><td>{row.label}</td>{cells}</tr>")
     rows += ["</tbody>", "</table>"]
-    return chip, "\n".join(rows)
+    return "\n".join(rows)
 
 
 def _columns(metrics: RunMetrics, field: str) -> dict:
