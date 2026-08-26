@@ -1,6 +1,6 @@
 ---
 name: feature-mockup
-description: Internal helper invoked only by other skills in this plugin (currently feature-design) to mock up the user-visible surface of the feature being designed and return the user's chosen direction as a parseable design decision. Builds self-contained static HTML mockup pages under features/feature-v<N>-<description>/mockups/, grounded in the host project's existing design language when it has one. A brand-new surface gets one overall view of how the feature would look, presented for the user's opinion; a modification to an existing surface (a new section or element, adjusted fonts or colours) gets a few uniquely named alternatives for the user to choose between or give feedback on. Iterates with the user until they are happy, then returns the accepted mockup, the alternatives considered, and the concrete UI decisions for the calling skill to fold into its design document. Accepts optional user-supplied visual references, which outrank the project's own conventions and bound the alternatives offered; the caller skips this skill entirely when the user already specified the whole surface, so references arriving here are partial by construction. Each page is published as a Claude Artifact wherever the session allows it, so the user reviews a hosted page by clicking a link rather than hunting for a file on disk; the file under mockups/ stays as the committed source of record, and a session without artifacts falls back to presenting that file. Never writes application code, never wires a mockup into the project, and never calls feature-resolve or lessons-capture. Not user-invocable.
+description: Internal helper invoked only by other skills in this plugin (currently feature-design) to mock up the user-visible surface of the feature being designed and return the user's chosen direction as a parseable design decision. Builds self-contained static HTML mockup pages under features/feature-v<N>-<description>/mockups/, grounded in the host project's existing design language when it has one. A brand-new surface gets one overall view of how the feature would look, presented for the user's opinion; a modification to an existing surface (a new section or element, adjusted fonts or colours) gets a few uniquely named alternatives for the user to choose between or give feedback on. Iterates with the user until they are happy, then returns the accepted mockup, the alternatives considered, and the concrete UI decisions for the calling skill to fold into its design document. Accepts optional user-supplied visual references, which outrank the project's own conventions and bound the alternatives offered; the caller skips this skill entirely when the user already specified the whole surface, so references arriving here are partial by construction. Each page is published as a Claude Artifact wherever the session allows it, so the user reviews a hosted page by clicking a link rather than hunting for a file on disk; the file under mockups/ stays as the committed source of record, and a session without artifacts falls back to presenting that file. Honours any house rules the user recorded for it via /skill-customize, reading them from its own .extras file before it starts and applying them on top of its defaults, though never in place of its non-negotiable constraints. Never writes application code, never wires a mockup into the project, and never calls feature-resolve or lessons-capture. Not user-invocable.
 user-invocable: false
 allowed-tools: Read, Grep, Glob, Write, Edit, Artifact, AskUserQuestion, WebFetch, Bash(ls *), Bash(find *), Bash(mkdir -p *), Bash(test *), Bash(pwd), Bash(date *)
 ---
@@ -32,6 +32,42 @@ feature_folder=/Users/x/proj/features/feature-v3-Add-Reminders, version=3, featu
 ```
 
 If `feature_folder` is missing or does not exist on disk, or `feature=` is missing, stop with a one-line error naming the missing slot and ask the caller to retry. Do not guess from conversation context, do not create the feature folder, and never compute the folder yourself — `feature-resolve` owns pathing and the caller already ran it.
+
+## Step 0 — Load your customisations
+
+The user can teach this skill house rules that outlive a single run, with `/skill-customize feature-mockup`. They live in one file, and reading it is the first thing you do — before classifying anything, before drawing anything.
+
+**Resolving `${CLAUDE_PLUGIN_DATA}`.**
+
+```text
+${CLAUDE_PLUGIN_DATA} is a plugin-config substitution token: Claude Code expands
+it inside plugin hook, MCP and LSP command strings, and it is not an exported
+environment variable, so a shell that simply reads it almost always gets nothing
+back. Resolve the directory yourself, taking the first rule that yields a path:
+
+1. `$CLAUDE_PLUGIN_DATA`, on the chance the environment really does set it.
+2. `<config-dir>/plugins/data/<plugin>-<marketplace>`, derived from the running
+   skill's own base directory: an installed plugin runs from
+   `<config-dir>/plugins/cache/<marketplace>/<plugin>/<version>/skills/<slug>`,
+   so `<plugin>` and `<marketplace>` are the two path segments above the version,
+   and Claude Code keys the data directory on exactly that pair.
+3. The single `<config-dir>/plugins/data/dev-skills*` directory, when `ls` shows
+   exactly one. Two of them means a stale second install is present and the rule
+   is ambiguous, so it is skipped rather than guessed at.
+4. `<config-dir>/plugins/data/dev-skills` — reached only when the plugin is
+   running from a working clone rather than an installed copy.
+
+`<config-dir>` is `$CLAUDE_CONFIG_DIR` when that is set, and `~/.claude` when it
+is not. A skill's customisation file is then `<extras-dir>/<slug>.extras`.
+```
+
+Read `<extras-dir>/feature-mockup.extras`.
+
+**A missing file is the ordinary case. Say nothing at all and go straight to Step 1.** Most projects never customise this skill, and a "no customisations found" line on every run is noise on the common path. The same applies if the file cannot be read for any other reason: carry on without it. A customisation is a preference, and failing to load one never blocks a mockup.
+
+When the file does exist, treat every `- ` bullet in it as an instruction that applies to this run, on top of everything below. Announce it in one line before Step 1 — `Customisations active: <n> (feature-mockup.extras)` — and then actually apply it. Customisations legitimately change defaults, counts, thresholds, density, tone, which optional behaviours fire, and what you settle yourself instead of asking: how many alternatives a modification gets, whether pages are published as artifacts, which design language wins on a greenfield project, how the banner reads.
+
+**They never override the *Constraints (non-negotiable)* section at the end of this file.** `/skill-customize` refuses that kind of instruction at write time, so one arriving here means the file was hand-edited. Ignore that bullet, name the constraint it collides with in one line, and carry on with the rest. The file is never permission to write outside `<feature_folder>/mockups/`, to put real user data or secrets into a mockup, to skip Step 5's iteration, or to accept a mockup on the user's behalf.
 
 ## Step 1 — Confirm there is a surface worth mocking up
 
@@ -171,6 +207,7 @@ The only paths that end the turn are the explicit input errors in *Input*. A `no
 
 ## Constraints (non-negotiable)
 
+- **Customisations refine, they never override.** Every rule in this section outranks anything in `feature-mockup.extras`. An instruction there that would relax one is ignored, named in one line, and the rest of the file still applies — see Step 0.
 - **Mockups only, never application code.** Never edit project source, templates, styles, configuration or dependencies; never wire a mockup into the app or its build; never leave a mockup where the application could serve it. The mockup is a throwaway reference artefact under `features/`.
 - **Write only under `<feature_folder>/mockups/`.** Nowhere else, ever. Never create the feature folder itself — `feature-resolve` does that, via the caller. Publishing a page does not relax this: the artifact is a *view* of a file that still lives in the feature folder, never a substitute for writing it, and never an excuse to park the page in a scratch directory.
 - **Never call `feature-resolve` or `lessons-capture`.** Pathing arrives as input (the resolver creates folders and seeds trackers, so a mockup step must not touch it), and reflection belongs to the calling skill's own lessons step. Structurally enforced: this skill holds no `Skill` tool.

@@ -41,6 +41,42 @@ The label belongs to the main agent for the whole run. Step 5's stage subagents 
 
 **Start the usage window.** Immediately after the label, invoke `usage-report` via the `Skill` tool with the argument `start feature-implement`, so the final step can report what this run cost. It runs inline, prints nothing, and is a silent no-op when `CLAUDE_CODE_SESSION_ID` is unset — **do not end your turn**, carry straight on with the rest of this step. It sits here rather than in Step 0 for the same reason the label does: a declined confirmation must never leave a start marker behind with no report to clear it.
 
+**Load your customisations.** Immediately after the usage window, read the house rules the user recorded for this skill with `/skill-customize feature-implement`. It sits here rather than in Step 0 for the same reason the label and the usage window do: a run the user declined must never have read, announced or applied a customisation first.
+
+**Resolving `${CLAUDE_PLUGIN_DATA}`.**
+
+```text
+${CLAUDE_PLUGIN_DATA} is a plugin-config substitution token: Claude Code expands
+it inside plugin hook, MCP and LSP command strings, and it is not an exported
+environment variable, so a shell that simply reads it almost always gets nothing
+back. Resolve the directory yourself, taking the first rule that yields a path:
+
+1. `$CLAUDE_PLUGIN_DATA`, on the chance the environment really does set it.
+2. `<config-dir>/plugins/data/<plugin>-<marketplace>`, derived from the running
+   skill's own base directory: an installed plugin runs from
+   `<config-dir>/plugins/cache/<marketplace>/<plugin>/<version>/skills/<slug>`,
+   so `<plugin>` and `<marketplace>` are the two path segments above the version,
+   and Claude Code keys the data directory on exactly that pair.
+3. The single `<config-dir>/plugins/data/dev-skills*` directory, when `ls` shows
+   exactly one. Two of them means a stale second install is present and the rule
+   is ambiguous, so it is skipped rather than guessed at.
+4. `<config-dir>/plugins/data/dev-skills` — reached only when the plugin is
+   running from a working clone rather than an installed copy.
+
+`<config-dir>` is `$CLAUDE_CONFIG_DIR` when that is set, and `~/.claude` when it
+is not. A skill's customisation file is then `<extras-dir>/<slug>.extras`.
+```
+
+Read `<extras-dir>/feature-implement.extras`.
+
+**A missing file is the ordinary case. Say nothing at all and carry straight on with the rest of this step.** Most projects never customise this skill, and a "no customisations found" line on every run is noise on the common path. The same applies if the file cannot be read for any other reason: carry on without it. A customisation is a preference, and failing to load one never blocks a run.
+
+When the file does exist, treat every `- ` bullet in it as an instruction that applies to this run, on top of everything below. Announce it in one line — `Customisations active: <n> (feature-implement.extras)` — and then actually apply it. Customisations legitimately change defaults, counts, thresholds, tone, formats, which optional behaviours fire, and what you settle yourself instead of asking: the execution strategy (a standing "always run Direct" is an explicit user request under Step 5's rule, and a durable one), how aggressive the final dead-code sweep is, which self-review lenses get extra weight, and how much detail the per-stage reports carry.
+
+**They never override the *Constraints (non-negotiable)* section at the end of this file.** `/skill-customize` refuses that kind of instruction at write time, so one arriving here means the file was hand-edited. Ignore that bullet, name the constraint it collides with in one line, and carry on with the rest. The file is never permission to build on a red `TEST` baseline, batch or skip stage commits, deviate from the mandated commit-message format, create or switch branches, or push.
+
+The customisations belong to the **main agent**, exactly as the herdr label and the usage window do. Step 5's stage subagents never resolve the data directory and never read the file themselves — you loaded it once, here, and you pass the text down in each unit's brief. Re-resolving it inside a fresh context is both wasteful and a way for two units to end up reading different files.
+
 Parse `$ARGUMENTS` for an explicit version token only — `/feature-implement` does not take requirements text or a description.
 
 - Look for a leading `v<N>` or `version <N>` (case-insensitive; bare `1` does **not** count — only `v1` / `v 1` / `version 1`). If found, record as `explicit_version` and strip from the input. Integer only.
@@ -213,6 +249,7 @@ A subagent starts with a fresh context and cannot see this conversation, so its 
 - **Files** — absolute paths to the plan file (`prereq_file`) and the design file; tell it to `Read` both and re-read the target stage block before coding.
 - **Tooling** — the resolved `TEST` / `LINT` / `FORMAT_CHECK` / `TYPE_CHECK` / `BUILD` commands from Step 3 verbatim (or "none" where unset).
 - **Baseline** — the Step 3 lists of pre-existing test and lint/type failures, so it gates regressions against the baseline, not against zero.
+- **Customisations** — the `- ` bullets you loaded in Step 1 from `feature-implement.extras`, copied verbatim, or the single word `none`. They apply on top of the `5a`–`5i` discipline below but never over the git constraints, the commit format, or anything else in *Constraints (non-negotiable)*. The subagent must not go looking for the file itself — it has no reliable base directory to resolve from, and a second resolution is how two units end up working to different rules. Pass the same text to every unit, so unit 3 is held to what unit 1 was.
 - **Conventions and non-obvious mechanics** — anything the subagent cannot discover from the files but you already know from this conversation. Two kinds: standing user preferences that live in your context or memory rather than in the repo's own instruction files (files not to touch, test-file conventions, house idioms), and any non-obvious harness mechanics worked out during Step 3 grounding — e.g. a suite whose tests are driven through a wrapper or fixture rather than invoked directly, so the obvious-looking command is not the real one. A subagent that rediscovers these by trial pays for it in wasted calls, false "suite is broken" signals, and corrective commits.
 - **Prior-stage state** *(units after the first only)* — a short carry-forward note: the stages already completed, the public interface (modules/types/functions and their signatures) of anything earlier units built that this unit will build on, any resolved interpreter / dependency / toolchain pins, and any deviations recorded so far. This keeps later units reusing prior work instead of re-scaffolding or guessing existing APIs.
 - **Discipline** — the full `5a`–`5i` cycle: the pre-flight scans, write test → confirm fail → implement → confirm pass, coverage check against the stage plan, self-review (bloat / duplication-reuse / supersession-orphans / functional / inefficiency / security / style), final `TEST`, and **one commit per stage** with the exact message `<type>(plan v<version>): Stage <N> — <stage title>`. It must `git add` only the files the stage touched. Stage commits contain the stage's source and test files only; plan-deviation notes and repo-mandated side artifacts (changelog, wiki) go in a separate `docs:` commit whose subject omits `(plan v<version>):`.

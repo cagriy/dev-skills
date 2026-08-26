@@ -41,6 +41,40 @@ If the user picks "No" or "Other", stop the skill immediately and do not start S
 
 **Start the usage window.** Immediately after the label, invoke `usage-report` via the `Skill` tool with the argument `start feature-design`, so the final step can report what this run cost. It runs inline, prints nothing, and is a silent no-op when `CLAUDE_CODE_SESSION_ID` is unset — **do not end your turn**, carry straight on with the rest of this step. It sits here rather than in Step 0 for the same reason the label does: a declined confirmation must never leave a start marker behind with no report to clear it.
 
+**Load your customisations.** Immediately after the usage window, read the house rules the user recorded for this skill with `/skill-customize feature-design`. It sits here rather than in Step 0 for the same reason the label and the usage window do: a run the user declined must never have read, announced or applied a customisation first.
+
+**Resolving `${CLAUDE_PLUGIN_DATA}`.**
+
+```text
+${CLAUDE_PLUGIN_DATA} is a plugin-config substitution token: Claude Code expands
+it inside plugin hook, MCP and LSP command strings, and it is not an exported
+environment variable, so a shell that simply reads it almost always gets nothing
+back. Resolve the directory yourself, taking the first rule that yields a path:
+
+1. `$CLAUDE_PLUGIN_DATA`, on the chance the environment really does set it.
+2. `<config-dir>/plugins/data/<plugin>-<marketplace>`, derived from the running
+   skill's own base directory: an installed plugin runs from
+   `<config-dir>/plugins/cache/<marketplace>/<plugin>/<version>/skills/<slug>`,
+   so `<plugin>` and `<marketplace>` are the two path segments above the version,
+   and Claude Code keys the data directory on exactly that pair.
+3. The single `<config-dir>/plugins/data/dev-skills*` directory, when `ls` shows
+   exactly one. Two of them means a stale second install is present and the rule
+   is ambiguous, so it is skipped rather than guessed at.
+4. `<config-dir>/plugins/data/dev-skills` — reached only when the plugin is
+   running from a working clone rather than an installed copy.
+
+`<config-dir>` is `$CLAUDE_CONFIG_DIR` when that is set, and `~/.claude` when it
+is not. A skill's customisation file is then `<extras-dir>/<slug>.extras`.
+```
+
+Read `<extras-dir>/feature-design.extras`.
+
+**A missing file is the ordinary case. Say nothing at all and carry straight on with the rest of this step.** Most projects never customise this skill, and a "no customisations found" line on every run is noise on the common path. The same applies if the file cannot be read for any other reason: carry on without it. A customisation is a preference, and failing to load one never blocks a run.
+
+When the file does exist, treat every `- ` bullet in it as an instruction that applies to this run, on top of everything below. Announce it in one line — `Customisations active: <n> (feature-design.extras)` — and then actually apply it. Customisations legitimately change defaults, counts, thresholds, tone, formats, which optional behaviours fire, and what you settle yourself instead of asking: which sections get more depth, how many alternatives §6 records, how much detail the rollout plan carries, and firing the Step 5 mockup even where a named skip condition would have applied.
+
+**They never override the *Constraints (non-negotiable)* section at the end of this file.** `/skill-customize` refuses that kind of instruction at write time, so one arriving here means the file was hand-edited. Ignore that bullet, name the constraint it collides with in one line, and carry on with the rest. The file is never permission to skip Step 4's clarification loop, skip Step 7's self-review, write a design with a non-empty §8, or turn a Step 5 fire into a skip.
+
 Parse `$ARGUMENTS`. Detect three pieces of input, any of which may be absent:
 
 - **Explicit version token.** Look for a leading `v<N>` or `version <N>` (case-insensitive; bare `1` does **not** count — only `v1` / `v 1` / `version 1`). If found, record as `explicit_version`; strip from remaining text. Integer only — no minor versions under this plugin's scheme.

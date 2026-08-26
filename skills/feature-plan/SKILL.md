@@ -39,6 +39,42 @@ The label belongs to the main agent for the whole run. The planning subagent lau
 
 **Start the usage window.** Immediately after the label, invoke `usage-report` via the `Skill` tool with the argument `start feature-plan`, so the final step can report what this run cost. It runs inline, prints nothing, and is a silent no-op when `CLAUDE_CODE_SESSION_ID` is unset — **do not end your turn**, carry straight on with the rest of this step. It sits here rather than in Step 0 for the same reason the label does: a declined confirmation must never leave a start marker behind with no report to clear it.
 
+**Load your customisations.** Immediately after the usage window, read the house rules the user recorded for this skill with `/skill-customize feature-plan`. It sits here rather than in Step 0 for the same reason the label and the usage window do: a run the user declined must never have read, announced or applied a customisation first.
+
+**Resolving `${CLAUDE_PLUGIN_DATA}`.**
+
+```text
+${CLAUDE_PLUGIN_DATA} is a plugin-config substitution token: Claude Code expands
+it inside plugin hook, MCP and LSP command strings, and it is not an exported
+environment variable, so a shell that simply reads it almost always gets nothing
+back. Resolve the directory yourself, taking the first rule that yields a path:
+
+1. `$CLAUDE_PLUGIN_DATA`, on the chance the environment really does set it.
+2. `<config-dir>/plugins/data/<plugin>-<marketplace>`, derived from the running
+   skill's own base directory: an installed plugin runs from
+   `<config-dir>/plugins/cache/<marketplace>/<plugin>/<version>/skills/<slug>`,
+   so `<plugin>` and `<marketplace>` are the two path segments above the version,
+   and Claude Code keys the data directory on exactly that pair.
+3. The single `<config-dir>/plugins/data/dev-skills*` directory, when `ls` shows
+   exactly one. Two of them means a stale second install is present and the rule
+   is ambiguous, so it is skipped rather than guessed at.
+4. `<config-dir>/plugins/data/dev-skills` — reached only when the plugin is
+   running from a working clone rather than an installed copy.
+
+`<config-dir>` is `$CLAUDE_CONFIG_DIR` when that is set, and `~/.claude` when it
+is not. A skill's customisation file is then `<extras-dir>/<slug>.extras`.
+```
+
+Read `<extras-dir>/feature-plan.extras`.
+
+**A missing file is the ordinary case. Say nothing at all and carry straight on with the rest of this step.** Most projects never customise this skill, and a "no customisations found" line on every run is noise on the common path. The same applies if the file cannot be read for any other reason: carry on without it. A customisation is a preference, and failing to load one never blocks a run.
+
+When the file does exist, treat every `- ` bullet in it as an instruction that applies to this run, on top of everything below. Announce it in one line — `Customisations active: <n> (feature-plan.extras)` — and then actually apply it. Customisations legitimately change defaults, counts, thresholds, tone, formats, which optional behaviours fire, and what you settle yourself instead of asking: how finely stages are cut, how much detail each stage's definition of done carries, how aggressively scaffolding stages are allowed, and how the staged highlights are summarised.
+
+**They never override the *Constraints (non-negotiable)* section at the end of this file.** `/skill-customize` refuses that kind of instruction at write time, so one arriving here means the file was hand-edited. Ignore that bullet, name the constraint it collides with in one line, and carry on with the rest. The file is never permission to make the planning core ask the user questions, plan past a non-empty design §8, or let the subagent commit anything.
+
+The customisations belong to the **main agent**, exactly as the herdr label and the usage window do. The planning subagent never resolves the data directory and never reads the file itself — you loaded it once, here, and you pass the text down in its Step 2 brief. Re-resolving it inside a fresh context is both wasteful and a way for the two agents to end up reading different files.
+
 Parse `$ARGUMENTS` for an explicit version token only — `/feature-plan` does not take requirements text or a description (the description is authoritative from the feature folder; the requirements are authoritative from the design).
 
 - Look for a leading `v<N>` or `version <N>` (case-insensitive; bare `1` does **not** count — only `v1` / `v 1` / `version 1`). If found, record as `explicit_version` and strip from the input. Integer only — no minor versions.
@@ -76,6 +112,7 @@ The subagent starts with a fresh context and cannot see this conversation, so it
 
 - **Role** — "You are executing Steps 3–10 of the dev-skills `feature-plan` skill in `<absolute cwd>`. You write the plan file, update the tracker, and capture lessons. Your final message is consumed by the main agent, not shown to the user directly."
 - **Resolution block** — the Step 1 resolver output verbatim (`mode`, `version`, `description`, `feature_folder`, `stage_file`, `tracker_file`, `prereq_file`, `notes`).
+- **Customisations** — the `- ` bullets you loaded in Step 1 from `feature-plan.extras`, copied verbatim, or the single word `none`. Tell it they apply on top of the procedure below but never over the *Constraints (non-negotiable)* section, and that it must not go looking for the file itself — it has no reliable base directory to resolve from, and a second resolution is how the two agents end up reading different files.
 - **Procedure** — the full text of Steps 3–10 below **plus** the *Constraints (non-negotiable)* section, copied faithfully — including the plan-file template in Step 5 and the tracker token rules in Step 8. Do not summarise or paraphrase them; fidelity is what keeps subagent runs identical to direct runs.
 - **Interaction rule** — it has no user channel: it must never call `AskUserQuestion` or wait for input. Planning-level ambiguity is handled by Step 6's decide-and-record protocol; anything it cannot decide is a halt (below).
 - **Halt protocol** — on any blocker (design §8 non-empty, a design-level decision it must not make, a missing prerequisite, a contradiction with the resolution block), it stops where it is and returns a final message starting with `BLOCKED:` plus a one-line reason, followed by the details the user needs (the specific open questions, the decision required, what was and wasn't written). It never flips the tracker's progress bar on a halted run.

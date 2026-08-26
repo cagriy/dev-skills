@@ -1336,3 +1336,251 @@ def test_eval_type_literals_consistent():
     assert set(re.findall(r"`(\w+)`", step4_line)) >= EVAL_TYPES, (
         "Step 4 literal-strings list disagrees with the canonical set"
     )
+
+
+class TestSkillCustomizeContract:
+    """skill-customize stores per-skill behaviour overrides in the plugin's data dir.
+
+    Two halves of its contract break silently under a well-meaning edit.
+
+    The *resolution* half: ``${CLAUDE_PLUGIN_DATA}`` is a plugin-config
+    substitution token, not an exported environment variable — Claude Code
+    expands it in hook / MCP / LSP command strings and nowhere else, so a skill
+    that simply reads ``$CLAUDE_PLUGIN_DATA`` from its shell gets an empty
+    string and silently writes to ``/<slug>.extras``. Every consumer therefore
+    resolves the directory the same documented way, and because the writer and
+    each reader must agree on the answer, that ladder is a mirrored block
+    guarded like the herdr-label ones.
+
+    The *authority* half: a customisation refines a skill, it never overrides a
+    rule the skill marks non-negotiable. Drop that sentence and the extras file
+    becomes a way to talk any skill out of its own safety constraints.
+    """
+
+    CUSTOMIZE_SKILL = SKILLS / "skill-customize" / "SKILL.md"
+    # Skills wired to load their own .extras. Every test below runs against
+    # all of them; add a slug here when you wire a new reader.
+    READERS = (
+        "feature-mockup",
+        "feature-storm",
+        "feature-design",
+        "feature-plan",
+        "feature-implement",
+    )
+    # Readers whose Step 0 is the proactive-invocation confirmation gate. The
+    # load must sit *after* it, for the reason the herdr label does: a run the
+    # user declined must not have done work first. feature-mockup is excluded
+    # because it has no gate (its caller already gated) and its load IS Step 0.
+    GATED_READERS = (
+        "feature-storm",
+        "feature-design",
+        "feature-plan",
+        "feature-implement",
+    )
+    # Readers that hand their real work to subagents. A subagent starts with a
+    # fresh context and cannot resolve the data directory reliably, so the main
+    # agent loads once and passes the text down in the brief — exactly as it
+    # keeps the herdr label and the usage window to itself. Miss this and
+    # customising feature-implement changes nothing, because Step 5 is
+    # delegated and the customisations never reach the agent doing the work.
+    DELEGATING_READERS = ("feature-plan", "feature-implement")
+    # The marker introducing the mirrored resolution ladder in every consumer.
+    LADDER_MARKER = "**Resolving `${CLAUDE_PLUGIN_DATA}`.**"
+
+    def customize_text(self):
+        return self.CUSTOMIZE_SKILL.read_text()
+
+    def frontmatter(self):
+        m = re.match(r"---\n(.*?)\n---\n", self.customize_text(), re.DOTALL)
+        assert m, "skill-customize: missing frontmatter"
+        return m.group(1)
+
+    def load_section(self, text, where):
+        """The load block: from the resolution marker to the next `## ` heading.
+
+        For feature-mockup that is its Step 0 body; for a chain skill it is the
+        remainder of Step 1. Rules that must live *with* the load are asserted
+        against this window rather than the whole file, or a chain skill would
+        pass on the strength of prose that has nothing to do with customisation.
+        """
+        i = text.find(self.LADDER_MARKER)
+        assert i != -1, f"{where}: missing the {self.LADDER_MARKER} block"
+        nxt = re.search(r"^## ", text[i:], re.MULTILINE)
+        return text[i:i + nxt.start()] if nxt else text[i:]
+
+    def ladder(self, text, where):
+        """The fenced block following the resolution marker in one consumer."""
+        i = text.find(self.LADDER_MARKER)
+        assert i != -1, f"{where}: missing the {self.LADDER_MARKER} block"
+        m = re.search(r"^```[a-z]*\n(.*?)^```", text[i:], re.DOTALL | re.MULTILINE)
+        assert m, f"{where}: the resolution marker is not followed by a fenced ladder"
+        return m.group(1)
+
+    def test_skill_exists(self):
+        assert self.CUSTOMIZE_SKILL.exists(), "skills/skill-customize/SKILL.md is missing"
+
+    def test_is_user_facing_and_model_invocable(self):
+        # Typed by the user as /skill-customize, and reachable by the model when
+        # the user says "make /feature-mockup always do X" in plain words.
+        frontmatter = self.frontmatter()
+        assert re.search(r"^user-invocable:\s*true\s*$", frontmatter, re.MULTILINE), (
+            "skill-customize must be user-invocable"
+        )
+        assert not re.search(
+            r"^disable-model-invocation:\s*true\s*$", frontmatter, re.MULTILINE
+        ), "skill-customize must stay model-invocable"
+        for pin in ("model", "effort"):
+            assert not re.search(rf"^{pin}:", frontmatter, re.MULTILINE), (
+                f"skill-customize pins {pin} in frontmatter"
+            )
+
+    def test_declares_an_argument_hint(self):
+        assert re.search(r"^argument-hint:\s*\S", self.frontmatter(), re.MULTILINE), (
+            "skill-customize takes a skill name — it must declare an argument-hint"
+        )
+
+    def test_validates_the_slug_against_the_skills_directory(self):
+        # The legal set is whatever is on disk. A hardcoded roster goes stale
+        # the moment a skill is added, and the failure is a false "unknown
+        # skill" rejection the user cannot work around.
+        text = self.customize_text()
+        assert re.search(r"skills/\s*`?\s*director|`skills/`", text) or "skills/" in text, (
+            "skill-customize must derive the legal slugs from the skills/ directory"
+        )
+        assert "never" in text.lower() and "hardcod" in text.lower(), (
+            "skill-customize must forbid hardcoding the list of skills"
+        )
+
+    def test_extras_filename_shape_is_shared(self):
+        assert "<skill_name>.extras" in self.customize_text(), (
+            "skill-customize must document the <skill_name>.extras filename"
+        )
+        for slug in self.READERS:
+            section = self.load_section(skill_text(slug), slug)
+            assert f"{slug}.extras" in section, (
+                f"{slug}: the load block must name its own {slug}.extras file"
+            )
+
+    def test_documents_that_the_variable_is_not_an_env_var(self):
+        # The whole reason the ladder exists. Without this sentence the next
+        # editor "simplifies" it back to $CLAUDE_PLUGIN_DATA and every write
+        # lands outside the data directory.
+        for where, text in [("skill-customize", self.customize_text())] + [
+            (slug, skill_text(slug)) for slug in self.READERS
+        ]:
+            # Whitespace-normalised: the fact must be stated, but the prose is
+            # free to wrap wherever it reads best.
+            flat = " ".join(text.split())
+            assert "not an exported environment variable" in flat, (
+                f"{where}: must state that ${{CLAUDE_PLUGIN_DATA}} is not an env var"
+            )
+
+    def test_resolution_ladder_is_mirrored(self):
+        canonical = self.ladder(self.customize_text(), "skill-customize")
+        assert "CLAUDE_CONFIG_DIR" in canonical, (
+            "the resolution ladder must fall back through $CLAUDE_CONFIG_DIR"
+        )
+        assert "plugins/data/" in canonical, (
+            "the resolution ladder must name <config-dir>/plugins/data/"
+        )
+        for slug in self.READERS:
+            assert self.ladder(skill_text(slug), slug) == canonical, (
+                f"the ${{CLAUDE_PLUGIN_DATA}} resolution ladder has drifted between "
+                f"skill-customize and {slug} — writer and reader would disagree on "
+                f"which file is the customisation"
+            )
+
+    def test_customisations_never_override_non_negotiable_constraints(self):
+        assert re.search(r"non-negotiable", self.customize_text(), re.IGNORECASE), (
+            "skill-customize: must state that a customisation cannot override a "
+            "non-negotiable constraint"
+        )
+        for slug in self.READERS:
+            # Asserted inside the load block: every skill in this plugin has a
+            # `Constraints (non-negotiable)` heading, so a whole-file search
+            # would pass on that alone and guard nothing.
+            section = self.load_section(skill_text(slug), slug)
+            assert re.search(r"non-negotiable", section, re.IGNORECASE), (
+                f"{slug}: the load block must state that a customisation cannot "
+                f"override a non-negotiable constraint"
+            )
+
+    def test_shows_the_file_verbatim(self):
+        text = self.customize_text()
+        assert re.search(r"verbatim", text, re.IGNORECASE), (
+            "skill-customize must share the extras file verbatim when asked"
+        )
+        assert re.search(r"never summaris|never summariz|do not summaris|do not summariz",
+                         text, re.IGNORECASE), (
+            "skill-customize must forbid summarising the file instead of showing it"
+        )
+
+    def test_is_not_part_of_the_feature_chain(self):
+        # Same posture as bug-submit and feature-list: no resolver (it would
+        # allocate feature folders), no lessons log, no usage window.
+        text = self.customize_text()
+        for helper in ("feature-resolve", "lessons-capture", "usage-report"):
+            assert helper in text, (
+                f"skill-customize must state that it never calls {helper}"
+            )
+        tools = re.search(r"^allowed-tools:\s*(.+)$", self.frontmatter(), re.MULTILINE)
+        assert tools, "skill-customize: no allowed-tools line"
+        assert not re.search(r"\bSkill\b", tools.group(1)), (
+            "skill-customize must not hold the Skill tool — it calls nothing"
+        )
+
+    def test_readers_load_extras_before_doing_any_work(self):
+        # The load has to happen before the work it can change. feature-mockup
+        # puts it in Step 0, ahead of Step 1's is-there-a-surface decision; the
+        # chain skills put it in Step 1 beside the herdr label and the usage
+        # window. Either way it must be settled before Step 2.
+        for slug in self.READERS:
+            text = skill_text(slug)
+            load = text.find(self.LADDER_MARKER)
+            step2 = re.search(r"^## Step 2 —", text, re.MULTILINE)
+            assert step2, f"{slug}: no `## Step 2` heading"
+            assert 0 < load < step2.start(), (
+                f"{slug}: the customisation load must be settled before Step 2"
+            )
+
+    def test_gated_readers_load_after_their_confirmation_gate(self):
+        # Same rule the herdr label follows, for the same reason: Step 0 is the
+        # proactive-invocation gate, and a run the user declined must not have
+        # read, announced or applied anything first.
+        for slug in self.GATED_READERS:
+            text = skill_text(slug)
+            gate = re.search(r"^## Step 0 —", text, re.MULTILINE)
+            assert gate, f"{slug}: no `## Step 0` gate heading"
+            step1 = re.search(r"^## Step 1 —", text, re.MULTILINE)
+            assert step1, f"{slug}: no `## Step 1` heading"
+            load = text.find(self.LADDER_MARKER)
+            assert load > step1.start(), (
+                f"{slug}: the customisation load must sit in Step 1, after the "
+                f"Step 0 confirmation gate — not before it"
+            )
+
+    def test_delegating_readers_pass_customisations_into_the_subagent_brief(self):
+        # feature-plan delegates Steps 3-10 and feature-implement delegates its
+        # stage loop. If the brief omits the customisations, the agent doing the
+        # work never sees them and the whole feature is inert for those skills.
+        for slug in self.DELEGATING_READERS:
+            text = skill_text(slug)
+            brief = re.search(
+                r"^(?:A|The) subagent starts with a fresh context.*?(?=^#{2,4} )",
+                text,
+                re.DOTALL | re.MULTILINE,
+            )
+            assert brief, f"{slug}: could not locate the subagent briefing list"
+            assert re.search(r"customisation", brief.group(0), re.IGNORECASE), (
+                f"{slug}: the subagent brief must pass the loaded customisations "
+                f"down — otherwise customising this skill changes nothing"
+            )
+
+    def test_readers_treat_a_missing_extras_file_as_a_silent_no_op(self):
+        # The common path by far. A reader that announces "no customisations"
+        # every run adds a line of noise to every mockup ever drawn.
+        for slug in self.READERS:
+            section = self.load_section(skill_text(slug), slug)
+            assert re.search(r"silent|say nothing|no output", section, re.IGNORECASE), (
+                f"{slug}: a missing .extras file must be a silent no-op"
+            )
