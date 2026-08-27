@@ -126,8 +126,8 @@ Run these checks in order:
 1. `git rev-parse --is-inside-work-tree` — confirm we are inside a git repo. If not, stop and tell the user.
 2. Identify the repo's default branch (in priority order: the remote HEAD via `git symbolic-ref refs/remotes/origin/HEAD`, falling back to `main`, then `master`). Call this `<default>`.
 3. `git status --short` — check for uncommitted changes.
-   - **First, distinguish the chain's own churn from the user's work.** If the only uncommitted changes are this feature's own artifacts (`features/feature-v<version>-*` — the design/plan/tracker files left by the preceding chain stage) and/or files that are gitignored-but-tracked, this is the chain's own output, not the user's unrelated work: offer to commit the feature docs as a `docs(...)` commit (ignoring the gitignored churn) and proceed, rather than treating it as a generic dirty-tree stop. This is near-guaranteed on chained `plan → implement` runs.
-   - Otherwise, if the working tree is dirty, **stop**. Show the user what's modified and ask whether to commit/stash/discard before proceeding. Do not touch their changes.
+   - **First, distinguish the chain's own churn from the user's work.** If the only uncommitted changes are this feature's own artifacts (`features/feature-v<version>-*` — the design/plan/tracker files left by the preceding chain stage) and/or files that are gitignored-but-tracked, this is the chain's own output, not the user's unrelated work: commit the feature docs directly as a `docs(...)` commit (ignoring the gitignored churn), note it in the final summary, and proceed. There is exactly one sensible outcome here, so offering costs a round-trip that buys nothing. This is near-guaranteed on chained `plan → implement` runs.
+   - Otherwise, stop only for **modified or staged tracked files**: show the user what's modified and ask whether to commit/stash/discard before proceeding — do not touch their changes. Pre-existing *untracked* files outside the feature folder cannot end up in a stage commit (every stage adds by explicit path): leave them alone, note them in the final summary, and proceed.
 4. `git rev-parse --abbrev-ref HEAD` — get the current branch.
    - If the current branch is **not** `<default>`, warn the user (e.g. "You're on `feature/x`, not `<default>`. This skill normally implements on `<default>`. Continue on the current branch?") and proceed only if confirmed. Do **not** switch branches yourself. Do **not** create a new branch.
 5. `git fetch --prune` — refresh remote refs.
@@ -138,7 +138,7 @@ Run these checks in order:
    - **Diverged** → stop and ask the user to reconcile. Never resolve a divergence automatically.
    - **No remote configured for this branch** → continue and note in the final summary.
 
-Only proceed past Step 3 when the working tree is clean and the branch is either up to date or only ahead.
+Only proceed past Step 3 when the tracked tree is clean (untracked scratch files noted and left alone) and the branch is either up to date or only ahead.
 
 7. **Detect the project's tooling commands.** Before running anything, identify how this project runs **tests, lint, format-check, type-check**, and (where relevant) **build** and **dead-code analysis**. Inspect in this order:
    - Project manifests: `pyproject.toml`, `package.json` (scripts), `Package.swift` + any `*.xcodeproj`/`xcodebuild` wrappers, `Cargo.toml`, `go.mod`, `pom.xml`/`build.gradle(.kts)`, `Gemfile`, `mix.exs`, `composer.json`, `*.csproj`, etc.
@@ -191,8 +191,10 @@ Where `<version>` is the integer feature version returned by the resolver. Match
 Resolve the starting stage:
 
 - If no prior stage commits exist for this version → start at **Stage 1**.
-- If prior stage commits exist → identify the highest completed stage `K`. Default to resuming at **Stage K+1**. Briefly tell the user ("Detected Stage 1–K already committed; resuming at Stage K+1.") and proceed without asking, unless the detection is ambiguous (e.g. non-contiguous stage numbers, mixed commit-message formats), in which case ask via `AskUserQuestion`.
+- If prior stage commits exist → identify the highest completed stage `K`. Default to resuming at **Stage K+1**. Briefly tell the user ("Detected Stage 1–K already committed; resuming at Stage K+1.") and proceed without asking, unless the detection is ambiguous (mixed commit-message formats, or non-contiguous stage numbers the gated-stage scan below does not explain), in which case ask via `AskUserQuestion`.
 - If all stages appear already committed → tell the user the plan looks fully implemented; do not re-run stages. Skip to Step 7 (final coverage check) and then to Steps 8–10, but make no new commits.
+
+**Scan for externally gated stages.** Before Step 5, scan the plan's remaining stages for external prerequisites — another repo's work deployed, a live service reachable, a credential or device present, an explicit gate marker in the stage text — and verify each named condition's current state with a cheap probe (`ls`/`grep`/one request), or by asking the user when it cannot be probed. Exclude stages whose prerequisite is unmet from Step 5's remaining-stage count `R`, and surface them in the strategy announcement line as blocked (e.g. `Stages 8–9 blocked on <condition> — implementing 10–11 only`), so the run's real scope is settled before any code lands rather than discovered mid-loop. On a resume where the committed history is non-contiguous because gated stages were skipped, resume at the **lowest uncommitted stage whose gate is open** rather than at K+1.
 
 ## Step 5 — Resolve the strategy, then implement each stage (TDD loop)
 
@@ -200,7 +202,7 @@ The remaining stages (from the starting stage determined in Step 4 to the last) 
 
 ### Resolving the execution strategy
 
-**Do this before any stage work — do not skip it.** Decide *who* drives the per-stage TDD cycle (the `5a`–`5i` cycle below). Let `R` = the number of stages still to implement (last − starting + 1).
+**Do this before any stage work — do not skip it.** Decide *who* drives the per-stage TDD cycle (the `5a`–`5i` cycle below). Let `R` = the number of stages still to implement (last − starting + 1, minus any stage Step 4 excluded as externally gated).
 
 **The default is chunked subagent execution, and it is not a question.** Do not ask the user to pick a strategy — announce the one you're using in a single line and continue in the same turn. Chunking is the default because the alternative to a unit boundary is not "more context" but a *lossy* boundary: the carry-forward note below can hand on public signatures, toolchain pins and deviations, but never the greps a subagent already ran, the fixture idioms it settled into, or the approaches it tried and rejected. Fewer boundaries means less of that rediscovered.
 
@@ -215,9 +217,13 @@ Then state the resolved strategy in one line before starting, including `R` and 
 
 **Direct** — run the `5a`–`5i` cycle yourself for each stage in order, exactly as written below. Direct's real advantage is visibility: every edit lands in this conversation where the user can watch and interrupt mid-stage, rather than arriving as a report. That is why an explicit user preference (rule 1) always wins over the default.
 
-**Chunked** — partition the remaining stages into consecutive units of `min(3, R)` stages (the last unit may be shorter). Before partitioning, pre-scan the stages and pull out of subagent units any stage a subagent cannot complete: stages whose verification is inherently manual/integration (e.g. a live UI or browser check), stages needing a skill or context available only in this conversation, and stages that provision a new environment over the network (dependency installs — a sandboxed subagent typically has no network access). Run those stages in the main agent at their ordinal position, and say so in the announcement line. Note that this carve-out is per *stage*, not per run: a live-UI stage in the middle of a plan does not make the whole run Direct.
+**Chunked** — partition the remaining stages into consecutive units of `min(3, R)` stages (the last unit may be shorter). Before partitioning, pre-scan the stages and classify what each one's definition of done actually needs:
 
-**Shrink the next unit to 1 stage** whenever the unit that just finished hit a deviation, hit a Step 6 stop condition, or failed the main-agent verification below. Trouble in one unit is the signal that the next needs tighter checking; an untroubled run keeps units at 3. Return to `min(3, remaining)` once a unit lands clean.
+- **Probe before declaring a check manual.** A stage labelled live-UI / browser / visual is often machine-verifiable: check for a headless browser or renderer, a way to serve or load the real artefact with fixture data, or a programmatic way to drive the framework (load the built bundle and instantiate its entry point, render the real view offscreen and assert on its tree or a snapshot). Where such a route exists the stage stays delegatable, and the executor must run the checks rather than hand back a checklist. Likewise confirm any tool a stage must be *driven through* has a CLI or file-format entry point before the loop begins; a stage whose stated tool is GUI-only is surfaced to the user up front with the choice of handing it over or accepting an equivalent automated route.
+- **Not subagent-doable** — needs a skill or context available only in this conversation, or provisions a new environment over the network (dependency installs — a sandboxed subagent typically has no network access). Run these in the main agent at their ordinal position, and say so in the announcement line. This carve-out is per *stage*, not per run: one such stage does not make the whole run Direct.
+- **Not agent-doable at all** — a human must observe or act (a physical interaction, an OS consent dialog, judgement on a live screen). Do **not** move these to the main agent, which cannot perform the check either; keep them delegated and rely on the subagent contract's *Verification honesty* clause. Register every check no executor could perform in a run-level **pending-verification list**, and render that list in Step 10 as an explicit human hand-off checklist — a run never closes reporting stages "done" while human-only verification goes unmentioned.
+
+**Shrink the next unit to 1 stage** only when the unit that just finished hit a Step 6 stop condition or failed the main-agent verification below — a missing or incorrect stage commit, out-of-scope files in `git show --stat`, or a failed independent `TEST` re-run. A deviation recorded in the plan and landed green is **not** a shrink trigger: a conscientious executor records refinements on almost every unit of a plan meeting a real codebase, and shrinking on them degrades every healthy run to units of 1. Trouble in one unit is the signal that the next needs tighter checking; an untroubled run keeps units at 3. Return to `min(3, remaining)` once a unit lands clean.
 
 Then, **for each unit in order**:
 
@@ -227,7 +233,7 @@ Then, **for each unit in order**:
    - `git show --stat` each new stage commit — confirm it touched only that stage's expected files (catches stray files swept in, and inaccurate self-reports).
    - Re-run `TEST` (and `BUILD`, when set and the unit touched non-test code) yourself — the command's exit status is the sole pass/fail authority; never accept the unit's green claim, editor/indexer diagnostics, or the presence/absence of console output in its place.
    - Scan the unit's touched files for newly introduced compiler/linter diagnostics and reconcile them against that authoritative `TEST`/`BUILD` result: fix real ones in a follow-up commit before the next unit launches; treat isolated-analysis false positives (e.g. unresolved same-module or test-framework symbols outside the real build graph) as non-blocking.
-3. If any expected stage commit is missing, or the subagent reported a Step 6 stop condition or a deviation, **do not launch the next unit** — surface the subagent's report to the user and decide together (same handling as Step 6). Step 4's resume logic lets you continue later from the last committed stage.
+3. If any expected stage commit is missing, or the subagent reported a Step 6 stop condition, **do not launch the next unit** — surface the subagent's report to the user and decide together (same handling as Step 6). A deviation the unit recorded in the plan and landed green is not a stop: note it and continue. Step 4's resume logic lets you continue later from the last committed stage.
 4. If the unit's subagent times out, crashes on an infrastructure error, returns no report, is interrupted mid-run, or has its launch **rejected by the user**, do not assume wholesale failure and do not re-run the unit. A rejected launch is a strategy override: switch to **Direct** for the remainder of the run and do not re-ask which strategy to use. Reconcile from the main agent: `git log --grep` to identify which of the unit's stages already committed, then handle whatever the working tree holds:
    - **A complete stage, uncommitted, that verifies green** (run `TEST`) → commit it from the main agent with the standard message format.
    - **An incomplete stage whose tests fail on a substantive assertion** → that is a legitimate red point in the TDD cycle, not damage. Leave it uncommitted and hand it forward: give the replacement executor the partial state and the exact failing output, and tell it to review the inherited work critically before completing it. Never discard test-first work that was doing its job, and never commit a stage that has not verified.
@@ -441,6 +447,7 @@ Tracker: <tracker_file path>
 **Design coverage:** <N>/<N> requirements verified by tests.
 **Dead-code sweep:** <"None found" | "<N> orphan(s) removed in Stage N+1" | "No analyzer configured — recommend installing <vulture|periphery|…>">
 **Deviations from plan:** <"None" or short list, one line each>
+**Pending human verification:** <"None" or one line per unperformed human-only check, from the run-level pending-verification list>
 
 **Skill-improvement recommendations**
 - <as produced in Step 9>
