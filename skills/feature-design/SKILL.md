@@ -1,6 +1,6 @@
 ---
 name: feature-design
-description: Produce a reviewed feature design document under features/feature-v<N>-<description>/. Use when the user asks for a feature design, spec, design doc, design review, or to spec/scope a feature — typically as a follow-up to /feature-storm, or starting cold for features that don't need brainstorming. Grounds the design in the existing codebase (and any legacy docs/), interviews the user across as many rounds as it takes — ending not on a question count but on a readiness test: it could draft the whole design with no guesses, no hedges, every storm open question closed, and an empty open-questions section, mocks up the user-visible surface via feature-mockup and folds the user's chosen direction into the design — fired whenever the feature has a user-visible surface whose appearance is not already settled, and skipped only by a named rule when there is no surface, when the user supplied a screenshot / design link / precise spec up front, when the change is a mechanical delta, or when the user declined — the clarification loop deliberately does not close appearance decisions, so a UI-heavy feature always reaches the mockup, writes feature-design-v<N>-<description>.md via feature-resolve, self-reviews for functional/security/efficiency gaps, updates the per-feature tracker, and presents highlights. Step 0 confirms with the user via AskUserQuestion before doing any work when invoked proactively; the confirmation is skipped when the user explicitly typed /feature-design, just chained in from /feature-storm, or just chained in from /feature-dispatch.
+description: Produce a reviewed feature design document under features/feature-v<N>-<description>/. Use when the user asks for a feature design, spec, design doc, design review, or to spec/scope a feature — typically as a follow-up to /feature-storm, or starting cold for features that don't need brainstorming. Grounds the design in the existing codebase (and any legacy docs/), interviews the user across as many rounds as it takes — ending not on a question count but on a readiness test: it could draft the whole design with no guesses, no hedges, every storm open question closed, and an empty open-questions section, mocks up the user-visible surface via feature-mockup and folds the user's chosen direction into the design — fired whenever the feature has a user-visible surface whose appearance is not already settled, and skipped only by a named rule when there is no surface, when the user supplied a screenshot / design link / precise spec up front, when the change is a mechanical delta, or when the user declined — the clarification loop deliberately does not close appearance decisions, so a UI-heavy feature always reaches the mockup, writes feature-design-v<N>-<description>.md via feature-resolve, writes a self-contained design brief into the feature folder for every other project the feature spans (never into those repos), self-reviews for functional/security/efficiency gaps, updates the per-feature tracker, and presents highlights. Step 0 confirms with the user via AskUserQuestion before doing any work when invoked proactively; the confirmation is skipped when the user explicitly typed /feature-design, just chained in from /feature-storm, or just chained in from /feature-dispatch.
 user-invocable: true
 disable-model-invocation: false
 argument-hint: <free-form feature requirements (optionally including v<N>), or omit to be asked / picked up from a just-completed /feature-storm>
@@ -13,7 +13,7 @@ You are running the `feature-design` skill. The user may have arrived here by ty
 
 **Terminology (plugin-wide).** Two words are overloaded; keep them apart. A **step** is a numbered step of *this skill's own procedure* — the `## Step …` headings below (e.g. *Step 4*); the only other "steps" are the **TDD steps** inside a plan stage (write test → confirm fail → implement → confirm pass). A **stage** has two senses: a **chain stage** is one of `storm → design → plan → implement` (it shows up as `stage=…`, `stage_file`, and the tracker's `data-stage`), while a **plan stage** is a committable unit of work *inside* the implementation plan (e.g. `Stage 1`) — `/feature-plan` creates these and `/feature-implement` builds one per commit. A procedure step is never a plan stage, and a plan stage is never a procedure step.
 
-This skill has twelve steps (Steps 0–11). Execute them in order. Do not skip Step 0 (proactive-invocation confirmation), Step 4 (clarification loop), Step 5 (mockup), Step 7 (self-review), Step 8 (tracker update), or Step 9 (lessons capture) — they are the load-bearing steps. Step 5 is load-bearing in the same sense as the others: it runs whenever the feature has a user-visible surface whose appearance is not already settled, and it may be skipped only via one of the four *named* exits in Step 5a — never by judgement. Step 4 is an **interview that runs until the design is fully determined**, not a fixed handful of questions: it ends on its readiness test (Step 4's exit condition), never on a question count.
+This skill has twelve steps (Steps 0–11). Execute them in order. Do not skip Step 0 (proactive-invocation confirmation), Step 4 (clarification loop), Step 5 (mockup), Step 7 (self-review), Step 8 (tracker update), or Step 9 (lessons capture) — they are the load-bearing steps. Step 5 is load-bearing in the same sense as the others: it runs whenever the feature has a user-visible surface whose appearance is not already settled, and it may be skipped only via one of the four *named* exits in Step 5a — never by judgement. Step 4 is an **interview that runs until the design is fully determined**, not a fixed handful of questions: it ends on its readiness test (Step 4's exit condition), never on a question count. When the feature spans more than one project, Step 6b additionally writes one self-contained design brief per other project into this feature's folder — the user carries each brief into a separate `/feature-design` session opened in that project; nothing is ever written into another repo.
 
 ## Step 0 — Confirm before proceeding (when invoked proactively)
 
@@ -152,6 +152,8 @@ Two more grounding sources are load-bearing when they exist: (a) if the feature 
 - Cross-check the storm's technical-direction and risk claims against the repo's own committed docs/wiki, and resolve any contradiction against the vendor's primary documentation before writing a single clarifying question — designing on a premise the repo already contradicts is the one error a later self-review cannot catch, because the design stays internally consistent.
 - Run a directed pass over the storm's in-scope list: confirm each item is neither already satisfied by the codebase nor blocked by an existing constraint, and open Step 4 with any item that fails — dead scope surfaces in the first round, not mid-design.
 
+**Notice when the feature crosses a project boundary.** While grounding, check whether the requirements can actually be met inside this repo alone. The signs that they cannot: the feature names two sides (client and server, app and API, plugin and host, producer and consumer); it depends on a system whose source is not in this working tree; the code path it extends stops at an HTTP call, a queue, an SDK, or a schema owned elsewhere. Name each other project you find — Step 4 closes the split with the user and Step 6b writes that project's brief. Grounding in a sibling clone is fine when the user points you at one, and so is reading the other side's published API docs; **writing there never is**, at any step.
+
 The goal is twofold: (a) ask better clarifying questions in Step 4, and (b) ensure the design references real, existing structures rather than invented ones. Do not embark on a wide codebase audit — bound the exploration to what the feature touches.
 
 If the working directory is unfamiliar, a single top-level listing plus reading the obvious entry points (README, package manifests, main module) is usually sufficient before moving on.
@@ -173,6 +175,7 @@ Iteratively use `AskUserQuestion` (1–4 questions per call) to resolve every ma
 - **Constraints** — performance, security, dependencies, deadlines, compatibility, platform.
 - **Data and state** — what is stored, where, with what lifetime, with what migration path if any.
 - **Interfaces and integration points** — the contract with existing code and with anything external: what this feature calls, what calls it, what it must not break, and what happens to existing callers and existing data.
+- **Cross-project split** — whether delivering this feature requires changes in another project or repo (a frontend, a backend, a shared library, an SDK, an infrastructure repo). When it does, close: which projects are involved, what each side owns, the exact contract between them (endpoints or messages, payload shapes and field types, error codes, auth, versioning), which side changes first, and **whether the two sides are built step by step with cross dependencies** (each blocked at points by the other) or independently once the contract is agreed. These answers are what makes Step 6b's brief implementable — a brief written over a guessed contract is worse than no brief at all.
 - **Failure behavior** — how the feature behaves on bad input, partial failure, network errors, race conditions.
 - **Scale and concurrency** — expected volumes and rates, what happens at the top of that range, and whether concurrent use is possible.
 - **Permissions and trust boundaries** — who may do this, what is untrusted input, what secrets or credentials are involved. Skip only when the feature genuinely has no trust boundary, and record that as the finding.
@@ -283,6 +286,8 @@ Parse the returned result block and record `status`, `kind`, `mockup_dir`, `chos
 
 ## Step 6 — Write the design document
 
+### 6a. The design document
+
 **Guiding principle:** the design must always prefer a **modular, separately testable** structure over a monolithic one. Decompose the feature into small components with clear single responsibilities and explicit interfaces. Each component should be unit-testable in isolation (no hidden global state, no implicit coupling, no requirement to spin up the whole feature to test one piece). When there is a viable modular approach, choose it over the monolithic one even if the modular approach takes more files. If a monolithic approach is genuinely warranted (e.g. the seam would be artificial and add no testability), record the rationale explicitly under §6 *Alternatives considered*.
 
 Write the file at the `stage_file` path returned by Step 2. Use this structure exactly. Every section is required; if a section has no content for this feature, write a brief explicit "Not applicable — <reason>" rather than omitting it.
@@ -299,7 +304,7 @@ One paragraph: what the feature is, who it is for, what problem it solves.
 
 ## 2. Goals and non-goals
 - **Goals:** bulleted, concrete outcomes.
-- **Non-goals:** what this design explicitly does not address (and why, briefly).
+- **Non-goals:** what this design explicitly does not address (and why, briefly). When the feature spans more than one project, the other projects' implementation is a non-goal *here* — name it and point at its brief under `./briefs/`, so nothing downstream plans work this repo does not own.
 
 ## 3. Requirements
 Numbered functional and non-functional requirements derived from Steps 1 and 4. Each requirement must be testable.
@@ -314,6 +319,7 @@ Sub-sections as needed:
 - **Architecture / components** — what is added, modified, removed. Show the modular decomposition: each component's single responsibility, its public interface, and which other components it depends on. If the feature is implemented as one cohesive unit rather than several, explain why splitting would be artificial.
 - **Data model** — schemas, migrations, storage, lifetimes.
 - **Interfaces** — APIs, function signatures, message shapes, CLI flags, UI surfaces. When Step 5 produced an accepted mockup, describe the surface as that mockup shows it and link it: `[<name>](./mockups/<chosen_mockup>)`.
+- **Cross-project contract** — only when the feature spans more than one project: what this repo owns, what each other project owns, and the exact contract between them (endpoints or messages, payload shapes with field names, types, optionality and units, status and error codes, auth, idempotency, limits, versioning and what happens to existing callers). This section and the briefs written in Step 6b must state the same contract, field for field.
 - **Control flow** — happy path step-by-step; key alternative flows.
 - **Failure and edge cases** — concrete behavior for each.
 - **Security** — authn/authz, input validation, secret handling, trust boundaries.
@@ -332,10 +338,71 @@ Concrete risks with likelihood/impact and mitigation. Include known issues with 
 This section **must** be empty or contain only the literal text "None — all decisions closed." If you find yourself listing real open questions here, return to Step 4 and resolve them before saving.
 
 ## 9. Rollout plan
-Phasing, feature flags, dark launches, rollback strategy, communication.
+Phasing, feature flags, dark launches, rollback strategy, communication. When the feature spans projects that are built step by step with cross dependencies, state here that a **single implementation plan spanning both projects is required** — neither side can be planned in isolation — and name the checkpoints that must line up.
 ```
 
 Compute `<YYYY-MM-DD>` from `date -u +%Y-%m-%d`. Use `v<N>` (integer) in the header — never `v<N>.<M>`.
+
+### 6b. Design briefs for the other projects
+
+Run this whenever Step 4 closed the *Cross-project split* with **more than one project involved**. When the feature lives entirely inside this repo, skip it — no folder, no file, one line in Step 10.
+
+The user cannot run `/feature-design` in the other project from this session, and this skill must never reach into that repo. So write one **design brief per other project** into this feature's own folder, hand the paths over in Step 10, and let the user feed each brief to `/feature-design` in a separate session opened in that project.
+
+Write each brief to:
+
+```
+<feature_folder>/briefs/brief-v<N>-<project-slug>.md
+```
+
+`<project-slug>` is the other project's repo or product name, lower-cased and hyphenated (`payments-api`, `web-client`). Create `briefs/` with `mkdir -p` on first use. One file per project — never one combined brief covering several.
+
+**Write each brief for a reader with no access to this repo, this conversation, or this design.** Whatever the brief omits, the other side will re-derive by guessing, and a guessed contract is a broken integration that surfaces in neither project's tests. Use this structure; every section is required, and a section with nothing to say gets an explicit "Not applicable — <reason>":
+
+```markdown
+# <Feature Name> — Design brief for <Other Project>
+
+**Status:** Brief — input for `/feature-design` in <Other Project>
+**Date:** <YYYY-MM-DD>
+**Source:** <this repo name> — features/feature-v<N>-<description>/feature-design-v<N>-<description>.md (v<N>)
+
+## Context
+What the feature is, who it is for, why this project is involved, and what the other side is building. Enough for a reader who has never seen this feature.
+
+## What this project must implement
+Numbered, testable requirements for *this* project — observable behaviour, not internal implementation. Each stands on its own; never "as described in the source design".
+
+## The contract between us
+The exact interface between the two sides, in enough detail to build and test against without asking us: endpoints or messages with methods and paths, request and response shapes with field names, types, optionality and units, status and error codes with their meaning, auth and identity, idempotency, pagination, limits, timeouts, versioning, and what happens to existing callers and existing data. Give a concrete example of every payload. This section is the reason the brief exists.
+
+## What the other side does
+The counterpart behaviour this project can rely on, what it must not assume, and which parts of it already exist versus are being built alongside.
+
+## Constraints and non-functional requirements
+Performance, expected scale and concurrency, security and trust boundaries, data handling and retention, compatibility, platform, deadlines.
+
+## Failure behaviour
+What each side does when the other fails — errors, timeouts, retries and whether they are safe, partial failure, and the degraded behaviour the end user should see.
+
+## Acceptance criteria
+How this project verifies its half is done, including what it can test in isolation with the other side stubbed.
+
+## Sequencing
+Whether this project can be built independently once the contract is agreed, or in lockstep with the other side. If in lockstep: the cross dependencies, the order they force, and the plain statement that **a single implementation plan spanning both projects is required** — neither side may be planned in isolation.
+
+## Open questions for the receiving design
+Decisions deliberately left to this project — its internal architecture, its own storage, its own UI. Anything about the *contract* belongs above, decided; it may never be parked here.
+```
+
+Three rules make a brief usable on the other side:
+
+- **Self-contained.** No `path:line` citations into this repo, no "see §5", no links to files the reader cannot open. If a detail matters, restate it in full.
+- **Contract-complete.** Every field, code, unit and edge the two sides exchange is named. "The usual error envelope" is a failure.
+- **Our internals stay here.** The brief carries the contract and the expectations, never this repo's module layout, test names, or decisions the other side cannot observe.
+
+**Lockstep delivery needs a joint plan, stated on both sides.** When Step 4 established that the two sides are built step by step with cross dependencies, the need for a single implementation plan spanning both projects must appear **in this design's §9** *and* **in every brief's *Sequencing*** — the same statement in both places, so whichever session reads first sees it. Neither project's `/feature-plan` run can sequence the other's stages, so the coordination only exists if the user is told to carry it.
+
+**Never write outside this repo.** Briefs live in `<feature_folder>/briefs/` and nowhere else. Do not create, edit or copy files in the other project — not its `features/` folder, not its docs, not a shared location — even when a local clone is sitting right there. Moving the brief is the user's step, not this skill's.
 
 ## Step 7 — Self-review and fix
 
@@ -353,6 +420,7 @@ Re-read the draft critically through these lenses, and fix what you find via `Ed
   - **A mechanism already wired at several sites** — grep for every call site *and* every intermediate carrier between the mechanism's origin and its endpoint. A mechanism wired at N sites must be extended at N sites; naming the origin and the endpoint while omitting the carrier in between is the common miss.
   - **A new branch or early return inserted inside an existing function** — enumerate every side effect that function performs *after* the branch point (validation, sanitisation, normalisation, metric or log emission, state mutation) and confirm each still executes on the new path or is explicitly re-invoked; where one must be shared, the design names the extraction as its own behaviour-preserving step. This shape is the costliest of the three: a sanitisation step sitting inside the bypassed leg silently unmeets a security requirement, and nothing downstream reports it.
 - **Mockup fidelity** — if Step 5 returned `status: accepted`, every item in its `decisions` list must appear as concrete design content (placement, reused components, states, palette/typography deltas), the accepted mockup must be cited by relative path, and no section may describe a surface that contradicts it. A design that quietly drifts from the mockup the user approved is the failure this lens exists to catch. Skip the lens when Step 5 was skipped or returned `declined` / `not-applicable`.
+- **Cross-project brief completeness** — when Step 6b wrote briefs: each brief is implementable by a reader with no access to this repo (no dangling citations, no "see the design", no unstated field), the contract it states matches §5's *Cross-project contract* field for field — same names, types, codes, units and directions — and every requirement this design assigns to another project appears in that project's brief. Where the sides are in lockstep, the joint-plan statement appears in both §9 and each brief's *Sequencing*. Verify by re-reading each brief on its own, as the other side will. Skip the lens when the feature is single-project.
 - **Cross-section consistency** — for any scenario the design describes in more than one place (§5.4 + §5.5 + §5.9), trace it through ALL sections and check they agree on the same outcome. Contradictions between sections are the most common review failure.
 
 Update §1–§9 in place. Do not append a "review notes" section — the design is the artifact, not the review.
@@ -395,7 +463,7 @@ First `Read` the tracker file once — `feature-resolve` seeded it via a shell c
 
 - `{{DESIGN_AT}}` → `Updated <YYYY-MM-DD HH:MM UTC>` (the timestamp chip text — no surrounding HTML).
 - `{{DESIGN_BULLETS}}` → an `<ul>` of 5–10 design highlights, one `<li>` per bullet, plain text content (no markdown — convert any markdown to HTML).
-- `{{DESIGN_DETAILS}}` → free-form HTML rendering the design in increasing detail, drawn from the design file written in Step 6. When Step 5 produced an accepted mockup, include a relative-path `<a href="./mockups/<chosen_mockup>">` link to it near the top of this block so the tracker doubles as the way back to the approved visual — and, when `artifact_urls` holds a link for that filename, a second `<a>` to the published artifact beside it, which is the one that still works when the tracker is shared. Cover §1 (Summary) → §2 (Goals & Non-goals) → §5 (Architecture / data / interfaces / failure / security / performance / testing — pick the sub-sections that matter most for this feature) → §7 (Risks) → §9 (Rollout). Use `<h3>` for top-level section titles, `<h4>` for sub-sections, `<p>` / `<ul>` / `<table>` for content. Order content from highest-level to most detailed so a reader can stop reading at any depth. Skip §6 if empty and skip §8 (it's always "None").
+- `{{DESIGN_DETAILS}}` → free-form HTML rendering the design in increasing detail, drawn from the design file written in Step 6. When Step 5 produced an accepted mockup, include a relative-path `<a href="./mockups/<chosen_mockup>">` link to it near the top of this block so the tracker doubles as the way back to the approved visual — and, when `artifact_urls` holds a link for that filename, a second `<a>` to the published artifact beside it, which is the one that still works when the tracker is shared. Cover §1 (Summary) → §2 (Goals & Non-goals) → §5 (Architecture / data / interfaces / failure / security / performance / testing — pick the sub-sections that matter most for this feature) → §7 (Risks) → §9 (Rollout). Use `<h3>` for top-level section titles, `<h4>` for sub-sections, `<p>` / `<ul>` / `<table>` for content. Order content from highest-level to most detailed so a reader can stop reading at any depth. Skip §6 if empty and skip §8 (it's always "None"). When Step 6b wrote briefs, list each one near the top as a relative-path `<a href="./briefs/<file>">` link naming the project it targets, so the tracker shows the feature's other halves and where they are handed off.
 
 **Storm and future-stage placeholders** — substitute with the empty placeholder *only if still literal*. If `/feature-storm` ran, `{{BRAINSTORMING_*}}` will already be content and you skip them:
 
@@ -434,6 +502,7 @@ In chat, output a short, scannable summary so the user does not need to open the
 Saved: <stage_file path>
 Tracker: <tracker_file path>
 Mockup: <artifact URL of the accepted mockup, when published> — <path to the accepted mockup> (<its name>)   ← omit this line when Step 5 was skipped or returned declined / not-applicable
+Briefs: <path to each brief> → <Other Project>   ← one line per brief; omit when the feature is single-project
 
 **Feature:** v<N> — <human-readable title>
 
@@ -448,6 +517,10 @@ Mockup: <artifact URL of the accepted mockup, when published> — <path to the a
 
 **Acceptance**
 - <How the user will verify the feature works, one or two bullets>
+
+**Cross-project hand-off**   ← omit this whole section when the feature is single-project
+- <Other Project> — `<brief path>`: open a separate session in that project and run `/feature-design` with this brief as the requirements. The brief is self-contained; that session needs nothing from this one.
+- <Either "Both sides can be planned independently once the contract is agreed." or "Both sides are built with cross dependencies — they need one implementation plan spanning both projects, not two independent ones.">
 
 **Skill-improvement recommendations**
 - <single item from Step 9, or the line "No skill-improvement recommendations from this run.">
@@ -486,6 +559,7 @@ Do not skip this step or substitute the AskUserQuestion with prose. The offer is
 - **Report the run usage before you stop.** However this run ends — normal completion, a halt, a refusal, a stop condition, or an error surfaced to the user — invoke `usage-report` with `report feature-design, outcome=halted` before you stop (Step 11's normal path passes `outcome=completed` instead). This covers every exit Step 11 does not. A halted run still cost tokens, and one that never reports vanishes from the log and skews every average drawn from it.
 - **Self-review is mandatory.** Step 7 must run even if the draft looks clean — security and efficiency gaps are usually invisible on the first pass.
 - **UI decisions come from the user, via the mockup.** When the feature has a user-visible surface, Step 5 runs and the design records the direction the user accepted — never a surface you invented and never one the user has not seen. `feature-mockup` owns the mockup files under `<feature_folder>/mockups/` and their published artifacts; this skill only reads them and cites them, by URL and relative path both.
+- **Briefs never leave this repo.** When the feature spans projects, Step 6b writes one self-contained brief per other project under `<feature_folder>/briefs/` and stops there. This skill never writes, edits or copies anything into another repository, never runs the chain on the other side's behalf, and never treats a brief as a substitute for closing the contract: what the brief states was decided in Step 4 and is recorded in §5.
 - **Tracker edits are defensive.** Substitute only tokens still literal `{{...}}`; never overwrite content placed by `/feature-storm` or any other skill. The progress bar's `data-stage="design"` entry is this skill's alone to touch.
 - **`docs/` is read-only legacy.** Step 3 may read legacy designs for context but never writes there. The empty-placeholder pattern in `feature-resolve` + Step 8 ensures the tracker renders cleanly regardless of whether prior stages ran.
 - **No symlinks.** If a defensive tracker template copy is needed in Step 8, always copy — never link.

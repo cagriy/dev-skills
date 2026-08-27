@@ -354,8 +354,8 @@
 <div id="page">
   <header class="top">
     <div class="chiprow">
-      <span class="vchip">dev-skills v0.3.40</span>
-      <span class="vchip">generated 2026-08-27 09:25 UTC</span>
+      <span class="vchip">dev-skills v0.3.42</span>
+      <span class="vchip">generated 2026-08-27 20:12 UTC</span>
       <span class="vchip">by /diagram-update</span>
       <a class="vchip" href="c4.html">architecture diagram &#8594;</a>
     </div>
@@ -559,7 +559,7 @@ const SKILLS = [
       {
         "k": "s3a",
         "t": "Generate ideas",
-        "d": "Puts ideas on the table the brief did not contain: the adjacent capability, a materially different approach, a smaller cut, the bigger frame, an unconsidered user, something worth deliberately not building. Three to six candidates per round, at product altitude only. Ideas are offered, never assumed in.",
+        "d": "Generates in two mandatory waves. Wave one puts grounded ideas on the table the brief did not contain: the adjacent capability, a materially different approach, a smaller cut, the bigger frame, an unconsidered user, something worth deliberately not building. Wave two follows as its own round once the first is answered, offering four to five deliberately bold ideas — invert the premise, make the feature unnecessary, aim it at a different consumer, borrow a mechanism from another domain — repeating nothing from wave one. Ideas are offered, never assumed in.",
         "wrap": "loop"
       },
       {
@@ -607,7 +607,7 @@ const SKILLS = [
     "slug": "feature-design",
     "g": "chain",
     "inv": "both",
-    "purpose": "Produces the technical design, interviewing until every decision is closed and mocking up any surface the user will see.",
+    "purpose": "Produces the technical design, interviewing until every decision is closed, mocking up any surface the user will see, and briefing every other project the feature spans.",
     "wraps": {
       "mock": "mockup step, fired by rule and skipped only by a named exit"
     },
@@ -631,12 +631,12 @@ const SKILLS = [
       {
         "k": "s3",
         "t": "Ground design",
-        "d": "Reads the storm first when one exists, then the modules the feature will actually touch, prior designs for the same area, and any external platform's official documentation. Bounded on purpose: enough to make the questions concrete and keep the design pointed at real structures."
+        "d": "Reads the storm first when one exists, then the modules the feature will actually touch, prior designs for the same area, and any external platform's official documentation. It also notices when the requirements cannot be met inside this repo alone, and names each other project involved. Bounded on purpose: enough to make the questions concrete and keep the design pointed at real structures."
       },
       {
         "k": "s4",
         "t": "Clarify decisions",
-        "d": "An interview, not a quiz. It runs until a readiness test passes: a dry-drafted design section with no guesses, no hedge language, an empty open-questions section, every storm question closed, and a round that surfaced nothing new. Appearance is deliberately excluded here and routed to the mockup.",
+        "d": "An interview, not a quiz. It runs until a readiness test passes: a dry-drafted design section with no guesses, no hedge language, an empty open-questions section, every storm question closed, and a round that surfaced nothing new. The cross-project split — who owns what, and the exact contract between the sides — is closed here. Appearance is deliberately excluded and routed to the mockup.",
         "gate": true
       },
       {
@@ -658,14 +658,19 @@ const SKILLS = [
         "wrap": "mock"
       },
       {
-        "k": "s6",
+        "k": "s6a",
         "t": "Write design",
         "d": "Writes the nine-section design at the resolved path, preferring a modular, separately testable decomposition over a monolithic one. Every section is required; a section with nothing to say says so explicitly rather than being omitted."
       },
       {
+        "k": "s6b",
+        "t": "Write briefs",
+        "d": "Runs only when the feature spans more than one project. Writes one self-contained design brief per other project into this feature's own briefs folder — context, that project's requirements, the full contract, failure behaviour, acceptance criteria and sequencing — written for a reader with no access to this repo. Briefs are never written into the other repository; carrying one across is the user's step."
+      },
+      {
         "k": "s7",
         "t": "Self-review",
-        "d": "Re-reads the draft through ten lenses and fixes what it finds in place: requirement coverage, decision closure, security, efficiency, modularity, reference integrity, grounded behaviour, extension completeness, mockup fidelity, and cross-section consistency. It loops until the open-questions section is genuinely empty."
+        "d": "Re-reads the draft through eleven lenses and fixes what it finds in place: requirement coverage, decision closure, security, efficiency, modularity, reference integrity, grounded behaviour, extension completeness, mockup fidelity, cross-project brief completeness, and cross-section consistency. It loops until the open-questions section is genuinely empty."
       },
       {
         "k": "s8",
@@ -680,7 +685,7 @@ const SKILLS = [
       {
         "k": "s10",
         "t": "Present highlights",
-        "d": "Prints the approach, the key data and security decisions, the top risks, how the user will verify the feature, and a link to the accepted mockup. Never the whole design."
+        "d": "Prints the approach, the key data and security decisions, the top risks, how the user will verify the feature, a link to the accepted mockup, and the hand-off path for each cross-project brief. Never the whole design."
       },
       {
         "k": "s11",
