@@ -33,11 +33,9 @@ If the user picks "No" or "Other", stop immediately and do not start Step 1. Do 
 
 ## Step 1 — Establish initial requirements
 
-**Label the herdr pane.** Before anything else in this step, invoke `set-herdr-label` via the `Skill` tool with the single argument `feature-storm`, so a workspace of parallel agents shows which one is running this skill. It runs inline, writes nothing, prints nothing, and is a silent no-op outside a herdr terminal — **do not end your turn**, carry straight on with the rest of this step. It sits here rather than in Step 0 deliberately: a declined confirmation must never leave a label behind with no run to clear it.
+**Start the usage window.** Before anything else in this step, invoke `usage-report` via the `Skill` tool with the argument `start feature-storm`, so the final step can report what this run cost. It runs inline, prints nothing, and is a silent no-op when `CLAUDE_CODE_SESSION_ID` is unset — **do not end your turn**, carry straight on with the rest of this step. It sits here rather than in Step 0 deliberately: a declined confirmation must never leave a start marker behind with no report to clear it.
 
-**Start the usage window.** Immediately after the label, invoke `usage-report` via the `Skill` tool with the argument `start feature-storm`, so the final step can report what this run cost. It runs inline, prints nothing, and is a silent no-op when `CLAUDE_CODE_SESSION_ID` is unset — **do not end your turn**, carry straight on with the rest of this step. It sits here rather than in Step 0 for the same reason the label does: a declined confirmation must never leave a start marker behind with no report to clear it.
-
-**Load your customisations.** Immediately after the usage window, read the house rules the user recorded for this skill with `/skill-customize feature-storm`. It sits here rather than in Step 0 for the same reason the label and the usage window do: a run the user declined must never have read, announced or applied a customisation first.
+**Load your customisations.** Immediately after the usage window, read the house rules the user recorded for this skill with `/skill-customize feature-storm`. It sits here rather than in Step 0 for the same reason the usage window does: a run the user declined must never have read, announced or applied a customisation first.
 
 **Resolving `${CLAUDE_PLUGIN_DATA}`.**
 
@@ -333,9 +331,7 @@ Keep the chat output under ~30 lines. The files are the artifact; the chat is th
 
 ## Step 9 — Offer to chain into /feature-design
 
-**Report the run usage.** Invoke `usage-report` via the `Skill` tool with the argument `report feature-storm, tracker_file=<tracker_file>, feature_version=<version>`, taking both values from this skill's `feature-resolve` block. It prints the run's usage table, appends one line to the usage log and fills this stage's tracker panel. Do this *before* the offer below, for the same reason the label clear sits there: on the chain-in branch this skill hands over through the `Skill` tool and never returns to the step, so a report placed afterwards would silently never run. It runs inline — **do not end your turn**, carry straight on.
-
-**Clear the herdr pane label.** Invoke `set-herdr-label` via the `Skill` tool with **no argument** — that clears the label set in Step 1 rather than setting a new one. Do this *before* the offer below, never after: whichever branch the user takes, this step can hand off or end without returning here, so a clear placed afterwards risks never running at all. It runs inline and prints nothing — **do not end your turn**, carry straight on.
+**Report the run usage.** Invoke `usage-report` via the `Skill` tool with the argument `report feature-storm, tracker_file=<tracker_file>, feature_version=<version>`, taking both values from this skill's `feature-resolve` block. It prints the run's usage table, appends one line to the usage log and fills this stage's tracker panel. Do this *before* the offer below: on the chain-in branch this skill hands over through the `Skill` tool and never returns to the step, so a report placed afterwards would silently never run. It runs inline — **do not end your turn**, carry straight on.
 
 Call `AskUserQuestion` exactly once:
 
@@ -363,7 +359,6 @@ Do not skip this step or substitute the AskUserQuestion with prose. The offer is
 - **Mandatory clarification step.** Step 3 runs even when the harness instructs autonomous operation. Closing material product ambiguity is the whole point.
 - **Generate, don't just interview.** Step 3a is not optional politeness — the skill must put ideas on the table the user did not bring (adjacent capabilities, alternative approaches, smaller cuts, unconsidered users) and offer them for adoption. Ideas are offered, never assumed in; adopted ones shape §2/§3, rejected approaches land in §5 and rejected capabilities in §3's out-of-scope list.
 - **Scope must be 100% settled before Step 4.** Every capability discussed is either in this version or explicitly deferred by name. The only uncertainty allowed past the gate is design-level (recorded in §7). An unsettled item is a question for another round, never a hedge in the summary — and if it survives three rounds, force an in/out decision rather than carrying it forward.
-- **Clear the herdr label before you stop.** However this run ends — normal completion, a halt, a refusal, a stop condition, or an error surfaced to the user — invoke `set-herdr-label` with no argument before you stop. Step 9 covers the normal path; this covers every other one. A label that outlives its run leaves the pane advertising work that is no longer happening.
 - **Report the run usage before you stop.** However this run ends — normal completion, a halt, a refusal, a stop condition, or an error surfaced to the user — invoke `usage-report` with `report feature-storm, outcome=halted` before you stop (Step 9's normal path passes `outcome=completed` instead). This covers every exit Step 9 does not. A halted run still cost tokens, and one that never reports vanishes from the log and skews every average drawn from it.
 - **Description is authoritative from `feature-resolve`.** When continuing into an existing folder, the folder's description wins — even if the user's `$ARGUMENTS` suggested a different title. Surface the resolver's `notes` to the user if it flagged a description conflict.
 - **No minor versions.** This plugin uses integer feature versions only. Pass `version=<N>` to the resolver, never `<N>.<M>`.

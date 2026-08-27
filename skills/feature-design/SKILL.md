@@ -37,11 +37,9 @@ If the user picks "No" or "Other", stop the skill immediately and do not start S
 
 ## Step 1 — Capture requirements
 
-**Label the herdr pane.** Before anything else in this step, invoke `set-herdr-label` via the `Skill` tool with the single argument `feature-design`, so a workspace of parallel agents shows which one is running this skill. It runs inline, writes nothing, prints nothing, and is a silent no-op outside a herdr terminal — **do not end your turn**, carry straight on with the rest of this step. It sits here rather than in Step 0 deliberately: a declined confirmation must never leave a label behind with no run to clear it.
+**Start the usage window.** Before anything else in this step, invoke `usage-report` via the `Skill` tool with the argument `start feature-design`, so the final step can report what this run cost. It runs inline, prints nothing, and is a silent no-op when `CLAUDE_CODE_SESSION_ID` is unset — **do not end your turn**, carry straight on with the rest of this step. It sits here rather than in Step 0 deliberately: a declined confirmation must never leave a start marker behind with no report to clear it.
 
-**Start the usage window.** Immediately after the label, invoke `usage-report` via the `Skill` tool with the argument `start feature-design`, so the final step can report what this run cost. It runs inline, prints nothing, and is a silent no-op when `CLAUDE_CODE_SESSION_ID` is unset — **do not end your turn**, carry straight on with the rest of this step. It sits here rather than in Step 0 for the same reason the label does: a declined confirmation must never leave a start marker behind with no report to clear it.
-
-**Load your customisations.** Immediately after the usage window, read the house rules the user recorded for this skill with `/skill-customize feature-design`. It sits here rather than in Step 0 for the same reason the label and the usage window do: a run the user declined must never have read, announced or applied a customisation first.
+**Load your customisations.** Immediately after the usage window, read the house rules the user recorded for this skill with `/skill-customize feature-design`. It sits here rather than in Step 0 for the same reason the usage window does: a run the user declined must never have read, announced or applied a customisation first.
 
 **Resolving `${CLAUDE_PLUGIN_DATA}`.**
 
@@ -444,9 +442,7 @@ Keep the chat output under ~30 lines. The file is the artifact; the chat is the 
 
 ## Step 11 — Offer to chain into /feature-plan
 
-**Report the run usage.** Invoke `usage-report` via the `Skill` tool with the argument `report feature-design, tracker_file=<tracker_file>, feature_version=<version>`, taking both values from this skill's `feature-resolve` block. It prints the run's usage table, appends one line to the usage log and fills this stage's tracker panel. Do this *before* the offer below, for the same reason the label clear sits there: on the chain-in branch this skill hands over through the `Skill` tool and never returns to the step, so a report placed afterwards would silently never run. It runs inline — **do not end your turn**, carry straight on.
-
-**Clear the herdr pane label.** Invoke `set-herdr-label` via the `Skill` tool with **no argument** — that clears the label set in Step 1 rather than setting a new one. Do this *before* the offer below, never after: whichever branch the user takes, this step can hand off or end without returning here, so a clear placed afterwards risks never running at all. It runs inline and prints nothing — **do not end your turn**, carry straight on.
+**Report the run usage.** Invoke `usage-report` via the `Skill` tool with the argument `report feature-design, tracker_file=<tracker_file>, feature_version=<version>`, taking both values from this skill's `feature-resolve` block. It prints the run's usage table, appends one line to the usage log and fills this stage's tracker panel. Do this *before* the offer below: on the chain-in branch this skill hands over through the `Skill` tool and never returns to the step, so a report placed afterwards would silently never run. It runs inline — **do not end your turn**, carry straight on.
 
 After presenting the highlights, give the user a one-click way to continue into the planning skill. Call `AskUserQuestion` exactly once:
 
@@ -472,7 +468,6 @@ Do not skip this step or substitute the AskUserQuestion with prose. The offer is
 - **Integer versions only.** `v<N>` everywhere — no `v<N>.<M>` minor versions. No "next available version" math in this skill; the resolver decides.
 - **No open decisions.** §8 must be empty or "None — all decisions closed." before Step 8 begins.
 - **Clarify to exhaustion, not to a quota.** Step 4 is an interview that runs until the readiness test passes — a dry-drafted §5 with no guesses, no hedge language, an empty §8, every storm §7 item closed, the two-engineer test met, and a round that surfaced nothing new. Question count, elapsed rounds, and the user having already answered a few are not exit conditions. The one uncertainty allowed past it is appearance, which Step 5 closes with a rendered mockup.
-- **Clear the herdr label before you stop.** However this run ends — normal completion, a halt, a refusal, a stop condition, or an error surfaced to the user — invoke `set-herdr-label` with no argument before you stop. Step 11 covers the normal path; this covers every other one. A label that outlives its run leaves the pane advertising work that is no longer happening.
 - **Report the run usage before you stop.** However this run ends — normal completion, a halt, a refusal, a stop condition, or an error surfaced to the user — invoke `usage-report` with `report feature-design, outcome=halted` before you stop (Step 11's normal path passes `outcome=completed` instead). This covers every exit Step 11 does not. A halted run still cost tokens, and one that never reports vanishes from the log and skews every average drawn from it.
 - **Self-review is mandatory.** Step 7 must run even if the draft looks clean — security and efficiency gaps are usually invisible on the first pass.
 - **UI decisions come from the user, via the mockup.** When the feature has a user-visible surface, Step 5 runs and the design records the direction the user accepted — never a surface you invented and never one the user has not seen. `feature-mockup` owns the mockup files under `<feature_folder>/mockups/` and their published artifacts; this skill only reads them and cites them, by URL and relative path both.

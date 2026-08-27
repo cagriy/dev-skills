@@ -354,8 +354,8 @@
 <div id="page">
   <header class="top">
     <div class="chiprow">
-      <span class="vchip">dev-skills v0.3.37</span>
-      <span class="vchip">generated 2026-08-21 16:12 UTC</span>
+      <span class="vchip">dev-skills v0.3.40</span>
+      <span class="vchip">generated 2026-08-27 09:25 UTC</span>
       <span class="vchip">by /diagram-update</span>
       <a class="vchip" href="c4.html">architecture diagram &#8594;</a>
     </div>
@@ -460,7 +460,7 @@ const GROUPS = [
     "id": "internal",
     "name": "Shared helpers",
     "accent": "#0ea5a4",
-    "desc": "Internal skills the others load inline so one rule lives in one place: pathing, mockups, reflection, bug-tracker rendering, herdr pane labelling, run usage reporting."
+    "desc": "Internal skills the others load inline so one rule lives in one place: pathing, mockups, reflection, bug-tracker rendering, run usage reporting. The herdr pane labeller sits here too — nothing calls it by default; the model invokes it ad hoc, and /skill-customize extras can wire it into chain runs."
   },
   {
     "id": "bugs",
@@ -484,7 +484,7 @@ const GROUPS = [
     "id": "improve",
     "name": "Improvement",
     "accent": "#eab308",
-    "desc": "The other half of the reflection loop: consolidate a skill's captured lessons and apply approved edits to its SKILL.md."
+    "desc": "Two ways to durably change a skill: consolidate its captured lessons and apply approved edits to its text (lessons-learn), or record per-skill house rules in an extras file the skill reads at the start of every run (skill-customize). The first edits skill text; the second never does."
   },
   {
     "id": "utility",
@@ -549,7 +549,7 @@ const SKILLS = [
       {
         "k": "s1",
         "t": "Capture requirements",
-        "d": "Parses the arguments into an optional version token, a candidate short title, and the requirements text. If the requirements are thin it asks once. Requirements that name prior versions, existing symbols, or a feature area by its everyday name trigger a grounding read first, so the very first question is fact-based. It opens by labelling the herdr pane with this skill's own name — placed here rather than in the confirmation step, so a declined run never strands a label with no end to clear it. The usage window opens here too, and for the same reason: the closing step measures from this marker to report what the run cost."
+        "d": "Parses the arguments into an optional version token, a candidate short title, and the requirements text. If the requirements are thin it asks once. Requirements that name prior versions, existing symbols, or a feature area by its everyday name trigger a grounding read first, so the very first question is fact-based. The usage window opens here rather than in the confirmation step, so a declined run never strands a start marker with no report to close it — the closing step measures from this marker to report what the run cost. Any house rules recorded for this skill via /skill-customize load here too, announced in one line and applied for the whole run."
       },
       {
         "k": "s2",
@@ -598,7 +598,7 @@ const SKILLS = [
       {
         "k": "s9",
         "t": "Offer design",
-        "d": "Asks once whether to continue into feature-design, and on yes invokes it with the resolved version so the downstream resolver lands in the same folder. Declining prints a single next-step line. It reports the run's usage and clears the herdr pane label first, before the offer, because the hand-off branch leaves this step without returning and anything placed after it would never run.",
+        "d": "Asks once whether to continue into feature-design, and on yes invokes it with the resolved version so the downstream resolver lands in the same folder. Declining prints a single next-step line. It reports the run's usage first, before the offer, because the hand-off branch leaves this step without returning and anything placed after it would never run.",
         "gate": true
       }
     ]
@@ -621,7 +621,7 @@ const SKILLS = [
       {
         "k": "s1",
         "t": "Capture requirements",
-        "d": "Resolves the requirements from the arguments, a just-completed storm, or the surrounding discussion. With none of those, and no context at all, it lets the resolver look for a brainstorm still awaiting its design rather than scanning folders itself, and only asks the user when that comes back empty. It opens by labelling the herdr pane with this skill's own name — placed here rather than in the confirmation step, so a declined run never strands a label with no end to clear it. The usage window opens here too, and for the same reason: the closing step measures from this marker to report what the run cost."
+        "d": "Resolves the requirements from the arguments, a just-completed storm, or the surrounding discussion. With none of those, and no context at all, it lets the resolver look for a brainstorm still awaiting its design rather than scanning folders itself, and only asks the user when that comes back empty. The usage window opens here rather than in the confirmation step, so a declined run never strands a start marker with no report to close it — the closing step measures from this marker to report what the run cost. Any house rules recorded for this skill via /skill-customize load here too, announced in one line and applied for the whole run."
       },
       {
         "k": "s2",
@@ -685,7 +685,7 @@ const SKILLS = [
       {
         "k": "s11",
         "t": "Offer plan",
-        "d": "Asks once whether to continue into feature-plan and, on yes, invokes it with the resolved version. Declining prints a single next-step line. It reports the run's usage and clears the herdr pane label first, before the offer, because the hand-off branch leaves this step without returning and anything placed after it would never run.",
+        "d": "Asks once whether to continue into feature-plan and, on yes, invokes it with the resolved version. Declining prints a single next-step line. It reports the run's usage first, before the offer, because the hand-off branch leaves this step without returning and anything placed after it would never run.",
         "gate": true
       }
     ]
@@ -708,12 +708,12 @@ const SKILLS = [
       {
         "k": "s1",
         "t": "Resolve paths",
-        "d": "Parses an optional version token and loads feature-resolve for the folder, plan path, tracker and the design it must plan against. This stays in the main agent deliberately, because the resolver may need to ask about an overwrite and the subagent cannot ask anything. It opens by labelling the herdr pane with this skill's own name — placed here rather than in the confirmation step, so a declined run never strands a label with no end to clear it. The usage window opens here too, and for the same reason: the closing step measures from this marker to report what the run cost."
+        "d": "Parses an optional version token and loads feature-resolve for the folder, plan path, tracker and the design it must plan against. This stays in the main agent deliberately, because the resolver may need to ask about an overwrite and the subagent cannot ask anything. The usage window opens here rather than in the confirmation step, so a declined run never strands a start marker with no report to close it — the closing step measures from this marker to report what the run cost. Any house rules recorded for this skill via /skill-customize load here too, announced in one line and applied for the whole run."
       },
       {
         "k": "s2",
         "t": "Launch subagent",
-        "d": "Launches exactly one general-purpose subagent and waits. The brief is self-contained: the resolution block verbatim, the full text of the planning steps, the no-questions rule, the halt protocol, and the return contract. Nothing runs in parallel with it. A blocked return reports the run as halted and clears the herdr label before relaying, since the closing step never runs on a halt."
+        "d": "Launches exactly one general-purpose subagent and waits. The brief is self-contained: the resolution block verbatim, the full text of the planning steps, the no-questions rule, the halt protocol, and the return contract. Nothing runs in parallel with it. A blocked return reports the run as halted before relaying, since the closing step never runs on a halt."
       },
       {
         "k": "s3",
@@ -774,7 +774,7 @@ const SKILLS = [
       {
         "k": "s11",
         "t": "Offer implement",
-        "d": "Relays the summary unmodified, then asks whether to continue into feature-implement. Which option is recommended depends on the deviations section: none recommends proceeding, any deviation recommends pausing to fold them back into a new design version first. It reports the run's usage and clears the herdr pane label first, before the offer, because the hand-off branch leaves this step without returning and anything placed after it would never run.",
+        "d": "Relays the summary unmodified, then asks whether to continue into feature-implement. Which option is recommended depends on the deviations section: none recommends proceeding, any deviation recommends pausing to fold them back into a new design version first. It reports the run's usage first, before the offer, because the hand-off branch leaves this step without returning and anything placed after it would never run.",
         "gate": true
       }
     ]
@@ -798,7 +798,7 @@ const SKILLS = [
       {
         "k": "s1",
         "t": "Resolve paths",
-        "d": "Parses an optional version token and loads feature-resolve, which picks the latest feature that has a plan but no implementation and refuses outright when no plan exists anywhere. It opens by labelling the herdr pane with this skill's own name — placed here rather than in the confirmation step, so a declined run never strands a label with no end to clear it. The usage window opens here too, and for the same reason: the closing step measures from this marker to report what the run cost."
+        "d": "Parses an optional version token and loads feature-resolve, which picks the latest feature that has a plan but no implementation and refuses outright when no plan exists anywhere. The usage window opens here rather than in the confirmation step, so a declined run never strands a start marker with no report to close it — the closing step measures from this marker to report what the run cost. Any house rules recorded for this skill via /skill-customize load here too, announced in one line and applied for the whole run."
       },
       {
         "k": "s2",
@@ -808,7 +808,7 @@ const SKILLS = [
       {
         "k": "s3",
         "t": "Repo readiness",
-        "d": "Confirms a clean tree, warns if the branch is not the default one, syncs with the remote, and detects the project's test, lint, format, type-check and build commands from manifests and CI. It then baselines the suite, and a suite that is already red halts the run: investigate, file a bug, or stop. It never builds on red, even under autonomous instructions. Any branch that stops the run reports the usage as halted and clears the herdr label first, because the closing step never runs on a halted baseline.",
+        "d": "Confirms a clean tree, warns if the branch is not the default one, syncs with the remote, and detects the project's test, lint, format, type-check and build commands from manifests and CI. It then baselines the suite, and a suite that is already red halts the run: investigate, file a bug, or stop. It never builds on red, even under autonomous instructions. Any branch that stops the run reports the usage as halted, because the closing step never runs on a halted baseline.",
         "gate": true
       },
       {
@@ -879,7 +879,7 @@ const SKILLS = [
       {
         "k": "s6",
         "t": "Stop conditions",
-        "d": "Halts the loop and consults the user on an undiagnosable failure, a decision the plan and design do not cover, a tree dirtied by something else, an oversized security issue, or a plan that turns out to need a design change. Completed stages stay committed and partial work stays uncommitted. Whichever condition fired, the run is reported as halted and the herdr label cleared before stopping — the stages that did land still cost tokens and belong in the log.",
+        "d": "Halts the loop and consults the user on an undiagnosable failure, a decision the plan and design do not cover, a tree dirtied by something else, an oversized security issue, or a plan that turns out to need a design change. Completed stages stay committed and partial work stays uncommitted. Whichever condition fired, the run is reported as halted before stopping — the stages that did land still cost tokens and belong in the log.",
         "gate": true
       },
       {
@@ -906,7 +906,7 @@ const SKILLS = [
       {
         "k": "s11",
         "t": "Offer evals",
-        "d": "Asks once whether to score the run. On consent it launches both eval skills in two parallel read-only subagents, which is safe because they touch different log files, and relays their scores. Declining, or an eval failing, never fails the implementation run. It clears the herdr pane label before the offer, then reports the run's usage last of all — uniquely among the four, because this final question hands over to nothing and only from here do the eval subagents fall inside the measured window.",
+        "d": "Asks once whether to score the run. On consent it launches both eval skills in two parallel read-only subagents, which is safe because they touch different log files, and relays their scores. Declining, or an eval failing, never fails the implementation run. It reports the run's usage last of all — uniquely among the four, because this final question hands over to nothing and only from here do the eval subagents fall inside the measured window.",
         "gate": true,
         "par": [
           "evals-code-run",
@@ -967,6 +967,11 @@ const SKILLS = [
     "internal": true,
     "purpose": "Shows the user what a feature will look like — as a published artifact, not a file path — and returns the direction they chose as concrete design decisions.",
     "steps": [
+      {
+        "k": "s0",
+        "t": "Load customisations",
+        "d": "Reads the house rules recorded for this skill via /skill-customize from its extras file, resolved through the plugin-wide four-rule ladder, before classifying or drawing anything. A missing file is the common path and is silently skipped. Customisations refine the defaults but never override the skill's non-negotiable constraints. The load is Step 0 because this skill has no confirmation gate of its own — the caller already gated the run."
+      },
       {
         "k": "s1",
         "t": "Confirm surface",
@@ -1256,7 +1261,7 @@ const SKILLS = [
     "g": "internal",
     "inv": "agent",
     "internal": true,
-    "purpose": "Labels the herdr pane this session runs in, so a workspace of parallel agents shows which skill each one is running.",
+    "purpose": "Labels the herdr pane this session runs in, so a workspace of parallel agents can be told apart at a glance. Nothing in the plugin calls it by default — the model invokes it ad hoc, and users wire it into chain runs via /skill-customize extras.",
     "steps": [
       {
         "k": "s1",
@@ -1703,6 +1708,57 @@ const SKILLS = [
         "d": "When the branch is behind, it emits two things: a message shown directly to the user, so the state is never silent, and a context note telling Claude to ask on its next reply whether to fast-forward. Hooks cannot prompt, so the ask can only come from a turn. It never pulls and never blocks the session."
       }
     ]
+  },
+  {
+    "slug": "skill-customize",
+    "g": "improve",
+    "inv": "both",
+    "internal": false,
+    "purpose": "Records a durable house rule for one of this plugin's own skills in its .extras file — or shows what is already recorded, verbatim — so a preference stated once outlives the run it was stated in.",
+    "steps": [
+      {
+        "k": "s0",
+        "t": "Confirm invocation",
+        "gate": true,
+        "d": "Checks whether the user explicitly typed /skill-customize. A proactive invocation asks once whether to record a lasting customisation, apply it to this run only, or leave the skill alone; anything but the first answer ends the skill without writing."
+      },
+      {
+        "k": "s1",
+        "t": "Resolve slug",
+        "d": "Takes the target skill's slug as the first argument token and validates it against the directory names under the plugin's own skills/ folder — never a hardcoded roster, whose failure mode is rejecting a perfectly valid name. A near-miss asks which skill was meant rather than silently correcting; an unknown name stops with the accepted list. The rest of the arguments is either the word show or the customisation in the user's own words."
+      },
+      {
+        "k": "s2",
+        "t": "Locate file",
+        "d": "Resolves the extras directory through the four-rule ladder mirrored verbatim into every skill that reads its extras file — the substitution token is not an environment variable, so writer and readers must agree on the same documented resolution. The target is one file per skill, named for the slug."
+      },
+      {
+        "k": "s3",
+        "t": "Read existing",
+        "d": "Reads what is already recorded; a missing file is the normal starting state. When the user asked to see the file, the skill ends here by printing the bytes verbatim in a fenced block — never summarised, reordered or reworded — with the absolute path named above it."
+      },
+      {
+        "k": "s4",
+        "t": "Capture instruction",
+        "gate": true,
+        "d": "Uses the user's own words when they already stated the customisation; otherwise offers three concrete candidates derived from the target skill's own decision points and takes free text through the Other option. Each instruction is normalised to one imperative sentence, then compared with what exists: a duplicate changes nothing, a refinement replaces the bullet in place, a contradiction asks once which wins."
+      },
+      {
+        "k": "s5",
+        "t": "Check non-negotiables",
+        "d": "Reads the target skill's non-negotiable constraints and refuses any instruction that contradicts one, relaxes a safety rule, or disables a load-bearing step — naming the collision and offering the closest allowed alternative. Everything else is fair game: defaults, counts, thresholds, tone, formats and what the skill decides for itself instead of asking."
+      },
+      {
+        "k": "s6",
+        "t": "Write file",
+        "d": "Rewrites the whole file — a fixed header plus one dated bullet per instruction, oldest first — preserving every bullet the user did not touch. Removing the last instruction leaves an empty Instructions section rather than a deleted file. Nothing else is written anywhere: no project files, no commits, no pushes."
+      },
+      {
+        "k": "s7",
+        "t": "Confirm line",
+        "d": "Confirms in one line with the instruction count and the absolute path, noting any refusal or supersede, and says whether the target skill actually loads its extras yet — an unwired skill records the instruction but changes nothing today."
+      }
+    ]
   }
 ];
 
@@ -1956,72 +2012,6 @@ const EDGES = [
   },
   {
     "f": "feature-storm.s1",
-    "t": "set-herdr-label.s1",
-    "ty": "call",
-    "l": "label the pane"
-  },
-  {
-    "f": "feature-storm.s9",
-    "t": "set-herdr-label.s1",
-    "ty": "call",
-    "l": "clear the label"
-  },
-  {
-    "f": "feature-design.s1",
-    "t": "set-herdr-label.s1",
-    "ty": "call",
-    "l": "label the pane"
-  },
-  {
-    "f": "feature-design.s11",
-    "t": "set-herdr-label.s1",
-    "ty": "call",
-    "l": "clear the label"
-  },
-  {
-    "f": "feature-plan.s1",
-    "t": "set-herdr-label.s1",
-    "ty": "call",
-    "l": "label the pane"
-  },
-  {
-    "f": "feature-plan.s2",
-    "t": "set-herdr-label.s1",
-    "ty": "call",
-    "l": "clear on BLOCKED"
-  },
-  {
-    "f": "feature-plan.s11",
-    "t": "set-herdr-label.s1",
-    "ty": "call",
-    "l": "clear the label"
-  },
-  {
-    "f": "feature-implement.s1",
-    "t": "set-herdr-label.s1",
-    "ty": "call",
-    "l": "label the pane"
-  },
-  {
-    "f": "feature-implement.s3",
-    "t": "set-herdr-label.s1",
-    "ty": "call",
-    "l": "clear on halt"
-  },
-  {
-    "f": "feature-implement.s6",
-    "t": "set-herdr-label.s1",
-    "ty": "call",
-    "l": "clear on stop"
-  },
-  {
-    "f": "feature-implement.s11",
-    "t": "set-herdr-label.s1",
-    "ty": "call",
-    "l": "clear the label"
-  },
-  {
-    "f": "feature-storm.s1",
     "t": "usage-report.s1",
     "ty": "call",
     "l": "start window"
@@ -2091,6 +2081,36 @@ const EDGES = [
     "t": "bug-tracker-render.s3",
     "ty": "data",
     "l": "shared tracker tokens"
+  },
+  {
+    "f": "skill-customize.s6",
+    "t": "feature-storm.s1",
+    "ty": "data",
+    "l": "house rules"
+  },
+  {
+    "f": "skill-customize.s6",
+    "t": "feature-design.s1",
+    "ty": "data",
+    "l": "house rules"
+  },
+  {
+    "f": "skill-customize.s6",
+    "t": "feature-plan.s1",
+    "ty": "data",
+    "l": "house rules"
+  },
+  {
+    "f": "skill-customize.s6",
+    "t": "feature-implement.s1",
+    "ty": "data",
+    "l": "house rules"
+  },
+  {
+    "f": "skill-customize.s6",
+    "t": "feature-mockup.s0",
+    "ty": "data",
+    "l": "house rules"
   }
 ];
 
@@ -2476,6 +2496,11 @@ const OV_NODES = [
     "slug": "release",
     "x": 73,
     "y": 435
+  },
+  {
+    "slug": "skill-customize",
+    "x": 47,
+    "y": 300
   }
 ];
 
@@ -2643,30 +2668,6 @@ const OV_EDGES = [
   },
   {
     "f": "feature-storm",
-    "t": "set-herdr-label",
-    "ty": "call",
-    "l": ""
-  },
-  {
-    "f": "feature-design",
-    "t": "set-herdr-label",
-    "ty": "call",
-    "l": ""
-  },
-  {
-    "f": "feature-plan",
-    "t": "set-herdr-label",
-    "ty": "call",
-    "l": ""
-  },
-  {
-    "f": "feature-implement",
-    "t": "set-herdr-label",
-    "ty": "call",
-    "l": ""
-  },
-  {
-    "f": "feature-storm",
     "t": "usage-report",
     "ty": "call",
     "l": ""
@@ -2688,6 +2689,12 @@ const OV_EDGES = [
     "t": "usage-report",
     "ty": "call",
     "l": ""
+  },
+  {
+    "f": "skill-customize",
+    "t": "feature-mockup",
+    "ty": "data",
+    "l": "extras file"
   }
 ];
 

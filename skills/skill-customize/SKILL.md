@@ -15,7 +15,7 @@ The point of externalising this is that a preference stated mid-run dies with th
 
 **A customisation refines a skill; it never overrides one.** Every skill in this plugin ends in a *Constraints (non-negotiable)* section, and those bullets exist because breaking them loses work, leaks data, or produces a plausible wrong answer. A customisation that collides with one is refused here, at write time, with the collision named — not quietly written down for the target skill to discover and disobey.
 
-This skill is **not part of the feature chain**. It never calls `feature-resolve` (which allocates feature folders and seeds trackers), never calls `lessons-capture` (there is no run to reflect on — and `lessons-learn` remains the way skill *text* gets edited), and never calls `usage-report`. It holds no `Skill` tool at all, so all three are structurally impossible. It sets no herdr label and touches nothing in the project: the single file it writes lives in the plugin's own data directory.
+This skill is **not part of the feature chain**. It never calls `feature-resolve` (which allocates feature folders and seeds trackers), never calls `lessons-capture` (there is no run to reflect on — and `lessons-learn` remains the way skill *text* gets edited), and never calls `usage-report`. It holds no `Skill` tool at all, so all three are structurally impossible. It touches nothing in the project: the single file it writes lives in the plugin's own data directory.
 
 This skill has eight steps (Steps 0–7). Execute them in order.
 

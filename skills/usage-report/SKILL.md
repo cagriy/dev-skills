@@ -113,4 +113,4 @@ These eight are the **one deliberate exception** to the plugin's substitute-only
 - **No conversation content ever leaves this skill.** The transcript the script reads holds the whole conversation; only numeric usage, timestamps and identifiers come back out of it. Never print, quote or summarise anything else you happen to see.
 - **Never calls `feature-resolve`.** Pathing arrives as input — the `feature-mockup` precedent. Calling the resolver here would create folders and seed trackers as a side effect of reporting.
 - **Never calls `lessons-capture`.** The reflection belongs to the calling skill's own lessons step; this skill holds no `Skill` tool, so it cannot invoke anything.
-- **Subagents never call either mode.** The window belongs to the main agent for the whole run, exactly as the herdr label does. A subagent's work is inside the window and is counted by the scan, not by calling in.
+- **Subagents never call either mode.** The window belongs to the main agent for the whole run. A subagent's work is inside the window and is counted by the scan, not by calling in.

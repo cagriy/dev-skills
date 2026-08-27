@@ -892,90 +892,10 @@ class TestSetHerdrLabelContract:
         )
 
 
-class TestHerdrLabelLifecycle:
-    """The four chain skills label the herdr pane for the length of a run.
-
-    Set once in Step 1 and cleared at the end, so a workspace of parallel
-    agents shows which skill each pane is running. Two placement rules carry
-    the weight, and both are regressions waiting to happen:
-
-    * The set lives in **Step 1, not Step 0**. Step 0 is the confirmation
-      gate; labelling before it means a declined confirmation strands a label
-      on a run that never started and has no end to clear it.
-    * The clear lives **before the final step's offer**, not after it. On the
-      chain-in branch the skill hands over through the `Skill` tool and never
-      returns to the step, so a trailing clear would silently never run.
-
-    The blocks are mirrored verbatim across all four skills (modulo the slug),
-    checked as a set for the same reason as the terminology block.
-    """
-
-    SET_RE = r"^\*\*Label the herdr pane\.\*\*.*$"
-    CLEAR_RE = r"^\*\*Clear the herdr pane label\.\*\*.*$"
-
-    def test_each_skill_sets_its_own_slug(self):
-        for slug in FEATURE_SKILLS:
-            line = re.search(self.SET_RE, skill_text(slug), re.MULTILINE)
-            assert line, f"{slug}: no herdr label-set block"
-            assert f"`{slug}`" in line.group(0), (
-                f"{slug}: labels the pane with something other than its own slug"
-            )
-
-    def test_each_skill_clears_with_no_argument(self):
-        for slug in FEATURE_SKILLS:
-            line = re.search(self.CLEAR_RE, skill_text(slug), re.MULTILINE)
-            assert line, f"{slug}: no herdr label-clear block"
-            assert "**no argument**" in line.group(0), (
-                f"{slug}: clear block does not state that it passes no argument"
-            )
-
-    def test_set_lives_in_step_1_not_step_0(self):
-        # A label set inside the Step 0 gate outlives a declined confirmation.
-        for slug in FEATURE_SKILLS:
-            text = skill_text(slug)
-            at = re.search(self.SET_RE, text, re.MULTILINE).start()
-            start, end = step_span(text, 1)
-            assert start < at < end, (
-                f"{slug}: the herdr label is set outside Step 1 — a declined "
-                f"Step 0 confirmation would strand it"
-            )
-
-    def test_clear_precedes_the_final_offer(self):
-        # Every chain skill ends with an AskUserQuestion offer; the clear has
-        # to come first or the hand-over branch skips it.
-        for slug in FEATURE_SKILLS:
-            text = skill_text(slug)
-            at = re.search(self.CLEAR_RE, text, re.MULTILINE).start()
-            offer = text.index("AskUserQuestion", at)
-            assert text.count("AskUserQuestion", at) >= 1, (
-                f"{slug}: no offer follows the clear block"
-            )
-            assert at < offer, f"{slug}: clear block does not precede the offer"
-
-    def test_clearing_before_any_stop_is_a_constraint(self):
-        # The enumerated exits cannot cover every halt, so the catch-all is
-        # what stops an unanticipated stop path from stranding a label.
-        for slug in FEATURE_SKILLS:
-            assert re.search(
-                r"\*\*Clear the herdr label before you stop\.\*\*",
-                skill_text(slug),
-            ), f"{slug}: no catch-all constraint clearing the label on early exits"
-
-    def test_blocks_are_mirrored_across_the_four_skills(self):
-        for label, pattern in (("set", self.SET_RE), ("clear", self.CLEAR_RE)):
-            seen = {}
-            for slug in FEATURE_SKILLS:
-                line = re.search(pattern, skill_text(slug), re.MULTILINE)
-                seen[slug] = line.group(0).replace(f"`{slug}`", "`<slug>`")
-            assert len(set(seen.values())) == 1, (
-                f"the herdr {label} block has drifted between feature-* skills"
-            )
-
-
 class TestUsageReportLifecycle:
     """The four chain skills report what a run cost, via the usage-report helper.
 
-    Modelled on TestHerdrLabelLifecycle, and needed for the same reason: the
+    Needed because the
     feature is spread across six files that nothing else forces to agree. The
     tracker template carries eight tokens, `scripts/usage_report.py` is the
     only thing that fills them, `skills/usage-report/SKILL.md` is the only
@@ -1154,7 +1074,7 @@ class TestUsageReportLifecycle:
             )
 
     def test_start_lives_in_step_1_not_step_0(self):
-        # Same reasoning as the herdr label beside it: Step 0 is the
+        # Step 0 is the
         # confirmation gate, and a marker written before it outlives a
         # declined run with no report to clear it.
         for slug in FEATURE_SKILLS:
@@ -1204,7 +1124,7 @@ class TestUsageReportLifecycle:
     def test_report_precedes_the_offer_for_the_three_chaining_skills(self):
         # These three hand over through the Skill tool on acceptance and never
         # return to the step, so a report placed after the offer would
-        # silently never run — the same reasoning as the herdr label clear.
+        # silently never run.
         for slug in ("feature-storm", "feature-design", "feature-plan"):
             text = skill_text(slug)
             at = re.search(self.REPORT_RE, text, re.MULTILINE).start()
@@ -1350,7 +1270,7 @@ class TestSkillCustomizeContract:
     string and silently writes to ``/<slug>.extras``. Every consumer therefore
     resolves the directory the same documented way, and because the writer and
     each reader must agree on the answer, that ladder is a mirrored block
-    guarded like the herdr-label ones.
+    guarded verbatim across every consumer.
 
     The *authority* half: a customisation refines a skill, it never overrides a
     rule the skill marks non-negotiable. Drop that sentence and the extras file
@@ -1368,7 +1288,7 @@ class TestSkillCustomizeContract:
         "feature-implement",
     )
     # Readers whose Step 0 is the proactive-invocation confirmation gate. The
-    # load must sit *after* it, for the reason the herdr label does: a run the
+    # load must sit *after* it: a run the
     # user declined must not have done work first. feature-mockup is excluded
     # because it has no gate (its caller already gated) and its load IS Step 0.
     GATED_READERS = (
@@ -1380,7 +1300,7 @@ class TestSkillCustomizeContract:
     # Readers that hand their real work to subagents. A subagent starts with a
     # fresh context and cannot resolve the data directory reliably, so the main
     # agent loads once and passes the text down in the brief — exactly as it
-    # keeps the herdr label and the usage window to itself. Miss this and
+    # keeps the usage window to itself. Miss this and
     # customising feature-implement changes nothing, because Step 5 is
     # delegated and the customisations never reach the agent doing the work.
     DELEGATING_READERS = ("feature-plan", "feature-implement")
@@ -1532,7 +1452,7 @@ class TestSkillCustomizeContract:
     def test_readers_load_extras_before_doing_any_work(self):
         # The load has to happen before the work it can change. feature-mockup
         # puts it in Step 0, ahead of Step 1's is-there-a-surface decision; the
-        # chain skills put it in Step 1 beside the herdr label and the usage
+        # chain skills put it in Step 1 beside the usage
         # window. Either way it must be settled before Step 2.
         for slug in self.READERS:
             text = skill_text(slug)
@@ -1544,7 +1464,7 @@ class TestSkillCustomizeContract:
             )
 
     def test_gated_readers_load_after_their_confirmation_gate(self):
-        # Same rule the herdr label follows, for the same reason: Step 0 is the
+        # Step 0 is the
         # proactive-invocation gate, and a run the user declined must not have
         # read, announced or applied anything first.
         for slug in self.GATED_READERS:
