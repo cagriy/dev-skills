@@ -6,7 +6,7 @@ A Claude Code plugin that streamlines the end-to-end development process, from r
 
 Everything in this plugin follows three principles for generating clean, working code with AI:
 
-1. **Break the requirement down into smaller deliverables.** Large prompts produce large, wrong code. The chain splits a feature into a design, then a staged plan, then one small committable stage at a time, with each stage reviewed and tested before the next begins.
+1. **Break the requirement down into smaller deliverables.** Large prompts produce large, wrong code. The chain splits a feature into a design, then a staged plan, then small committable stages — each reviewed and tested before it lands, serially by default and concurrently where the plan proves stages independent.
 2. **Check your own work.** Every skill self-reviews its output before presenting it: designs are checked for functional, security, and efficiency gaps, and implemented stages for bloat, duplication, dead code, and inefficiency. Two eval skills score the finished work so quality is measured, not assumed.
 3. **Test-driven development.** Every plan stage is executed test-first: write the test, watch it fail, implement, watch it pass. One commit per green stage, and the run halts rather than build on an already-red suite.
 

@@ -1,6 +1,6 @@
 ---
 name: feature-plan
-description: Produce a staged, TDD-driven implementation plan that maps 1:1 to an existing feature design under features/feature-v<N>-<description>/. Use when the user asks to plan an implementation, break a feature into stages, or write a plan/roadmap for an existing design — typically as a follow-up to /feature-design. Refuses to plan without a real design file (delegated to feature-resolve). Runs its planning core (design read, codebase grounding, drafting, review, tracker update, lessons capture) inside a single general-purpose subagent; the subagent never asks the user questions — planning-level gaps are decided autonomously and recorded in the plan's "Planning decisions taken" section, and design-level gaps halt back to the main agent with a pointer to /feature-design. Reviews the plan for design coverage, inaccuracies, conflicts, and security issues before presenting staged highlights, then updates the per-feature tracker. Step 0 confirms with the user via AskUserQuestion before doing any work when invoked proactively; the confirmation is skipped when the user explicitly typed /feature-plan or just chained in from /feature-design.
+description: Produce a staged, TDD-driven implementation plan that maps 1:1 to an existing feature design under features/feature-v<N>-<description>/. Use when the user asks to plan an implementation, break a feature into stages, or write a plan/roadmap for an existing design — typically as a follow-up to /feature-design. Refuses to plan without a real design file (delegated to feature-resolve). Runs its planning core (design read, codebase grounding, drafting, review, tracker update, lessons capture) inside a single general-purpose subagent; the subagent never asks the user questions — planning-level gaps are decided autonomously and recorded in the plan's "Planning decisions taken" section, and design-level gaps halt back to the main agent with a pointer to /feature-design. Reviews the plan for design coverage, inaccuracies, conflicts, and security issues before presenting staged highlights, then updates the per-feature tracker. Closes the plan with an execution schedule that groups independent stages into parallel batches — judged by a named independence rule, serial whenever independence is in doubt, never splitting or inventing a stage to gain parallelism — so /feature-implement can build them concurrently. Step 0 confirms with the user via AskUserQuestion before doing any work when invoked proactively; the confirmation is skipped when the user explicitly typed /feature-plan or just chained in from /feature-design.
 user-invocable: true
 disable-model-invocation: false
 argument-hint: <optional v<N> to target a specific feature, or omit to use the latest with a design and no plan yet>
@@ -180,6 +180,8 @@ Key the blast-radius check to the *kind* of change — raw reference counts misl
 - **New variant on an enum / union / sealed type**: grep for exhaustive switch/match sites over that type; each is a forced same-stage edit — the new variant won't compile (or falls through) until every exhaustive site handles it.
 - **New entry in a registry / list that tests enumerate**: grep for tests that iterate or count that collection (the collection name near a length or equality assertion); the stage adding the entry must update those guards.
 
+**Record the dependency evidence the execution schedule needs.** For every stage you will draft, note the files it creates or modifies — including the registration file, lockfile, snapshot/golden file, generated artefact or migration it rewrites, each of which must appear in that stage's *Touches* or Step 5's disjoint-files test cannot see it — the symbols and string-keyed names (endpoint paths, job/event/type names, flag and config keys) it introduces or consumes, the registration points it edits, and any shared test resource its tests bind (a fixed port, a database, a simulator or device, a live service, a global cache or temp path). Step 5's independence rule is decided from this evidence, never from stage titles.
+
 When the design scopes work as **mirroring or paralleling an existing path** — a new variant of an existing family, an analogous handler/pipeline/exporter, a per-kind twin of an existing flow — `grep` and read the existing counterpart before staging, and stage the work as generalising/parameterising the shared code (a kind argument, a loop over kinds, an extracted helper) rather than as a field-swapped copy; name the shared helper in the stage's *Touches* and keep the existing path's tests green within the same stage. The same applies to test scaffolding: a stage adding analog test files reuses or hoists shared fixtures/builders via the project's shared-fixture mechanism instead of re-declaring them per file.
 
 The goal is (a) to produce concrete, executable steps in Step 5, and (b) to surface conflicts between the design and current reality that you will raise in Step 7.
@@ -281,9 +283,32 @@ Planning-level decisions this plan made autonomously because the design did not 
 
 ## Deviations from the design
 Either "None — plan matches design v<N> exactly." or a numbered list of deviations with rationale. Any deviation here is a signal that the design may need a follow-up version; flag the suggestion in the Step 10 summary.
+
+## Execution schedule
+Batches run in order; a batch starts only when the previous one has fully landed. Stages inside a *parallel* batch are independent and may be built concurrently; a *serial* batch holds one stage. `/feature-implement` follows this table and demotes any batch it cannot verify to serial.
+
+| Batch | Stages | Mode | Why this mode |
+| --- | --- | --- | --- |
+| 1 | Stage 1 | serial | establishes the test convention every later stage uses |
+| 2 | Stage 2, Stage 3 | parallel | disjoint files, no shared symbol or string-keyed contract, no shared registration point, no shared test resource |
+| 3 | Stage 4 | serial | consumes the API introduced by Stages 2 and 3 |
+
+**Critical path:** Stage 1 → Stage 3 → Stage 4 (3 of 4 stages).
 ```
 
 Compute `<YYYY-MM-DD>` from `date -u +%Y-%m-%d`. Use `v<N>` (integer) in the header — never `v<N>.<M>`.
+
+**The execution schedule.** The *Execution schedule* section groups the stages into batches for `/feature-implement`. Every stage appears in exactly one batch; batches are numbered in the order they run; a batch depends on the whole of the previous one; and a plan with no parallel batch still carries the table, all serial, so the implement skill never has to infer the absence. The aim is the shortest critical path that keeps every stage coherent — the schedule groups the stages Step 5 already cut and never splits, merges or invents a stage to gain parallelism. The *Why this mode* cell of a parallel batch names the evidence, by the test names below; the *Critical path* line lists the longest chain of serial dependencies and its length against the stage count.
+
+**Independence rule.** A batch is *parallel* only when every one of the following tests holds for every pair of stages in it, decided from the evidence Step 4 recorded rather than from stage titles. Any doubt about any test, for any pair, resolves to serial — a serial batch costs wall-clock, a wrongly parallel one costs a broken branch:
+
+1. **Disjoint files** — no file is created or modified by both stages, counting test files, shared fixtures, manifests and project files, registries, lockfiles, snapshot/golden files, generated artefacts and migration files. Side artefacts the implement skill reserves for its main agent (the plan file, the tracker, a changelog or wiki) are excluded, since they never appear in a stage commit.
+2. **No symbol or string-keyed dependency** — neither stage calls, imports, extends, or tests a symbol the other introduces or changes, and neither relies on a name the other registers: an endpoint path, a job, event or type name, a flag or config key.
+3. **No shared registration point** — neither stage needs an explicit build or manifest entry, exhaustive switch site, enumerated registry, or shared fixture the other also edits.
+4. **Same base state** — both stages are green against the previous batch alone, and neither's *confirm fail* step depends on the other's absence.
+5. **Category exclusions** — always serial: a scaffolding or convention-establishing stage, a behaviour-preserving refactor of shared code, a stage changing a shared signature (the Step 4 blast-radius set), an external-prerequisite (gated) stage, a stage adding a schema migration, and a stage adding or upgrading a dependency.
+6. **Security ordering** — the batch opens no window Step 7's *Security issues* check would reject: a protection never lands later than the code it protects, in the same batch or an earlier one.
+7. **No shared test resource** — neither stage's tests bind a fixed port, shared database, simulator or device, live service, or global cache or temp path the other's tests also use; the two suites must be able to run at the same moment.
 
 ## Step 6 — Resolve planning-level decisions autonomously *(subagent)*
 
@@ -301,6 +326,7 @@ Examples of planning-level decisions you decide and record:
 - Whether to land a feature flag in an early stage or skip it.
 - Which existing test harness / framework to use when the design didn't specify.
 - Concrete file paths when the design described shape but not location.
+- Which independent stages to batch in parallel when the schedule could be cut more than one way — record the cut and why, when the choice is not obvious.
 
 Do **not** decide design-level questions. If a gap would change the design itself — scope, requirements, approach, interfaces — halt per the `BLOCKED:` protocol in your briefing and name the decision required; only `/feature-design` can close it. Never silently expand scope in the plan.
 
@@ -317,7 +343,8 @@ Re-read the draft critically and fix what you find via `Edit` directly in the pl
 - **Decision log** — every entry in *Planning decisions taken* is genuinely planning-level (staging order, flags, harness, paths). If any recorded decision actually changes scope, requirements, approach, or interfaces, it is design-level — halt per the `BLOCKED:` protocol rather than shipping it in the plan.
 - **Security issues** — does any stage introduce a regression in input validation, authz, secret handling, logging of sensitive data, or trust boundaries that the design protected? Does the *order* of stages create a window where the system is insecure (e.g. endpoint live before authz check is wired)? Fix by reordering, adding guard stages, or feature-flagging.
 - **Hand-waves** — replace any "TBD", "TODO", "we'll just…", "should be straightforward" with concrete steps or move them to *Risks and open issues* with explicit mitigations.
-- **Stage size** — no single stage should be so large that it can't be reviewed in one sitting. Split large stages. Conversely, do not fragment trivially small steps into their own stages.
+- **Stage size** — no single stage should be so large that it can't be reviewed in one sitting. Split large stages. Conversely, do not fragment trivially small steps into their own stages. Splitting for size is fine; splitting a stage so its halves can run concurrently is not — that is the schedule reshaping the work, which the next bullet forbids.
+- **Schedule soundness** — every stage appears in exactly one batch of the *Execution schedule* and batches are numbered in execution order. Every stage in a parallel batch passes all seven independence tests against each of its siblings — *Disjoint files*, *No symbol or string-keyed dependency*, *No shared registration point*, *Same base state*, *Category exclusions*, *Security ordering*, *No shared test resource* — and the *Why this mode* cell names the evidence. Any pair you cannot clear on every test goes serial. Confirm that no stage was split, merged or added to create parallelism, that a parallel batch opens no window the *Security issues* check above would reject, and that the *Critical path* line is present and consistent with the table.
 
 After edits, do a final pass to confirm:
 
@@ -326,6 +353,7 @@ After edits, do a final pass to confirm:
 3. Stages are ordered so the system is working and shippable after each one.
 4. *Planning decisions taken* either says "None…" or lists only planning-level decisions, each with a rationale.
 5. *Deviations from the design* either says "None" or explicitly lists differences with rationale.
+6. The *Execution schedule* places every stage in exactly one batch, every parallel batch clears all seven independence tests, and no stage was reshaped to create parallelism.
 
 If any of these still fail, loop on Step 7 until they pass.
 
@@ -357,8 +385,8 @@ Apply these edits via the `Edit` tool. For each `{{TOKEN}}`, check it is still l
 **Plan section tokens** (this skill owns these — always fill them with real content). Compute the timestamp once via `date -u +"%Y-%m-%d %H:%M UTC"` and reuse the same value for the chip. **If `/feature-storm` or `/feature-design` ran first, these are no longer the literal `{{PLAN_*}}` tokens — the earlier stage rendered them as the placeholder prose `Awaiting /feature-plan` (the chip) and two `<p class="empty">Not yet filled — pending /feature-plan.</p>` blocks (bullets + details). Overwrite those placeholder strings with the real plan content; the skip-if-substituted rule above protects only *other* skills' tokens, never your own Plan panel.**
 
 - `{{PLAN_AT}}` → `Updated <YYYY-MM-DD HH:MM UTC>` (the timestamp chip text — no surrounding HTML).
-- `{{PLAN_BULLETS}}` → an `<ul>` of 5–10 plan highlights, one `<li>` per bullet — typically the stage titles plus the *Deviations from the design* line.
-- `{{PLAN_DETAILS}}` → free-form HTML rendering the plan in increasing detail, drawn from the file written in Step 5. Cover, in order: the **Overview** paragraph → the **Stages** list (one `<h3>` or `<h4>` per stage with its one-line goal and the files it touches; do not paste the full TDD step list — that's in the .md) → the **Requirements coverage map** as a `<table>` → **Cross-cutting concerns** → **Verification** → **Planning decisions taken** → **Deviations from the design**. Use `<h3>` for top-level section titles, `<h4>` for sub-sections, `<p>` / `<ul>` / `<table>` for content. Order content from highest-level to most detailed so a reader can stop reading at any depth.
+- `{{PLAN_BULLETS}}` → an `<ul>` of 5–10 plan highlights, one `<li>` per bullet — typically the stage titles plus the *Deviations from the design* line, and one bullet naming the critical path when the schedule has a parallel batch.
+- `{{PLAN_DETAILS}}` → free-form HTML rendering the plan in increasing detail, drawn from the file written in Step 5. Cover, in order: the **Overview** paragraph → the **Stages** list (one `<h3>` or `<h4>` per stage with its one-line goal and the files it touches; do not paste the full TDD step list — that's in the .md) → the **Requirements coverage map** as a `<table>` → **Cross-cutting concerns** → **Verification** → **Execution schedule** (the batch table as a `<table>` plus the critical-path line) → **Planning decisions taken** → **Deviations from the design**. Use `<h3>` for top-level section titles, `<h4>` for sub-sections, `<p>` / `<ul>` / `<table>` for content. Order content from highest-level to most detailed so a reader can stop reading at any depth.
 
 **Other tokens** — substitute with the empty placeholder *only if still literal* (most will already be content from earlier stages):
 
@@ -405,6 +433,8 @@ N. <Stage N title> — <one-line goal>
 **Development strategy:** test-first per stage (write test → confirm fail → implement → confirm pass).
 
 **Design coverage:** <N>/<N> requirements mapped.
+
+**Execution schedule:** <m> batches, <n> stages parallel-eligible, critical path <k>/<N> stages.
 
 **Planning decisions:** <"None" or the 1–3 most consequential, one line each — full list in the plan's *Planning decisions taken* section>
 
@@ -463,3 +493,4 @@ Do not skip this step or substitute the AskUserQuestion with prose. The offer is
 - **Lessons capture runs every time.** Step 9 always invokes `lessons-capture` from the subagent (or, when the Skill tool is unavailable there, the main agent runs it during Step 2's verification); whether it produces a recommendation or "none this run" is decided by that skill.
 - **No symlinks.** If a defensive tracker template copy is needed in Step 8, always copy — never link.
 - **Never paste the entire plan into chat.** Step 10's block is staged highlights only, and Step 11 relays it unmodified; the user opens the file for full content.
+- **Parallelism never reshapes stages.** The *Execution schedule* groups the stages Step 5 cut; it never splits, merges, or invents a stage to gain parallelism, and any doubt about a pair's independence resolves to serial.

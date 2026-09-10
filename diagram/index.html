@@ -354,8 +354,8 @@
 <div id="page">
   <header class="top">
     <div class="chiprow">
-      <span class="vchip">dev-skills v0.3.42</span>
-      <span class="vchip">generated 2026-08-27 20:12 UTC</span>
+      <span class="vchip">dev-skills v0.3.43</span>
+      <span class="vchip">generated 2026-09-10 17:18 UTC</span>
       <span class="vchip">by /diagram-update</span>
       <a class="vchip" href="c4.html">architecture diagram &#8594;</a>
     </div>
@@ -699,7 +699,7 @@ const SKILLS = [
     "slug": "feature-plan",
     "g": "chain",
     "inv": "both",
-    "purpose": "Maps a locked design to a staged, test-first implementation plan. The planning core runs in one subagent and asks nothing.",
+    "purpose": "Maps a locked design to a staged, test-first implementation plan that closes with an execution schedule of serial and parallel batches. The planning core runs in one subagent and asks nothing.",
     "wraps": {
       "sub": "single planning subagent, no user channel"
     },
@@ -730,14 +730,14 @@ const SKILLS = [
       {
         "k": "s4",
         "t": "Ground plan",
-        "d": "Verifies the design's claims against the code rather than just checking that cited things exist: names it will add are checked for collisions, payload and config shapes are diffed against the real producer and consumer, and mechanisms it says already exist are located on disk. Test locations are confirmed able to run and reach the code under test.",
+        "d": "Verifies the design's claims against the code rather than just checking that cited things exist: names it will add are checked for collisions, payload and config shapes are diffed against the real producer and consumer, and mechanisms it says already exist are located on disk. Test locations are confirmed able to run and reach the code under test. It also records, per stage, the dependency evidence the execution schedule needs: files, symbols and string-keyed names, registration points, and any shared test resource.",
         "sub": true,
         "wrap": "sub"
       },
       {
         "k": "s5",
         "t": "Draft stages",
-        "d": "Writes the plan as a sequence of committable stages, each with a goal, design references, files touched, four test-first steps with a concrete expected failure, and a definition of done. Stages that cannot go red first carry one of the sanctioned category labels with a one-line justification.",
+        "d": "Writes the plan as a sequence of committable stages, each with a goal, design references, files touched, four test-first steps with a concrete expected failure, and a definition of done. Stages that cannot go red first carry one of the sanctioned category labels. The plan closes with an execution schedule: batches in execution order, each serial or parallel, where parallel is allowed only when every pair of stages clears seven named independence tests and any doubt resolves to serial. The schedule groups the stages already cut and never splits or invents one to gain parallelism.",
         "sub": true,
         "wrap": "sub"
       },
@@ -751,7 +751,7 @@ const SKILLS = [
       {
         "k": "s7",
         "t": "Review plan",
-        "d": "Checks design coverage, test-first discipline, invented references, ordering conflicts, insecure staging windows, hand-waves and stage size, fixing each in place. A design that turns out to be factually wrong about the code is corrected there and logged as a planning decision, not filed as a deviation.",
+        "d": "Checks design coverage, test-first discipline, invented references, ordering conflicts, insecure staging windows, hand-waves, stage size and schedule soundness — every stage in exactly one batch, every parallel pair cleared on all seven tests by name, no stage reshaped to create parallelism — fixing each in place. A design that turns out to be factually wrong about the code is corrected there and logged as a planning decision, not filed as a deviation.",
         "sub": true,
         "wrap": "sub"
       },
@@ -772,7 +772,7 @@ const SKILLS = [
       {
         "k": "s10",
         "t": "Compose summary",
-        "d": "The subagent's final message is exactly the staged summary block: the stages, coverage count, planning decisions, deviations, top risks and next step. Nothing before it and nothing after it, because the main agent relays it verbatim.",
+        "d": "The subagent's final message is exactly the staged summary block: the stages, coverage count, the execution schedule's batch count and critical path, planning decisions, deviations, top risks and next step. Nothing before it and nothing after it, because the main agent relays it verbatim.",
         "sub": true,
         "wrap": "sub"
       },
@@ -789,9 +789,9 @@ const SKILLS = [
     "g": "chain",
     "inv": "both",
     "commits": true,
-    "purpose": "Executes the plan stage by stage on the current branch, test-first, one commit per green stage. Never branches, never pushes.",
+    "purpose": "Executes the plan batch by batch on the current branch, test-first, one commit per green stage; independent stages build concurrently in throwaway worktrees. Never branches, never pushes.",
     "wraps": {
-      "tdd": "per-stage cycle, run in three-stage subagent units by default"
+      "tdd": "per-stage cycle, run in serial subagent units or concurrent parallel-batch subagents"
     },
     "steps": [
       {
@@ -808,23 +808,33 @@ const SKILLS = [
       {
         "k": "s2",
         "t": "Read artefacts",
-        "d": "Reads the plan and the design in full and builds an internal model of every stage, its test steps, files and definition of done, plus the requirements coverage map. An unresolved deviation in the plan is surfaced to the user rather than silently overridden."
+        "d": "Reads the plan and the design in full and builds an internal model of every stage, its test steps, files and definition of done, the requirements coverage map, and the plan's execution schedule of serial and parallel batches. A plan written before that section existed is treated as all-serial and said so. An unresolved deviation in the plan is surfaced to the user rather than silently overridden."
       },
       {
         "k": "s3",
         "t": "Repo readiness",
-        "d": "Confirms a clean tree, warns if the branch is not the default one, syncs with the remote, and detects the project's test, lint, format, type-check and build commands from manifests and CI. It then baselines the suite, and a suite that is already red halts the run: investigate, file a bug, or stop. It never builds on red, even under autonomous instructions. Any branch that stops the run reports the usage as halted, because the closing step never runs on a halted baseline.",
+        "d": "Confirms a clean tree, warns if the branch is not the default one, syncs with the remote, prunes any worktree an interrupted run left behind, and detects the project's test, lint, format, type-check, build and provisioning commands from manifests and CI. It then baselines the suite, and a suite that is already red halts the run: investigate, file a bug, or stop. It never builds on red, even under autonomous instructions. Any branch that stops the run reports the usage as halted, because the closing step never runs on a halted baseline.",
         "gate": true
       },
       {
         "k": "s4",
         "t": "Find resume point",
-        "d": "Greps the commit log for this feature's stage commits and resumes at the one after the highest completed stage. A fresh feature starts at stage one; a fully committed plan skips straight to the final sweep without making new commits."
+        "d": "Greps the commit log for this feature's stage commits and resumes at the lowest uncommitted stage. A gap below the highest committed stage is normal after a skipped gated stage or a partially landed parallel batch; only a gap neither explains is ambiguous. A fresh feature starts at stage one; a fully committed plan skips straight to the final sweep without making new commits."
       },
       {
         "k": "s5",
         "t": "Resolve strategy",
-        "d": "Decides who drives the cycle by rule, never by asking. Consecutive three-stage subagent units are the default; direct execution applies only on an explicit request, at two or fewer remaining stages, or when almost nothing can be delegated. The resolved strategy is announced in one line carrying the stage count and the partition."
+        "d": "Decides who drives the cycle by rule, never by asking, partitioned by the plan's execution schedule. Serial batches run as consecutive three-stage subagent units by default; direct execution applies only on an explicit request, at two or fewer remaining stages, or when almost nothing can be delegated. Each parallel batch is re-checked against the seven independence tests from the live code, and a worktree probe provisions one throwaway checkout and runs the suite there and in the main tree at the same moment; either failing demotes the batches to serial. The resolved strategy is announced in one line carrying the stage count and the batch shape."
+      },
+      {
+        "k": "s5p",
+        "t": "Land parallel batch",
+        "d": "For a batch the plan marks parallel, creates one detached git worktree per stage under the session scratch directory — never a branch — provisions it, and launches one subagent per stage in a single message, up to four at a time. Each subagent runs the full cycle inside its own worktree and makes exactly one commit there. The main agent then lands the commits on the current branch by cherry-pick in ascending stage order, running the suite after each: a conflict re-runs that stage serially at once, and a combined red is fixed with one small reconciliation commit or stops the run. Every worktree is reconciled and removed before the next batch, and the subagents' deviation notes are written by the main agent in one docs commit.",
+        "commits": true,
+        "par": [
+          "one worktree-isolated subagent per stage",
+          "up to four at once"
+        ]
       },
       {
         "k": "5a",
@@ -871,20 +881,20 @@ const SKILLS = [
       {
         "k": "5h",
         "t": "Commit stage",
-        "d": "Runs the test command once more, then makes exactly one commit for the stage in the fixed format the resume grep depends on. Only the stage's own source and test files are staged; documentation side artefacts go in a separate commit that keeps the stage tag out of its subject.",
+        "d": "Runs the test command once more, then makes exactly one commit for the stage in the fixed format the resume grep depends on. Only the stage's own source and test files are staged; documentation side artefacts go in a separate commit that keeps the stage tag out of its subject. In a parallel batch the commit is made in the worktree and moved onto the branch by the main agent's cherry-pick — the sha changes, the message does not.",
         "commits": true,
         "wrap": "tdd"
       },
       {
         "k": "5i",
         "t": "Next stage",
-        "d": "Moves to the next stage without pushing, switching branches, or touching the plan. In chunked mode the main agent first verifies the unit's commits landed and touched only their expected files, re-deriving state from the repo before launching the next unit.",
+        "d": "Moves to the next stage without pushing, switching branches, or touching the plan. In a serial unit the main agent first verifies the unit's commits landed and touched only their expected files, re-deriving state from the repo before launching the next unit; in a parallel batch the siblings finish independently and the main agent lands them in stage order.",
         "wrap": "tdd"
       },
       {
         "k": "s6",
         "t": "Stop conditions",
-        "d": "Halts the loop and consults the user on an undiagnosable failure, a decision the plan and design do not cover, a tree dirtied by something else, an oversized security issue, or a plan that turns out to need a design change. Completed stages stay committed and partial work stays uncommitted. Whichever condition fired, the run is reported as halted before stopping — the stages that did land still cost tokens and belong in the log.",
+        "d": "Halts the loop and consults the user on an undiagnosable failure, a decision the plan and design do not cover, a tree dirtied by something else, an oversized security issue, a plan that turns out to need a design change, or a parallel batch whose conflict or combined red no small reconciliation resolves. Completed stages stay committed and partial work stays uncommitted; any worktree still in flight is reconciled and removed. Whichever condition fired, the run is reported as halted before stopping — the stages that did land still cost tokens and belong in the log.",
         "gate": true
       },
       {
@@ -906,7 +916,7 @@ const SKILLS = [
       {
         "k": "s10",
         "t": "Present summary",
-        "d": "Prints the stages and their commits, the test result, the baseline failures excluded from gating, design coverage, the dead-code outcome and any deviations. Under forty lines, no diffs."
+        "d": "Prints the stages and their commits with their batch where they ran concurrently, the test result, the baseline failures excluded from gating, design coverage, the dead-code outcome, any deviations, pending human verification, and a parallelism line saying how many stages ran concurrently and which batches were demoted. Under forty lines, no diffs."
       },
       {
         "k": "s11",
@@ -1039,7 +1049,7 @@ const SKILLS = [
       {
         "k": "s3",
         "t": "Resolve status",
-        "d": "Combines two signals per stage: the tracker's progress attributes and the stage files on disk, flagging any disagreement rather than hiding it. Implementation has no stage file, so completion comes from the tracker and work in progress is detected from the plan-stage commits on the current branch."
+        "d": "Combines two signals per stage: the tracker's progress attributes and the stage files on disk, flagging any disagreement rather than hiding it. Implementation has no stage file, so completion comes from the tracker and work in progress is detected from the plan-stage commits on the current branch, reported as the highest committed stage — never inferred as the next one, since a parallel batch can leave a gap below it."
       },
       {
         "k": "s4",
@@ -2116,6 +2126,18 @@ const EDGES = [
     "t": "feature-mockup.s0",
     "ty": "data",
     "l": "house rules"
+  },
+  {
+    "f": "feature-implement.s5p",
+    "t": "feature-implement.5a",
+    "ty": "loop",
+    "l": "each stage, in its worktree"
+  },
+  {
+    "f": "feature-implement.s5p",
+    "t": "feature-implement.s6",
+    "ty": "hand",
+    "l": "unreconcilable conflict or red"
   }
 ];
 

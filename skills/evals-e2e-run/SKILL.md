@@ -128,7 +128,7 @@ Items 2, 5, 6, 9, 10, 13, and 16 quote `feature-design`'s own template and self-
 
 **plan_quality** — judge the plan document against this rubric, item by item. The rubric is self-referential: it judges the plan against its own sections and the code it cites — whether the plan honors the actual design is `plan_consistency`'s job. The plan template's sections are named, not numbered; items anchor to those names. Per-stage items are graded majority-rule across stages (met = all stages pass; partial = a minority fail; unmet = a majority fail); "Not applicable"/"None" is met only when explicit and credible, never by silence:
 
-1. **Overview & structural completeness (*Overview* + all sections)** — the overview states what is built, how it is staged, and how it maps to the design; all nine template sections are present with real content or their explicit none-wording.
+1. **Overview & structural completeness (*Overview* + all sections)** — the overview states what is built, how it is staged, and how it maps to the design; all ten template sections are present with real content or their explicit none-wording.
 2. **Coverage map integrity (*Requirements coverage map*)** — every requirement row maps to at least one stage, every stage cited in the map exists under *Stages*, and no row is empty.
 3. **Stage completeness (*Stages*)** — every stage carries its Goal (one sentence), *Design references*, *Touches* (concrete paths), Steps, *Definition of done* (checkable bullets), and stage risks ("None" allowed).
 4. **TDD discipline (*Steps (TDD)*, per *Development strategy — Test-Driven Development*)** — every behavior-changing, host-testable stage has the four TDD steps in order with a concrete expected initial failure (not "it will fail"); every other stage carries one of the five sanctioned category labels declared in the strategy section, with a one-line justification — an unlabeled or ad-hoc category is unmet.
@@ -143,8 +143,9 @@ Items 2, 5, 6, 9, 10, 13, and 16 quote `feature-design`'s own template and self-
 13. **Decision-log purity (*Planning decisions taken*)** — exactly the none-line, or a numbered list where every entry is genuinely planning-level (stage order, flags, harness, file paths) with a one-line rationale; any design-level entry (scope, requirements, approach, interfaces) is unmet.
 14. **Deviations discipline (*Deviations from the design*)** — exactly the none-line, or a numbered list with rationale; whether listed deviations are truthful against the design is `plan_consistency`'s job — judge form and explicitness here.
 15. **Closure** — no TBD/TODO/FIXME/hand-wave language ("we'll just…", "should be straightforward") anywhere; open items live in *Risks and open issues* with mitigations.
+16. **Execution schedule soundness (*Execution schedule*)** — every stage appears in exactly one batch, batches are numbered in execution order, and every pair of stages in a parallel batch clears all seven independence tests the plan skill applies — *Disjoint files*, *No symbol or string-keyed dependency*, *No shared registration point*, *Same base state*, *Category exclusions*, *Security ordering*, *No shared test resource* — with the *Why this mode* cell naming the evidence; a parallel batch violating item 6's ordering or item 10's security window is unmet, as is any stage split, merged or invented to create parallelism; the *Critical path* line is present and consistent with the table. A plan with no parallel batch is met when its all-serial table is present. A plan without the section is judged as item 16 unmet and item 1 partial — never silently as all-serial.
 
-Items 3, 4, 7, 13, and 14 quote `feature-plan`'s own template and review rules so producer and judge share one standard; if those rules change, re-sync this rubric.
+Items 3, 4, 7, 13, 14, and 16 quote `feature-plan`'s own template and review rules so producer and judge share one standard; if those rules change, re-sync this rubric.
 
 ### Consistency method
 
@@ -154,7 +155,7 @@ For every `*_consistency` eval: enumerate the **upstream** artefact's discrete c
 - **Partially honored** (0.5): present but diverges in a way the downstream artefact does not acknowledge.
 - **Silently dropped or contradicted** (0): missing without a word, or the downstream does the opposite.
 
-`code_plan_consistency` additionally checks the reverse direction: every plan stage has a matching stage commit, and no significant unplanned scope crept into the implementation.
+`code_plan_consistency` additionally checks the reverse direction: every plan stage has a matching stage commit, and no significant unplanned scope crept into the implementation. Stage commits may be interleaved with `docs:` and `fix:` reconciliation commits, and a stage's batch membership is never judged from commit order — `feature-implement` lands parallel batches in stage order regardless of which subagent finished first.
 
 ### Recommendation rules
 

@@ -80,7 +80,7 @@ git log --oneline -F --grep="(plan v<N>): Stage "
 
 (`-F` matches the pattern literally — without it the parentheses would be read as a regex group.)
 
-- Commits found → **in progress**, reported with the highest plan-stage number seen (e.g. `in progress — Stage 3`). This is the resumable state `/feature-implement` picks up from.
+- Commits found → **in progress**, reported with the highest plan-stage number seen (e.g. `in progress — Stage 3`). `/feature-implement` resumes at the lowest *uncommitted* stage, which a parallel batch that landed only some of its stages can leave below this number — so report the highest, never infer the next.
 - No commits and no tracker completion → **not started**.
 - Not a git work tree, or git fails → treat as **not started** and say so once in the closing note rather than failing the run.
 
@@ -107,7 +107,7 @@ Render exactly one markdown table, in the sorted order:
 
 | Feature | Storm | Design | Plan | Implement | Last activity | Next step |
 |---|---|---|---|---|---|---|
-| v7 — Payments-checkout | ✅ | ✅ | ✅ | 🔄 Stage 2 | 2026-07-29 14:02 UTC | /feature-implement (resume at Stage 3) |
+| v7 — Payments-checkout | ✅ | ✅ | ✅ | 🔄 Stage 2 | 2026-07-29 14:02 UTC | /feature-implement (highest committed: Stage 2) |
 | v6 — Add-Reminders | – | ✅ | ⬜ | ⬜ | 2026-07-24 09:15 UTC | /feature-plan |
 | v4 — Export-CSV | ✅ | ✅ | ✅ | ⬜ | 2026-07-11 17:40 UTC | /feature-implement |
 
@@ -120,7 +120,7 @@ Rules for the table:
 - **Feature** — `v<N> — <description>`, description verbatim from the folder name (hyphens kept, so it stays greppable).
 - **Stage cells** — the Step 3 statuses as the symbols in the legend, with `†` appended where the signals disagreed. The implement cell carries the plan-stage number when in progress.
 - **Last activity** — the Step 4 timestamp, or `—` when unknown.
-- **Next step** — the slash command that advances the feature: `/feature-design` when design is missing, `/feature-plan` when the design is done and the plan is not, `/feature-implement` (adding `(resume at Stage <M+1>)` when partly implemented) when the plan is done. For a fully implemented feature in `all` scope, write `Done`.
+- **Next step** — the slash command that advances the feature: `/feature-design` when design is missing, `/feature-plan` when the design is done and the plan is not, `/feature-implement` (adding `(highest committed: Stage <M>)` when partly implemented) when the plan is done. For a fully implemented feature in `all` scope, write `Done`.
 - **Legend** — print it once, directly under the table, and only for the symbols that actually appear.
 - Emit only the header line, the table, the legend, and (when warranted) the closing note. No per-feature prose, no file dumps, no summaries of what each feature does.
 

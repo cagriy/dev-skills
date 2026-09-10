@@ -78,3 +78,10 @@ Manual poke around the notification center once everything is merged.
 
 ## Deviations from the design
 None — plan matches design v2 exactly.
+
+## Execution schedule
+
+| Batch | Stages | Mode | Why this mode |
+| --- | --- | --- | --- |
+| 1 | Stage 1, Stage 3 | parallel | both are small |
+| 2 | Stage 2, Stage 4 | parallel | should be fine |

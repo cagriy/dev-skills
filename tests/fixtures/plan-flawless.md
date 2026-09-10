@@ -172,3 +172,17 @@ With all stages complete and the flag on in staging: configure a weekly schedule
 
 ## Deviations from the design
 None — plan matches design v3 exactly.
+
+## Execution schedule
+Batches run in order; a batch starts only when the previous one has fully landed. Stages inside a *parallel* batch are independent and may be built concurrently; a *serial* batch holds one stage.
+
+| Batch | Stages | Mode | Why this mode |
+| --- | --- | --- | --- |
+| 1 | Stage 1 | serial | adds the migration and the store every later stage reads (category exclusion: schema migration) |
+| 2 | Stage 2 | serial | registers the dispatcher on the tick and enqueues the `export_send` job type Stage 3 registers — a string-keyed dependency |
+| 3 | Stage 3 | serial | consumes the store API from Stage 1 and the job type name from Stage 2 |
+| 4 | Stage 4 | serial | the API's routes are the HTTP paths Stage 5's panel calls — a string-keyed dependency |
+| 5 | Stage 5, Stage 6 | parallel | disjoint files (`dashboard/src/components/…` vs `app/workspaces/membership.py` and their own test files); no shared symbol or string-keyed name (the panel calls Stage 4's routes, the removal hook calls Stage 1's store); no shared registration point; both green against batch 4 alone; neither in an excluded category; no security window (both sit behind Stage 4's authorization); no shared test resource (jest vs pytest with `fake_clock`) |
+| 6 | Stage 7 | serial | wires the flag into files Stages 2, 4 and 5 created and runs the end-to-end test |
+
+**Critical path:** Stage 1 → Stage 2 → Stage 3 → Stage 4 → Stage 5 → Stage 7 (6 of 7 stages).

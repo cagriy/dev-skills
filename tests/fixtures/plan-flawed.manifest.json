@@ -4,47 +4,131 @@
   "defects": [
     {
       "name": "coverage-map-gap",
-      "keywords": ["R4", "mute", "empty row", "no stage", "coverage map", "unmapped"]
+      "keywords": [
+        "R4",
+        "mute",
+        "empty row",
+        "no stage",
+        "coverage map",
+        "unmapped"
+      ]
     },
     {
       "name": "untested-monster-stage",
-      "keywords": ["stage 2", "mixes", "monster", "too large", "unrelated concerns", "single sitting", "one sitting", "everything else"]
+      "keywords": [
+        "stage 2",
+        "mixes",
+        "monster",
+        "too large",
+        "unrelated concerns",
+        "single sitting",
+        "one sitting",
+        "everything else"
+      ]
     },
     {
       "name": "tests-later-no-label",
-      "keywords": ["stabilise", "stabilize", "if time allows", "no TDD", "category label", "unlabeled", "sanctioned"]
+      "keywords": [
+        "stabilise",
+        "stabilize",
+        "if time allows",
+        "no TDD",
+        "category label",
+        "unlabeled",
+        "sanctioned"
+      ]
     },
     {
       "name": "vague-expected-failure",
-      "keywords": ["it will fail", "expected failure", "concrete", "failure mode"]
+      "keywords": [
+        "it will fail",
+        "expected failure",
+        "concrete",
+        "failure mode"
+      ]
     },
     {
       "name": "ordering-bug",
-      "keywords": ["NotificationStore", "later stage", "not yet", "before it exists", "depends on", "ordering", "stage 1 uses"]
+      "keywords": [
+        "NotificationStore",
+        "later stage",
+        "not yet",
+        "before it exists",
+        "depends on",
+        "ordering",
+        "stage 1 uses"
+      ]
     },
     {
       "name": "insecure-ordering",
-      "keywords": ["auth", "open endpoint", "unauthenticated", "insecure", "window", "before"]
+      "keywords": [
+        "auth",
+        "open endpoint",
+        "unauthenticated",
+        "insecure",
+        "window",
+        "before"
+      ]
     },
     {
       "name": "missing-stage-fields",
-      "keywords": ["definition of done", "design references", "stage fields", "missing field"]
+      "keywords": [
+        "definition of done",
+        "design references",
+        "stage fields",
+        "missing field"
+      ]
     },
     {
       "name": "tbd-handwaves",
-      "keywords": ["TBD", "figure out", "should be straightforward", "decided later", "hand-wave", "handwave"]
+      "keywords": [
+        "TBD",
+        "figure out",
+        "should be straightforward",
+        "decided later",
+        "hand-wave",
+        "handwave"
+      ]
     },
     {
       "name": "design-level-decision",
-      "keywords": ["Redis", "design-level", "approach", "storage", "planning-level"]
+      "keywords": [
+        "Redis",
+        "design-level",
+        "approach",
+        "storage",
+        "planning-level"
+      ]
     },
     {
       "name": "boilerplate-risks",
-      "keywords": ["timeline risk", "scope creep", "mitigation", "boilerplate", "generic risk"]
+      "keywords": [
+        "timeline risk",
+        "scope creep",
+        "mitigation",
+        "boilerplate",
+        "generic risk"
+      ]
     },
     {
       "name": "junk-verification",
-      "keywords": ["manual poke", "verification", "acceptance criteria"]
+      "keywords": [
+        "manual poke",
+        "verification",
+        "acceptance criteria"
+      ]
+    },
+    {
+      "name": "parallel-shared-file",
+      "keywords": [
+        "parallel",
+        "shared file",
+        "same file",
+        "notifications.py",
+        "serial",
+        "independence",
+        "schedule"
+      ]
     }
   ]
 }

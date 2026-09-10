@@ -68,6 +68,22 @@ EXPECTED_PLAN_SECTIONS = [
     "Risks and open issues",
     "Planning decisions taken",
     "Deviations from the design",
+    "Execution schedule",
+]
+
+# The independence tests feature-plan applies pairwise before marking a batch
+# of stages *parallel*, in order. Mirrored by name in feature-plan Step 7's
+# schedule-soundness review, feature-implement's pre-scan re-check, and the
+# plan_quality rubric's schedule item — producer, executor and judge share one
+# standard, and a test added to one side is invisible until it reaches all.
+EXPECTED_INDEPENDENCE_TESTS = [
+    "Disjoint files",
+    "No symbol or string-keyed dependency",
+    "No shared registration point",
+    "Same base state",
+    "Category exclusions",
+    "Security ordering",
+    "No shared test resource",
 ]
 
 # Per-stage fields of the plan template's Stage blocks that the rubric must judge.
@@ -104,6 +120,12 @@ STALE_STORM_REFERENCES = (
     "§5 (Open questions",
     "§5 Open questions",
     "lifted from §5",
+)
+
+# Phrases that can only be left-overs of the pre-parallel-batch stage loop.
+STALE_SERIAL_REFERENCES = (
+    "never in parallel",
+    "(never parallel)",
 )
 
 # `{{TOKEN}}` appears in prose as a meta-placeholder, not a real template token.
@@ -176,7 +198,7 @@ class TestPlanRubricTemplateAlignment:
     analogue and is covered by review instead.
     """
 
-    def test_template_has_expected_nine_sections(self):
+    def test_template_has_expected_ten_sections(self):
         assert plan_template_sections() == EXPECTED_PLAN_SECTIONS
 
     def test_rubric_names_every_section(self):
@@ -188,6 +210,97 @@ class TestPlanRubricTemplateAlignment:
         rubric = plan_quality_rubric()
         missing = [field for field in PLAN_STAGE_FIELDS if field not in rubric]
         assert not missing, f"plan_quality rubric never names stage fields: {missing}"
+
+
+class TestParallelStagesContract:
+    """feature-plan schedules parallel batches; feature-implement runs them.
+
+    The schedule is a plan section (judged by the rubric), the independence
+    rule is a named list (mirrored at three sites), and the executor's side is
+    a handful of git facts — detached worktrees, cherry-pick landing, cleanup
+    on stop — that keep the plugin's no-branches / one-commit-per-stage rules
+    intact while stages build concurrently.
+    """
+
+    PLAN = skill_text("feature-plan")
+    IMPLEMENT = skill_text("feature-implement")
+    LIST = skill_text("feature-list")
+
+    @staticmethod
+    def independence_tests(text: str) -> list[str]:
+        """The named tests of feature-plan's independence rule, in order."""
+        m = re.search(
+            r"\*\*Independence rule\.\*\*.*?(?=\n\n(?![0-9]))", text, re.DOTALL
+        )
+        assert m, "feature-plan has no **Independence rule.** paragraph"
+        return re.findall(r"^\d+\. \*\*(.+?)\*\* —", m.group(0), re.MULTILINE)
+
+    def test_plan_names_the_independence_tests_in_order(self):
+        assert self.independence_tests(self.PLAN) == EXPECTED_INDEPENDENCE_TESTS
+
+    def test_independence_tests_are_mirrored_at_every_site(self):
+        start, end = step_span(self.PLAN, 7)
+        review = self.PLAN[start:end]
+        assert "Schedule soundness" in review, "feature-plan Step 7 lacks a Schedule soundness bullet"
+        istart, iend = step_span(self.IMPLEMENT, 5)
+        prescan = self.IMPLEMENT[istart:iend]
+        rubric = plan_quality_rubric()
+        for site_name, site in (
+            ("feature-plan Step 7", review),
+            ("feature-implement Step 5", prescan),
+            ("plan_quality rubric", rubric),
+        ):
+            missing = [t for t in EXPECTED_INDEPENDENCE_TESTS if t not in site]
+            assert not missing, f"{site_name} never names independence tests: {missing}"
+
+    def test_plan_template_carries_the_schedule(self):
+        assert "Execution schedule" in plan_template_sections()
+        assert "Execution schedule" in plan_quality_rubric()
+
+    def test_schedule_never_reshapes_stages(self):
+        constraints = self.PLAN[self.PLAN.index("## Constraints (non-negotiable)"):]
+        assert re.search(r"never splits, merges,? or invents a stage", constraints), (
+            "feature-plan constraints must forbid splitting or inventing stages for parallelism"
+        )
+        assert re.search(r"doubt[^.]*serial", constraints), (
+            "feature-plan constraints must resolve independence doubt to serial"
+        )
+
+    def test_implement_worktrees_are_always_detached(self):
+        adds = re.findall(r"git worktree add[^\n`]*", self.IMPLEMENT)
+        assert adds, "feature-implement never creates a worktree"
+        offenders = [a for a in adds if "--detach" not in a]
+        assert not offenders, f"worktree add without --detach (creates a branch): {offenders}"
+
+    def test_implement_lands_by_cherry_pick_in_stage_order(self):
+        assert "git cherry-pick" in self.IMPLEMENT
+        assert re.search(r"stage order", self.IMPLEMENT), (
+            "feature-implement must state that batch commits land in stage order"
+        )
+        assert "git worktree prune" in self.IMPLEMENT
+        assert "PROVISION" in self.IMPLEMENT, "Step 3 needs a PROVISION tooling slot"
+        assert "never the harness's worktree option" in self.IMPLEMENT
+
+    def test_implement_caps_concurrency_as_a_phrase(self):
+        assert re.search(r"(?:up to|at most|max(?:imum)?) (?:4|four)", self.IMPLEMENT), (
+            "the parallel-batch cap must be stated as a phrase, not a bare number"
+        )
+
+    def test_parallel_subagents_never_edit_the_plan(self):
+        assert re.search(r"never edit the plan file", self.IMPLEMENT, re.IGNORECASE)
+
+    def test_stop_path_removes_worktrees(self):
+        start, end = step_span(self.IMPLEMENT, 6)
+        assert "git worktree remove" in self.IMPLEMENT[start:end], (
+            "Step 6 must remove worktrees on a stop"
+        )
+
+    def test_summary_reports_parallelism(self):
+        start, end = step_span(self.IMPLEMENT, 10)
+        assert "**Parallelism:**" in self.IMPLEMENT[start:end]
+
+    def test_feature_list_no_longer_assumes_contiguous_stages(self):
+        assert "resume at Stage <M+1>" not in self.LIST
 
 
 class TestSelfReviewLensAlignment:
@@ -1192,6 +1305,17 @@ def test_no_stale_storm_section_references():
         if pattern in path.read_text()
     ]
     assert not offenders, "stale pre-renumbering storm references:\n" + "\n".join(offenders)
+
+
+def test_no_stale_serial_loop_references():
+    files = all_skill_files() + [REPO / "CLAUDE.md"]
+    offenders = [
+        f"{path.relative_to(REPO)}: {pattern!r}"
+        for path in files
+        for pattern in STALE_SERIAL_REFERENCES
+        if pattern in path.read_text()
+    ]
+    assert not offenders, "stale pre-parallel stage-loop references:\n" + "\n".join(offenders)
 
 
 def test_frontmatter_contract():
