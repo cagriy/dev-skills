@@ -47,7 +47,7 @@ Evaluate in this order; **first match wins**. Plugin signals are tested before m
 - **Documents**: markdown/adoc/rst dominate the tracked files and the only manifest is a docs-site one (`mkdocs.yml`, `docusaurus.config.*`, `_config.yml`, `book.toml`, `docs/conf.py`). Corroborated by `docs/adr/**`, `adr/**`, `*arc42*`, `docs/architecture/**`, `rfcs/**`.
 - **Fallback**: software, noted as "no manifests found; grounded from source layout only".
 
-Record the class and the exact paths that decided it — both go in the Step 11 report.
+Record the class and the exact paths that decided it — both go in the Step 10 report.
 
 ## Step 3 — Ground: harvest the evidence
 
@@ -98,7 +98,7 @@ Ask **one** `AskUserQuestion` call with **at most four questions**, drawn only f
 | **Component detail** — which containers get a component view, and at what granularity? | Always on a cold run where at least one container has three or more identifiable units. See below — this question needs real work before you can ask it | The middle option (§5.1 maintenance cost, §13 "only where it earns its keep") |
 | **Queues and topics** — explicit containers or relationship labels? | A broker, queue or topic is detected | Four or fewer → explicit; more → implicit (§10.2) |
 
-There is never a second round. On a headless run, a non-answer, or "you decide", apply each fallback and record it as a skill decision with its rationale — an unanswered question is a recorded decision, never a stall and never a re-ask. If an answer raises a new question, record it in the Step 11 report rather than asking it.
+There is never a second round. On a headless run, a non-answer, or "you decide", apply each fallback and record it as a skill decision with its rationale — an unanswered question is a recorded decision, never a stall and never a re-ask. If an answer raises a new question, record it in the Step 10 report rather than asking it.
 
 ### The component-detail question, in detail
 
@@ -186,7 +186,7 @@ Check the written artefacts, not your intent. On any failure, fix the model and 
 
 ## Step 10 — Report
 
-Emit this block and stop:
+Emit this block:
 
 ```
 diagram-c4-update: diagram/c4.html regenerated — <class> repo, <S> systems, <C> containers, <K> components, <V> views, <R> relationships
@@ -196,9 +196,7 @@ not modelled (insufficient evidence): <list or "none">
 Open diagram/c4.html in a browser. To nudge layout, edit col/row in the model and re-run: /diagram-c4-update render
 ```
 
-## Step 11 — Offer the next look
-
-If the run added or retired anything, say so in one sentence and point at the Decisions panel in the page. Do not open the file, do not commit, and do not offer to.
+If the run added or retired anything, add one sentence pointing at the Decisions panel in the page. Then stop — the artefacts stay as working-tree changes (see Constraints).
 
 ## Modification points — four owners
 

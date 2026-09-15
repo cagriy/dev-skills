@@ -497,7 +497,7 @@ Tracker: <tracker_file path>
 **Next step:** eval offer coming up; push when ready after that (this skill never pushes — run /push when you're satisfied).
 ```
 
-Keep the chat output under ~40 lines. Do not paste diffs or full file contents.
+Keep to the template's shape — one line per stage and per field. Do not paste diffs or full file contents.
 
 ## Step 11 — Offer to run the evals
 

@@ -94,7 +94,7 @@ Only proceed to Step 5 when you can state the root cause concretely — citing `
 
 ## Step 5 — Explain the fix and get approval
 
-Briefly (a few lines, not an essay) tell the user:
+Tell the user, at whatever length the fix needs to be judged:
 
 - **Root cause** — one or two sentences, with the evidence.
 - **Proposed fix** — what you'll change and in which file(s), and why it addresses the root cause (not just the symptom).

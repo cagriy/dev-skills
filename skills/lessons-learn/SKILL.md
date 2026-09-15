@@ -1,6 +1,6 @@
 ---
 name: lessons-learn
-description: Consolidate accumulated lesson entries for a target skill in this plugin and apply approved improvements to that skill's SKILL.md. User-invokable only (typically via `/dev:lessons-learn <slug>`); the model never auto-triggers it. Reads ~/.claude/dev-skills/lessons/<slug>.md and the target SKILL.md, groups duplicate lessons, filters one-off issues and language-specific bias, presents each surviving improvement via AskUserQuestion, edits the SKILL.md for approved ones, and archives processed entries to <slug>.archive.md so they are not reprocessed. Takes the target skill's slug as its only argument. Never auto-commits — edits land in the working tree for the user to review and commit.
+description: Consolidate the accumulated lessons log for one of this plugin's skills and apply user-approved improvements to that skill's SKILL.md. User-invokable only (`/dev:lessons-learn <slug>`), typically periodically; the model never triggers it. Presents each surviving improvement via AskUserQuestion, edits the working-clone SKILL.md for approved ones, then snapshots the whole active log to <slug>.archive-<UTC stamp>.md under ~/.claude/dev-skills/lessons/, writing deferred entries back to a fresh active log. Takes the target skill's slug as its only argument. Never commits — edits stay in the working tree for review.
 disable-model-invocation: true
 ---
 

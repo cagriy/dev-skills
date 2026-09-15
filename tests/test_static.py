@@ -1070,24 +1070,21 @@ class TestUsageReportLifecycle:
 
     def test_bug_tracker_render_blanks_twenty_tokens(self):
         # The bug tracker hides the feature panels but still renders their
-        # text, so a token it does not blank leaks as a literal `{{...}}`.
-        line = next(
-            (
-                line
-                for line in BUG_TRACKER_SKILL.read_text().splitlines()
-                if "feature-panel tokens" in line
-            ),
-            None,
+        # text, so a token the renderer does not blank leaks as a literal
+        # `{{...}}`. The blanking lives in scripts/render_bug_tracker.py; the
+        # skill only runs it.
+        from scripts import render_bug_tracker
+
+        assert set(render_bug_tracker.FEATURE_PANEL_TOKENS) == set(FEATURE_PANEL_TOKENS), (
+            "render_bug_tracker.py must blank exactly the twenty feature-panel tokens"
         )
-        assert line, "bug-tracker-render: no feature-panel blanking instruction"
-        assert "twelve" not in line, (
-            "bug-tracker-render still says twelve feature-panel tokens"
+        skill = BUG_TRACKER_SKILL.read_text()
+        assert "scripts/render_bug_tracker.py" in skill, (
+            "bug-tracker-render must delegate to scripts/render_bug_tracker.py"
         )
-        assert "twenty" in line, (
-            "bug-tracker-render must blank all twenty feature-panel tokens"
+        assert "{{" not in skill, (
+            "bug-tracker-render must not name tokens itself — the script owns the substitution"
         )
-        missing = [token for token in FEATURE_PANEL_TOKENS if token not in line]
-        assert not missing, f"bug-tracker-render does not blank {missing}"
 
     # --- The helper skill itself --------------------------------------
 

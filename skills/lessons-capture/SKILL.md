@@ -8,7 +8,7 @@ user-invocable: false
 
 Invoked as the last step of another skill in this plugin to reflect on the run that just happened and persist any improvement recommendation to a per-skill log. This skill **never edits any `SKILL.md`** — the log is the artifact, and the user (or a future improver step) applies the changes deliberately, after seeing patterns across multiple runs.
 
-The point of externalising this is that the three feature skills used to repeat the same reflection protocol inline, which drifted over time. The protocol now lives in exactly one place.
+This protocol lives here alone so every calling skill reflects the same way; do not restate it inline in a caller.
 
 ## Input
 
