@@ -258,7 +258,7 @@ Two rules keep this cheap and honest:
 
 ### 5b. Invoke `feature-mockup`
 
-`feature-mockup` writes each page under `<feature_folder>/mockups/` and publishes it as a Claude Artifact, so the user reviews a hosted page by link instead of a `file://` path. The `Artifact` tool asks that the `artifact-design` skill be loaded before any artifact page is written, and `feature-mockup` holds no `Skill` tool of its own — so **when this session offers both an `Artifact` tool and an `artifact-design` skill, load `artifact-design` via the `Skill` tool now**, immediately before the invocation below. It runs inline and writes nothing: do not end your turn, carry straight on. When either is absent, skip this and invoke the mockup directly — it falls back to presenting local files.
+`feature-mockup` writes each page under `<feature_folder>/mockups/` and publishes it as a Claude Artifact, so the user reviews a hosted page by link instead of a `file://` path, and answers on the page itself through a feedback bar that declares the `comments` capability. The `Artifact` tool asks that the `artifact-design` skill be loaded before any artifact page is written and the `artifact-capabilities` skill before a page declares capabilities, and `feature-mockup` holds no `Skill` tool of its own — so **when this session offers an `Artifact` tool, load whichever of `artifact-design` and `artifact-capabilities` it also offers via the `Skill` tool now**, immediately before the invocation below. They run inline and write nothing: do not end your turn, carry straight on. When the `Artifact` tool or both skills are absent, skip this and invoke the mockup directly — it falls back to presenting local files and asking in chat.
 
 Invoke it via the `Skill` tool with the argument string:
 
@@ -271,18 +271,20 @@ Use the `feature_folder` and `version` recorded in Step 2 verbatim. Pass `kind=m
 Three surface shapes need one more line in the invocation:
 
 - When the surface *is* an interaction (drag, swipe, gesture, animation), say so in the `feature=` statement and ask for the interaction to be simulated live in the page (throwaway inline script, nothing persisted) — a frozen frame of a gesture tells the user nothing, and retrofitting the live behaviour costs a revision round.
-- When the feature spans two or more distinct surfaces, ask for the choice question to be posed per surface rather than over whole-page composites, so a hybrid preference ("this tab from A, that tab from B") lands in the first choice round instead of forcing one.
+- When the feature spans two or more distinct surfaces, ask for one decision set per surface, run in sequence, rather than one set of whole-page composites, so a hybrid preference ("this tab from A, that tab from B") lands as two choices instead of forcing one.
 - When an accepted mockup already exists for this feature's surface and only new states or sub-surfaces remain, pass `kind=modify` with `references=<the accepted mockup's path>`, so the alternatives explore only what it leaves open rather than re-litigating the accepted direction.
 
 ### 5c. Fold the outcome into the design
 
-Parse the returned result block and record `status`, `kind`, `mockup_dir`, `chosen_mockup`, `artifact_urls`, `alternatives`, `design_language`, `decisions`, and `open_ui_questions`. Then:
+Parse the returned result block and record `status`, `kind`, `mockup_dir`, `chosen_mockup`, `chosen_option`, `artifact_urls`, `alternatives`, `design_language`, `decisions`, and `open_ui_questions`. Then:
 
-- **`status: accepted`** — carry `decisions` into the design: each item becomes concrete content in §5 (*Interfaces* for the surface itself, *Architecture / components* for the components it reuses or adds), and the accepted mockup is referenced from §5 by relative path (`./mockups/<chosen_mockup>`) plus, when `artifact_urls` holds a link for that filename, its artifact URL alongside. Cite both: the URL is what a reader clicks, the relative path is what still resolves in a clone with no network. Record each rejected entry in `alternatives` in §6 as one line plus why it lost, with its own artifact URL when there is one. Any `open_ui_questions` must be closed by looping back to Step 4 for one more round — they may **not** be parked in §8, which has to stay empty.
+- **`status: accepted`** — carry `decisions` into the design: each item becomes concrete content in §5 (*Interfaces* for the surface itself, *Architecture / components* for the components it reuses or adds), and the accepted mockup is referenced from §5 by relative path (`./mockups/<chosen_mockup>`) plus, when `artifact_urls` holds a link for that filename, its artifact URL alongside. When the accepted page holds several options side by side, append `#<chosen_option>` to both, so the link lands on the accepted option. Cite both: the URL is what a reader clicks, the relative path is what still resolves in a clone with no network. Record each rejected entry in `alternatives` in §6 as one line plus why it lost, with its own artifact URL when there is one (its page and `#<option>` when it shared the accepted page). Any `open_ui_questions` must be closed by looping back to Step 4 for one more round — they may **not** be parked in §8, which has to stay empty.
 - **`status: declined` or `not-applicable`** — note it in one line and continue to Step 6. Neither blocks the design; §5 then describes the surface in prose as it always did.
 - **Skipped at 5a** — §5 records which named condition applied in one line, and for *Appearance already settled* also cites the user's artefact (path, URL, or the prior feature's accepted mockup) as the source of the surface's appearance. A skipped mockup is not an excuse for a vaguer §5: the surface still gets flows, states and placement specified.
 
 **`feature-mockup` runs inline in this turn — do not end your turn when its result block appears.** The `Skill` tool loads it into your own context rather than delegating to a subagent, so the block is a checkpoint in the middle of *your* run. Continue straight into Step 6 in the same turn.
+
+One wait is built in: while the user answers on the published pages, `feature-mockup` may pause the run by ending the turn on its `feature-mockup waiting` marker. That is not this step ending. The next turn — opened by the user's send from a page or by their chat reply — resumes the mockup where the marker left it, and its result block is followed by Step 6 in that turn.
 
 ## Step 6 — Write the design document
 
@@ -318,7 +320,7 @@ The single recommended approach, in enough detail that a competent engineer can 
 Sub-sections as needed:
 - **Architecture / components** — what is added, modified, removed. Show the modular decomposition: each component's single responsibility, its public interface, and which other components it depends on. If the feature is implemented as one cohesive unit rather than several, explain why splitting would be artificial.
 - **Data model** — schemas, migrations, storage, lifetimes.
-- **Interfaces** — APIs, function signatures, message shapes, CLI flags, UI surfaces. When Step 5 produced an accepted mockup, describe the surface as that mockup shows it and link it: `[<name>](./mockups/<chosen_mockup>)`.
+- **Interfaces** — APIs, function signatures, message shapes, CLI flags, UI surfaces. When Step 5 produced an accepted mockup, describe the surface as that mockup shows it and link it: `[<name>](./mockups/<chosen_mockup>)`, with `#<chosen_option>` appended when the page holds several options.
 - **Cross-project contract** — only when the feature spans more than one project: what this repo owns, what each other project owns, and the exact contract between them (endpoints or messages, payload shapes with field names, types, optionality and units, status and error codes, auth, idempotency, limits, versioning and what happens to existing callers). This section and the briefs written in Step 6b must state the same contract, field for field.
 - **Control flow** — happy path step-by-step; key alternative flows.
 - **Failure and edge cases** — concrete behavior for each.
@@ -463,7 +465,7 @@ First `Read` the tracker file once — `feature-resolve` seeded it via a shell c
 
 - `{{DESIGN_AT}}` → `Updated <YYYY-MM-DD HH:MM UTC>` (the timestamp chip text — no surrounding HTML).
 - `{{DESIGN_BULLETS}}` → an `<ul>` of 5–10 design highlights, one `<li>` per bullet, plain text content (no markdown — convert any markdown to HTML).
-- `{{DESIGN_DETAILS}}` → free-form HTML rendering the design in increasing detail, drawn from the design file written in Step 6. When Step 5 produced an accepted mockup, include a relative-path `<a href="./mockups/<chosen_mockup>">` link to it near the top of this block so the tracker doubles as the way back to the approved visual — and, when `artifact_urls` holds a link for that filename, a second `<a>` to the published artifact beside it, which is the one that still works when the tracker is shared. Cover §1 (Summary) → §2 (Goals & Non-goals) → §5 (Architecture / data / interfaces / failure / security / performance / testing — pick the sub-sections that matter most for this feature) → §7 (Risks) → §9 (Rollout). Use `<h3>` for top-level section titles, `<h4>` for sub-sections, `<p>` / `<ul>` / `<table>` for content. Order content from highest-level to most detailed so a reader can stop reading at any depth. Skip §6 if empty and skip §8 (it's always "None"). When Step 6b wrote briefs, list each one near the top as a relative-path `<a href="./briefs/<file>">` link naming the project it targets, so the tracker shows the feature's other halves and where they are handed off.
+- `{{DESIGN_DETAILS}}` → free-form HTML rendering the design in increasing detail, drawn from the design file written in Step 6. When Step 5 produced an accepted mockup, include a relative-path `<a href="./mockups/<chosen_mockup>">` link to it (with `#<chosen_option>` when the page holds several options) near the top of this block so the tracker doubles as the way back to the approved visual — and, when `artifact_urls` holds a link for that filename, a second `<a>` to the published artifact beside it, which is the one that still works when the tracker is shared. Cover §1 (Summary) → §2 (Goals & Non-goals) → §5 (Architecture / data / interfaces / failure / security / performance / testing — pick the sub-sections that matter most for this feature) → §7 (Risks) → §9 (Rollout). Use `<h3>` for top-level section titles, `<h4>` for sub-sections, `<p>` / `<ul>` / `<table>` for content. Order content from highest-level to most detailed so a reader can stop reading at any depth. Skip §6 if empty and skip §8 (it's always "None"). When Step 6b wrote briefs, list each one near the top as a relative-path `<a href="./briefs/<file>">` link naming the project it targets, so the tracker shows the feature's other halves and where they are handed off.
 
 **Storm and future-stage placeholders** — substitute with the empty placeholder *only if still literal*. If `/feature-storm` ran, `{{BRAINSTORMING_*}}` will already be content and you skip them:
 
@@ -501,7 +503,7 @@ In chat, output a short, scannable summary so the user does not need to open the
 ```
 Saved: <stage_file path>
 Tracker: <tracker_file path>
-Mockup: <artifact URL of the accepted mockup, when published> — <path to the accepted mockup> (<its name>)   ← omit this line when Step 5 was skipped or returned declined / not-applicable
+Mockup: <artifact URL of the accepted mockup, when published> — <path to the accepted mockup, #<chosen_option> when it shares a page> (<its name>)   ← omit this line when Step 5 was skipped or returned declined / not-applicable
 Briefs: <path to each brief> → <Other Project>   ← one line per brief; omit when the feature is single-project
 
 **Feature:** v<N> — <human-readable title>

@@ -449,6 +449,7 @@ class TestFeatureMockupContract:
         "kind",
         "mockup_dir",
         "chosen_mockup",
+        "chosen_option",
         "artifact_urls",
         "alternatives",
         "design_language",
@@ -457,8 +458,12 @@ class TestFeatureMockupContract:
         "notes",
     )
     # Keys feature-design must consume when it folds the mockup into the design.
-    CONSUMED_KEYS = ("status", "chosen_mockup", "artifact_urls", "alternatives",
-                     "decisions", "open_ui_questions")
+    CONSUMED_KEYS = ("status", "chosen_mockup", "chosen_option", "artifact_urls",
+                     "alternatives", "decisions", "open_ui_questions")
+    # The three page shapes a decision set can take. One page holding several
+    # options, or several pages holding one each — never a mix, so the user is
+    # never offered live choices on two pages that could contradict each other.
+    PAGE_SHAPES = ("review", "compare", "pick")
     INPUT_SLOTS = ("feature_folder=", "version=", "feature=", "references=")
     # The named skip conditions of feature-design's fire/skip rule. A mockup is
     # not free — it costs the user a round of attention — so the decision must
@@ -646,6 +651,71 @@ class TestFeatureMockupContract:
             "feature-mockup never states that re-publishing the same file path "
             "updates the same artifact URL"
         )
+
+    def allowed_tools(self):
+        return next(
+            l for l in self.frontmatter().splitlines() if l.startswith("allowed-tools:")
+        )
+
+    def test_collects_the_choice_on_the_published_page(self):
+        # The user answers on the page: a feedback bar injected by the plugin's
+        # script posts a comment and sends it to Claude, which wakes the session.
+        text = self.MOCKUP_SKILL.read_text()
+        allowed = self.allowed_tools()
+        for tool in ("ArtifactComments", r"Bash\(python3 \*\)"):
+            assert re.search(tool, allowed), f"feature-mockup: {tool} missing from allowed-tools"
+        assert "scripts/mockup_feedback.py" in text, (
+            "feature-mockup must inject the feedback bar with scripts/mockup_feedback.py, "
+            "never hand-write it"
+        )
+        assert re.search(r'capabilities.{0,80}"comments"', text, re.S), (
+            "feature-mockup never declares the comments capability when publishing"
+        )
+
+    def test_one_decision_set_per_round(self):
+        text = self.MOCKUP_SKILL.read_text()
+        assert re.search(r"one decision set", text, re.I), (
+            "feature-mockup never states the one-decision-set-per-round rule"
+        )
+        for shape in self.PAGE_SHAPES:
+            assert f"`{shape}`" in text, f"feature-mockup never names the {shape!r} page shape"
+
+    def test_the_wait_is_the_only_turn_end_on_the_success_path(self):
+        # Waiting for a pick on the page means ending the turn; the woken turn
+        # resumes the run. Everywhere else the inline guard still holds.
+        text = self.MOCKUP_SKILL.read_text()
+        assert "feature-mockup waiting" in text, "the waiting marker line is undocumented"
+        assert re.search(r"sanctioned pause", text, re.I), (
+            "feature-mockup must name the page-channel wait as its one sanctioned pause"
+        )
+        design = DESIGN_SKILL.read_text()
+        step_5 = design.split("## Step 5 —")[1].split("## Step 6 —")[0]
+        assert re.search(r"pause", step_5, re.I), (
+            "feature-design Step 5 must expect the mockup to pause between rounds"
+        )
+
+    def test_falls_back_to_ask_user_question_without_an_armed_watch(self):
+        text = self.MOCKUP_SKILL.read_text()
+        assert re.search(r"\bAskUserQuestion\b", self.allowed_tools())
+        assert re.search(r"auto-replies armed", text), (
+            "feature-mockup must gate the page channel on an armed watch"
+        )
+        assert re.search(r"fallback.{0,300}AskUserQuestion", text, re.S | re.I), (
+            "feature-mockup never falls back to AskUserQuestion when the page channel is down"
+        )
+
+    def test_stops_its_watches_once_decided(self):
+        # A watch left armed would wake a later, unrelated turn with a comment
+        # on a mockup that was settled long ago.
+        text = self.MOCKUP_SKILL.read_text()
+        assert re.search(r"stop.{0,80}watch", text, re.S | re.I), (
+            "feature-mockup never stops the watches it armed"
+        )
+
+    def test_feature_design_loads_artifact_capabilities(self):
+        # The Artifact tool requires artifact-capabilities before a page declares
+        # capabilities; feature-mockup has no Skill tool, so its caller loads it.
+        assert "artifact-capabilities" in DESIGN_SKILL.read_text()
 
     def test_supplied_references_outrank_the_grounded_digest(self):
         # A user-supplied screenshot / design link / exact spec is the strongest
