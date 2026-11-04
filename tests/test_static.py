@@ -28,6 +28,7 @@ from helpers import (
     cited_sections,
     design_quality_rubric,
     design_template_sections,
+    fenced_blocks,
     plan_quality_rubric,
     plan_template_sections,
     skill_text,
@@ -460,7 +461,8 @@ class TestFeatureMockupContract:
     )
     # Keys feature-design must consume when it folds the mockup into the design.
     CONSUMED_KEYS = ("status", "chosen_mockup", "chosen_option", "artifact_urls",
-                     "alternatives", "decisions", "open_ui_questions")
+                     "alternatives", "decisions", "open_ui_questions",
+                     "design_language", "language_deltas")
     # The three page shapes a decision set can take. One page holding several
     # options, or several pages holding one each — never a mix, so the user is
     # never offered live choices on two pages that could contradict each other.
@@ -1793,3 +1795,52 @@ class TestDesignLanguageContract:
 
     def test_caller_runs_continue_the_turn(self):
         assert "do not end your turn" in self.skill_text().lower()
+
+    # --- feature-design: the caller (R9) ---
+
+    @staticmethod
+    def span(text, start, end):
+        """The text between two headings; asserts both exist, in order."""
+        assert start in text, f"heading {start!r} not found"
+        rest = text.split(start, 1)[1]
+        assert end in rest, f"heading {end!r} not found after {start!r}"
+        return rest.split(end, 1)[0]
+
+    def test_feature_design_reconciles_before_5a(self):
+        before_5a = self.span(DESIGN_SKILL.read_text(), "## Step 5 —", "### 5a.")
+        assert "design-language-update" in before_5a, (
+            "feature-design must reconcile DESIGN.md before 5a decides on a mockup"
+        )
+        assert "caller=feature-design" in before_5a
+        assert "do not end your turn" in before_5a.lower(), (
+            "the reconcile runs inline: feature-design must carry on into 5a"
+        )
+
+    def test_feature_design_records_deltas_in_5c(self):
+        step_5c = self.span(DESIGN_SKILL.read_text(), "### 5c.", "## Step 6 —")
+        assert "mode=record" in step_5c, "5c never writes accepted deltas back"
+        assert "`language_deltas`" in step_5c
+
+    def test_design_template_has_design_language_subsection(self):
+        step_6a = self.span(DESIGN_SKILL.read_text(), "### 6a.", "### 6b.")
+        template = next(
+            (block for block in fenced_blocks(step_6a) if "## 5. Design" in block), None
+        )
+        assert template, "feature-design 6a: design template not found"
+        assert "**Design language**" in template
+
+    def test_step_7_has_the_conformance_lens(self):
+        step_7 = self.span(DESIGN_SKILL.read_text(), "## Step 7 —", "## Step 8 —")
+        assert "**Design-language conformance**" in step_7
+
+    def test_step_8_links_design_md_and_specimen(self):
+        step_8 = self.span(DESIGN_SKILL.read_text(), "## Step 8 —", "## Step 9 —")
+        for link in ("../../DESIGN.md", "../../design/specimen.html"):
+            assert link in step_8, f"the tracker's Design panel never links {link}"
+
+    def test_feature_design_never_writes_design_md(self):
+        constraints = DESIGN_SKILL.read_text().split("## Constraints (non-negotiable)")[1]
+        assert any(
+            "DESIGN.md" in line and "design-language-update" in line
+            for line in constraints.splitlines()
+        ), "feature-design's constraints must leave DESIGN.md to design-language-update"
