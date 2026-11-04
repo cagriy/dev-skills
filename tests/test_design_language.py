@@ -7,6 +7,8 @@ confinement is exercised for real rather than mocked.
 import json
 import os
 import re
+import shutil
+import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -739,6 +741,95 @@ class TestRender:
     def test_template_outside_cwd_is_accepted(self, render, specimen_template, in_tmp):
         assert not specimen_template.resolve().is_relative_to(in_tmp.resolve())
         assert outcome(render(FULL_REGION), SHORT)[0] == "rendered"
+
+
+TEMPLATE = REPO / "templates" / "design-specimen.html"
+# The panels the specimen draws; their empty states read `empty[<title>]`.
+SHOWN_SECTIONS = [
+    heading[len("### "):]
+    for heading in dl.HEADINGS
+    if heading not in ("### Responsive Behavior", "### Iconography & Motion", "### Copy Tone", "### Drift")
+]
+
+
+@pytest.fixture(scope="module")
+def template_text():
+    return TEMPLATE.read_text()
+
+
+def executable_scripts(text):
+    return re.findall(r"<script>(.*?)</script>", text, re.S)
+
+
+class TestTemplate:
+    def test_default_template_is_the_plugin_template(self):
+        assert dl.default_template().resolve() == TEMPLATE.resolve()
+
+    def test_template_carries_exactly_the_four_tokens(self, template_text):
+        assert sorted(dl.TOKEN_RE.findall(template_text)) == sorted(
+            ["PROJECT_NAME", "PROJECT_NAME", "GENERATED_AT", "DATA_HASH", "DATA_HASH", "SPECIMEN_DATA"]
+        ), "PROJECT_NAME sits in <title> and the header; DATA_HASH in the marker and the page root"
+        assert "<title>{{PROJECT_NAME}} — design language</title>" in template_text
+
+    def test_hash_marker_comment_carries_the_data_hash_token(self, template_text):
+        assert dl.HASH_MARKER + "{{DATA_HASH}} -->" in template_text
+
+    def test_viewport_meta_present(self, template_text):
+        assert '<meta name="claude:viewport-fit-sides" content="cover">' in template_text
+
+    def test_is_artifact_page_content(self, template_text):
+        for wrapper in ("<!doctype", "<html", "<head", "<body"):
+            assert not re.search(rf"{wrapper}\b", template_text, re.I), f"artifact page content carries no {wrapper}>"
+
+    def test_template_is_offline(self, template_text):
+        assert not re.search(r"https?://", template_text)
+        for request in ("@import", "@font-face", "url(", "fetch(", "XMLHttpRequest", " src="):
+            assert request not in template_text, f"the specimen loads nothing: found {request!r}"
+
+    def test_theme_guards(self, template_text):
+        assert re.search(r"(?m)^\s*:root \{", template_text)
+        assert re.search(
+            r'@media \(prefers-color-scheme: dark\) \{\s*:root:not\(\[data-theme="light"\]\) \{', template_text
+        )
+        assert re.search(r':root\[data-theme="dark"\] \{', template_text)
+
+    def test_no_html_sinks(self, template_text):
+        for sink in ("innerHTML", "outerHTML", "insertAdjacentHTML", "document.write", "cssText"):
+            assert sink not in template_text, f"template uses {sink}"
+        script = executable_scripts(template_text)[0]
+        assert not re.search(r"""setAttribute\(\s*["']style""", script)
+        assert not re.search(r"\.style(?:\.\w+)?\s*=(?!=)", script), "style values go through style.setProperty only"
+        assert "style.setProperty" in script
+
+    def test_one_data_block_and_one_executable_script(self, template_text):
+        assert re.findall(r"<script\b[^>]*>", template_text) == [
+            '<script type="application/json" id="specimen-data">', "<script>",
+        ]
+        assert '<script type="application/json" id="specimen-data">{{SPECIMEN_DATA}}</script>' in template_text
+
+    def test_empty_states_read_the_section_titles(self, template_text):
+        script = executable_scripts(template_text)[0]
+        for title in SHOWN_SECTIONS:
+            assert f'"{title}"' in script, f"the page never shows the empty state of {title!r}"
+
+    @pytest.mark.skipif(shutil.which("node") is None, reason="node not installed")
+    def test_template_script_parses(self, template_text, tmp_path):
+        js = tmp_path / "specimen.js"
+        js.write_text(executable_scripts(template_text)[0])
+        result = subprocess.run(["node", "--check", str(js)], capture_output=True, text=True)
+        assert result.returncode == 0, result.stderr
+
+    def test_real_template_renders_full_region(self):
+        put("DESIGN.md", doc(FULL_REGION))
+        word, short = outcome(dl.cmd_render("DESIGN.md", None, SPECIMEN, now=NOW), SHORT)
+        assert word == "rendered"
+        page = SPECIMEN.read_text()
+        digest = dl.data_hash(dl.parse_region(FULL_REGION), TEMPLATE.read_bytes())
+        assert short == digest[:7]
+        assert f"{dl.HASH_MARKER}{digest} -->" in page
+        assert not LITERAL_TOKEN.search(page)
+        assert "<title>Acme Billing — design language</title>" in page
+        assert embedded(page) == dl.parse_region(FULL_REGION)
 
 
 class TestMain:
