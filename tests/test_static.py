@@ -1930,3 +1930,19 @@ class TestDesignLanguageContract:
             "the flawless fixture must stay flawless under item 17"
         )
         assert "DESIGN.md" in section_5.split("### Design language", 1)[1].split("\n### ", 1)[0]
+
+    # --- documentation (R18); the wiki sits outside the suite ---
+
+    def test_claude_md_documents_design_language(self):
+        text = (REPO / "CLAUDE.md").read_text()
+        for name in (
+            "design-language-update", "scripts/design_language.py",
+            "templates/design-specimen.html", "DESIGN.md",
+        ):
+            assert name in text, f"CLAUDE.md never names {name}"
+        assert "read again by `/feature-plan` and `/feature-implement`" not in text, (
+            "plan and implement read the design, which cites the mockup — not the mockup"
+        )
+
+    def test_readme_introduces_the_skill(self):
+        assert "/dev:design-language-update" in (REPO / "README.md").read_text()

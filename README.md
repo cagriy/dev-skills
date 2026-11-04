@@ -48,6 +48,8 @@ The skills record improvement observations as they run. Occasionally, around eve
 
 Point the same idea at your own project with **`/dev:diagram-c4-update`** — it builds a [C4 model](https://c4model.com) of whatever repo you run it in and renders a self-contained page you drill down through, system context → containers → components. It works on a conventional codebase, a plugin or agent-asset repo, or a repo that is only architecture documents.
 
+**`/dev:design-language-update`** captures your project's design language — colours, type, spacing, canonical components — into `DESIGN.md` and renders it as a specimen page. `/dev:feature-design` runs it before every mockup, so each new surface follows the ones before it.
+
 ## Documentation
 
 Full documentation lives in the **[wiki](https://github.com/cagriy/dev-skills/wiki)**: getting started in depth, a reference for every skill, the architecture, the bug workflow, the evals and lessons system, and contributor notes.
