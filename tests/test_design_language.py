@@ -4,7 +4,9 @@ Every test runs with the cwd set to tmp_path, so the script's write-path
 confinement is exercised for real rather than mocked.
 """
 
+import os
 import re
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -415,6 +417,165 @@ class TestSchema:
         assert data["dos"] == data["donts"] == data["drift"] == []
         assert data["counts"]["colours"] == data["counts"]["drift"] == 0
         assert "Drift" not in data["empty"], "`None.` is the Drift section's own no-entries form"
+
+
+NOW = datetime(2026, 11, 4, 9, 30, tzinfo=timezone.utc)
+UPDATED_ROW = "| Updated | 2026-11-01 10:00 UTC |"
+STAMPED_ROW = "| Updated | 2026-11-04 09:30 UTC |"
+
+
+@pytest.fixture
+def write(tmp_path_factory):
+    """cmd_write with each --region file under its own directory outside the cwd."""
+    inputs = tmp_path_factory.mktemp("inputs")
+
+    def run(region=FULL_REGION, expect="none", now=NOW, file="DESIGN.md"):
+        source = put(inputs / f"region-{len(list(inputs.iterdir()))}.md", region)
+        return dl.cmd_write(file, source, expect, now=now)
+
+    return run
+
+
+def outcome(line):
+    """`design-language: <outcome> <sha256>` → (outcome, sha256)."""
+    word, digest = line.removeprefix(dl.STATUS_PREFIX).split(" ")
+    assert HEX64.fullmatch(digest), line
+    return word, digest
+
+
+class TestWrite:
+    def test_creates_missing_file_with_preamble(self, write):
+        assert outcome(write())[0] == "created"
+        assert Path("DESIGN.md").read_bytes().decode() == (
+            dl.PREAMBLE + dl.START + "\n" + dl.MANAGED_COMMENT + "\n"
+            + FULL_REGION.rstrip("\n").replace(UPDATED_ROW, STAMPED_ROW) + "\n" + dl.END + "\n"
+        )
+        assert dl.PREAMBLE.startswith("# DESIGN.md\n\nNotes outside the marked region are yours: ")
+
+    def test_appends_to_file_without_region(self, write):
+        original = "# DESIGN.md\n\nOur own notes.\n"
+        put("DESIGN.md", original)
+        assert outcome(write())[0] == "appended"
+        text = Path("DESIGN.md").read_bytes().decode()
+        assert text.startswith(original + "\n" + dl.START + "\n" + dl.MANAGED_COMMENT + "\n")
+        assert text.endswith(dl.END + "\n")
+
+    @pytest.mark.parametrize("nl", ["\n", "\r\n"], ids=["LF", "CRLF"])
+    def test_replaces_region_preserving_outside_bytes(self, write, nl):
+        before = (
+            "# DESIGN.md" + nl + nl + "Overrides: accent stays indigo.  " + nl + nl
+        )
+        put("DESIGN.md", doc(dl.MANAGED_COMMENT + "\n" + FULL_REGION, before=before, after="\nTail\tnotes.", nl=nl))
+        old = Path("DESIGN.md").read_bytes()
+        line = write(FULL_REGION.replace("Calm", "Quiet"), expect=dl.region_hash(FULL_REGION))
+        assert outcome(line)[0] == "written"
+        new = Path("DESIGN.md").read_bytes()
+        start, end = dl.START.encode(), dl.END.encode()
+        assert new[:new.index(start)] == old[:old.index(start)]
+        assert new[new.index(end):] == old[old.index(end):]
+        region = new[new.index(start):new.index(end)].decode()
+        assert "Quiet" in region and STAMPED_ROW in region
+        assert region.count(nl) == region.count("\n"), "the region follows the file's newline style"
+
+    def test_unchanged_when_only_updated_differs(self, write):
+        write()
+        before, stat = Path("DESIGN.md").read_bytes(), os.stat("DESIGN.md")
+        line = write(FULL_REGION.replace(UPDATED_ROW, "| Updated | — |"), expect=dl.region_hash(FULL_REGION))
+        assert outcome(line) == ("unchanged", dl.region_hash(FULL_REGION))
+        assert Path("DESIGN.md").read_bytes() == before
+        assert os.stat("DESIGN.md").st_mtime_ns == stat.st_mtime_ns
+
+    def test_updated_row_set_only_when_content_changes(self, write):
+        write(now=datetime(2026, 11, 1, 8, 0, tzinfo=timezone.utc))
+        assert "| Updated | 2026-11-01 08:00 UTC |" in Path("DESIGN.md").read_text()
+        changed = FULL_REGION.replace("Calm", "Quiet")
+        write(changed, expect=dl.region_hash(FULL_REGION), now=datetime(2026, 11, 2, 8, 0, tzinfo=timezone.utc))
+        assert "| Updated | 2026-11-02 08:00 UTC |" in Path("DESIGN.md").read_text()
+        write(changed, expect=dl.region_hash(changed), now=datetime(2026, 11, 3, 8, 0, tzinfo=timezone.utc))
+        assert "| Updated | 2026-11-02 08:00 UTC |" in Path("DESIGN.md").read_text()
+
+    def test_specimen_url_change_is_written_without_changing_the_hash(self, write):
+        write()
+        recorded = FULL_REGION.replace("https://claude.ai/artifact/abc123", "https://claude.ai/artifact/new456")
+        line = write(recorded, expect=dl.region_hash(FULL_REGION))
+        assert outcome(line) == ("written", dl.region_hash(FULL_REGION))
+        assert "| Specimen | https://claude.ai/artifact/new456 |" in Path("DESIGN.md").read_text()
+
+    def test_stale_expect_is_refused(self, write):
+        write()
+        before = Path("DESIGN.md").read_bytes()
+        changed = FULL_REGION.replace("Calm", "Quiet")
+        assert write(changed, expect="0" * 64) == "design-language: skipped — region changed since read"
+        assert write(changed, expect="none") == "design-language: skipped — region changed since read"
+        assert Path("DESIGN.md").read_bytes() == before
+        put("NOTES.md", "# Notes\n")
+        assert write(file="NOTES.md", expect=dl.region_hash(FULL_REGION)) == (
+            "design-language: skipped — region changed since read"
+        ), "a hash for a file that has no region is stale too"
+
+    def test_region_containing_a_marker_is_refused(self, write):
+        line = write(FULL_REGION + dl.END + "\n")
+        assert line == "design-language: skipped — the region input contains a design-language marker"
+        assert not Path("DESIGN.md").exists()
+
+    def test_schema_violation_is_refused(self, write):
+        line = write(FULL_REGION.replace("| brand |", "| accent |"))
+        assert line == (
+            "design-language: skipped — schema: Color Palette & Roles: row 'color.accent': unknown group 'accent'"
+        )
+        assert not Path("DESIGN.md").exists()
+
+    def test_write_reports_the_new_hash(self, write, capsys, tmp_path_factory):
+        line = write()
+        assert outcome(line) == ("created", dl.region_hash(FULL_REGION))
+        assert dl.cmd_region("DESIGN.md").split("\n", 1)[0] == f"design-language: region {outcome(line)[1]}"
+        source = put(tmp_path_factory.mktemp("cli") / "region.md", FULL_REGION.replace("Calm", "Quiet"))
+        assert dl.main(["write", "--file", "DESIGN.md", "--region", str(source), "--expect", outcome(line)[1]]) == 0
+        printed = capsys.readouterr().out
+        assert printed == f"design-language: written {dl.region_hash(FULL_REGION.replace('Calm', 'Quiet'))}\n"
+
+    def test_file_outside_cwd_is_refused(self, write, tmp_path_factory):
+        outside = tmp_path_factory.mktemp("elsewhere") / "DESIGN.md"
+        assert write(file=outside) == "design-language: skipped — path outside the project"
+        assert not outside.exists()
+
+    def test_region_input_outside_cwd_is_accepted(self, write, in_tmp):
+        assert outcome(write())[0] == "created"
+        assert (in_tmp / "DESIGN.md").exists()
+
+    def test_write_is_atomic(self, write, in_tmp, monkeypatch):
+        write()
+        assert sorted(os.listdir(in_tmp)) == ["DESIGN.md"]
+        before = Path("DESIGN.md").read_bytes()
+        assert "schema" in write(FULL_REGION.replace("| brand |", "| accent |"), expect=dl.region_hash(FULL_REGION))
+
+        def broken_replace(src, dst):
+            raise OSError("disk full")
+
+        monkeypatch.setattr(dl.os, "replace", broken_replace)
+        line = write(FULL_REGION.replace("Calm", "Quiet"), expect=dl.region_hash(FULL_REGION))
+        assert line == "design-language: skipped — OSError: disk full"
+        assert Path("DESIGN.md").read_bytes() == before
+        assert sorted(os.listdir(in_tmp)) == ["DESIGN.md"], "no temp file survives a refused or failed write"
+
+    def test_main_degrades_on_unreadable_input_and_unwritable_directory(self, write, in_tmp, capsys):
+        assert dl.main(["write", "--file", "DESIGN.md", "--region", str(in_tmp / "nowhere.md"), "--expect", "none"]) == 0
+        assert capsys.readouterr().out.startswith("design-language: skipped — FileNotFoundError")
+        locked = in_tmp / "locked"
+        locked.mkdir()
+        locked.chmod(0o555)
+        try:
+            line = write(file="locked/DESIGN.md")
+        finally:
+            locked.chmod(0o755)
+        assert line.startswith("design-language: skipped — PermissionError"), line
+        assert list(locked.iterdir()) == []
+
+    def test_write_keeps_the_file_mode(self, write):
+        write()
+        os.chmod("DESIGN.md", 0o640)
+        write(FULL_REGION.replace("Calm", "Quiet"), expect=dl.region_hash(FULL_REGION))
+        assert os.stat("DESIGN.md").st_mode & 0o777 == 0o640
 
 
 class TestMain:

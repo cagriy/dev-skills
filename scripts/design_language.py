@@ -8,6 +8,11 @@ code rather than prose:
     region --file F      print `design-language: region <sha256>` followed by
                          the region text, or `design-language: region none`
                          when F is missing or carries no region
+    write --file F --region R --expect H|none
+                         validate the region in file R against the schema and
+                         splice it into F atomically, provided F's current
+                         region hash is H (`none`: F has no region yet); prints
+                         `design-language: <created|appended|written|unchanged> <sha256>`
 
 Region contract (kept in lockstep with the skill):
 
@@ -17,6 +22,10 @@ Region contract (kept in lockstep with the skill):
     comment and the header table's `Updated` / `Specimen` rows removed, CRLF
     read as LF and the ends stripped — so a timestamp or a newly recorded
     artifact URL never counts as a content change.
+  * `write` never changes a byte outside the markers, line endings included;
+    the region follows the file's newline style. The script owns the managed
+    warning comment (stripped from input, written as the region's first line)
+    and the `Updated` row (stamped only when other content changed).
   * Every path the script writes or reads as `--file` must resolve inside the
     current working directory (the project root); read-only inputs may live
     anywhere.
@@ -37,10 +46,15 @@ import functools
 import hashlib
 import os
 import re
+import stat
 import sys
+import tempfile
+from datetime import datetime, timezone
 from pathlib import Path
 
-STDLIB_MODULES = {"__future__", "argparse", "functools", "hashlib", "os", "re", "sys", "pathlib"}
+STDLIB_MODULES = {
+    "__future__", "argparse", "datetime", "functools", "hashlib", "os", "re", "stat", "sys", "tempfile", "pathlib",
+}
 
 STATUS_PREFIX = "design-language: "
 START = "<!-- design-language:start -->"
@@ -49,13 +63,21 @@ MANAGED_COMMENT = (
     "<!-- Managed by /design-language-update. Edits inside this region are overwritten "
     "on the next run; write overrides above or below it. -->"
 )
+PREAMBLE = (
+    "# DESIGN.md\n\nNotes outside the marked region are yours: /design-language-update reads them "
+    "as decisions that outrank the code, and never edits them.\n\n"
+)
 
 MARKER_RE = re.compile(re.escape(START) + "|" + re.escape(END))
-VOLATILE_ROW_RE = re.compile(r"^\|\s*(?:Updated|Specimen)\s*\|")
+VOLATILE_ROWS = ("Updated", "Specimen")
 
 
 class MarkerError(ValueError):
     """The file's region markers are malformed."""
+
+
+class SchemaError(ValueError):
+    """The region breaks the schema; the message names the section and defect."""
 
 
 class OutsideProject(ValueError):
@@ -101,13 +123,25 @@ def region_text(text: str, span: tuple[int, int]) -> str:
     return inner
 
 
-def normalise(region: str) -> str:
-    """The region as hashed: no managed comment, no volatile header rows, LF, stripped."""
+def _cells(line: str) -> list:
+    line = line.strip()
+    line = line[1:] if line.startswith("|") else line
+    line = line[:-1] if line.endswith("|") else line
+    return [cell.strip() for cell in line.split("|")]
+
+
+def normalise(region: str, volatile=VOLATILE_ROWS) -> str:
+    """The region with no managed comment and no `volatile` header rows, LF, stripped.
+
+    With the default rows this is what the hash covers; `write` compares with
+    only `Updated` dropped, so a newly recorded specimen URL is still written.
+    """
     lines, in_header = [], True
     for line in region.replace("\r\n", "\n").split("\n"):
         if line.startswith("### "):
             in_header = False
-        if line.strip() == MANAGED_COMMENT or (in_header and VOLATILE_ROW_RE.match(line)):
+        is_volatile = in_header and line.lstrip().startswith("|") and _cells(line)[0] in volatile
+        if line.strip() == MANAGED_COMMENT or is_volatile:
             continue
         lines.append(line)
     return "\n".join(lines).strip()
@@ -130,6 +164,25 @@ def read(path: Path) -> str:
     return path.read_bytes().decode("utf-8")
 
 
+def atomic_write(path: Path, data: bytes) -> None:
+    """Replace `path` through a temp file in its own directory, keeping an existing file's mode."""
+    if path.exists():
+        mode = stat.S_IMODE(path.stat().st_mode)
+    else:
+        umask = os.umask(0)
+        os.umask(umask)
+        mode = 0o666 & ~umask
+    handle, temp = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=".tmp")
+    try:
+        with os.fdopen(handle, "wb") as out:
+            out.write(data)
+        os.chmod(temp, mode)
+        os.replace(temp, path)
+    except BaseException:
+        Path(temp).unlink(missing_ok=True)
+        raise
+
+
 def skipped(reason: str) -> str:
     return STATUS_PREFIX + "skipped — " + " ".join(reason.split())
 
@@ -141,6 +194,8 @@ def degrades(command):
     def guarded(*args, **kwargs) -> str:
         try:
             return command(*args, **kwargs)
+        except SchemaError as exc:
+            return skipped(f"schema: {exc}")
         except ValueError as exc:
             return skipped(str(exc))
         except Exception as exc:  # noqa: BLE001 — degrade, never fail the caller
@@ -153,10 +208,6 @@ def degrades(command):
 #
 # Every value the specimen applies to `style` is validated here, so nothing in
 # the region can smuggle CSS (or markup) into the published page.
-
-
-class SchemaError(ValueError):
-    """The region breaks the schema; the message names the section and defect."""
 
 
 HEADER_RE = re.compile(r"^## Design language — (\S.*)$")
@@ -280,13 +331,6 @@ def _split_sections(text: str) -> list:
         elif line.strip():
             raise SchemaError("text before the header heading")
     return sections
-
-
-def _cells(line: str) -> list:
-    line = line.strip()
-    line = line[1:] if line.startswith("|") else line
-    line = line[:-1] if line.endswith("|") else line
-    return [cell.strip() for cell in line.split("|")]
 
 
 def _blocks(title: str, lines: list) -> list:
@@ -574,6 +618,43 @@ def cmd_region(file) -> str:
     return f"{STATUS_PREFIX}region {region_hash(region)}\n{region}"
 
 
+def _block(body: str, nl: str) -> str:
+    """The managed region, markers and managed comment included, in newline style `nl`."""
+    return nl.join((START, MANAGED_COMMENT, *body.split("\n"), END))
+
+
+@degrades
+def cmd_write(file, region, expect, now=None) -> str:
+    """Splice the region in file `region` into `file`; `<outcome> <sha256>`."""
+    path = confined(file)
+    body = normalise(read(Path(region)), volatile=())
+    if START in body or END in body:
+        raise ValueError("the region input contains a design-language marker")
+    parse_region(body)
+    text = read(path) if path.exists() else None
+    span = find_region(text) if text is not None else None
+    old = region_text(text, span) if span else None
+    if expect != (region_hash(old) if old is not None else "none"):
+        raise ValueError("region changed since read")
+    digest = region_hash(body)
+    if old is not None and normalise(old, ("Updated",)) == normalise(body, ("Updated",)):
+        return f"{STATUS_PREFIX}unchanged {digest}"
+    stamp = (now or datetime.now(timezone.utc)).strftime("%Y-%m-%d %H:%M UTC")
+    body = re.sub(r"(?m)^\|\s*Updated\s*\|.*$", f"| Updated | {stamp} |", body, count=1)
+    if text is None:
+        outcome, new = "created", PREAMBLE + _block(body, "\n") + "\n"
+    else:
+        nl = "\r\n" if "\r\n" in text else "\n"
+        if span is None:
+            gap = nl if text.endswith("\n") else nl + nl if text else ""
+            outcome, new = "appended", text + gap + _block(body, nl) + nl
+        else:
+            before, after = text[:span[0] - len(START)], text[span[1] + len(END):]
+            outcome, new = "written", before + _block(body, nl) + after
+    atomic_write(path, new.encode("utf-8"))
+    return f"{STATUS_PREFIX}{outcome} {digest}"
+
+
 class _ArgError(Exception):
     """An argparse complaint, raised rather than exited on."""
 
@@ -588,13 +669,23 @@ def _parse_args(argv):
     commands = parser.add_subparsers(dest="command", required=True)
     region = commands.add_parser("region", add_help=False)
     region.add_argument("--file", required=True)
+    write = commands.add_parser("write", add_help=False)
+    write.add_argument("--file", required=True)
+    write.add_argument("--region", required=True)
+    write.add_argument("--expect", required=True)
     return parser.parse_args(argv)
+
+
+COMMANDS = {
+    "region": lambda args: cmd_region(args.file),
+    "write": lambda args: cmd_write(args.file, args.region, args.expect),
+}
 
 
 def main(argv=None) -> int:
     try:
         args = _parse_args(argv)
-        out = cmd_region(args.file)
+        out = COMMANDS[args.command](args)
     except (_ArgError, SystemExit) as exc:
         out = skipped(f"bad arguments: {exc}")
     except Exception as exc:  # noqa: BLE001
