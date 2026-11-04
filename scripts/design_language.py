@@ -13,6 +13,11 @@ code rather than prose:
                          splice it into F atomically, provided F's current
                          region hash is H (`none`: F has no region yet); prints
                          `design-language: <created|appended|written|unchanged> <sha256>`
+    render --file F --template T --out O [--force]
+                         parse F's region into specimen data and substitute it
+                         into template T, writing O unless O already carries
+                         the same data hash; prints
+                         `design-language: <rendered|unchanged> <short hash>`
 
 Region contract (kept in lockstep with the skill):
 
@@ -26,9 +31,13 @@ Region contract (kept in lockstep with the skill):
     the region follows the file's newline style. The script owns the managed
     warning comment (stripped from input, written as the region's first line)
     and the `Updated` row (stamped only when other content changed).
-  * Every path the script writes or reads as `--file` must resolve inside the
-    current working directory (the project root); read-only inputs may live
-    anywhere.
+  * The specimen's data hash covers the parsed data (less `updated` and
+    `specimen_url`) and the template bytes. The data is embedded as JSON with
+    `<`, `>` and `&` escaped, the project name HTML-escaped, and all four
+    tokens substituted in one pass, so data text is never re-scanned.
+  * Every path given as `--file` or `--out` must resolve inside the current
+    working directory (the project root); `--region` and `--template` are
+    read-only inputs and may live anywhere.
 
 Stdlib only, deliberately: the skill runs this as the system `python3`, which
 is not the project's uv-managed virtualenv, and may be older than it — hence
@@ -44,6 +53,8 @@ from __future__ import annotations
 import argparse
 import functools
 import hashlib
+import html
+import json
 import os
 import re
 import stat
@@ -53,7 +64,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 STDLIB_MODULES = {
-    "__future__", "argparse", "datetime", "functools", "hashlib", "os", "re", "stat", "sys", "tempfile", "pathlib",
+    "__future__", "argparse", "datetime", "functools", "hashlib", "html", "json", "os", "re", "stat", "sys",
+    "tempfile", "pathlib",
 }
 
 STATUS_PREFIX = "design-language: "
@@ -70,6 +82,12 @@ PREAMBLE = (
 
 MARKER_RE = re.compile(re.escape(START) + "|" + re.escape(END))
 VOLATILE_ROWS = ("Updated", "Specimen")
+STAMP = "%Y-%m-%d %H:%M UTC"
+
+TOKENS = ("PROJECT_NAME", "GENERATED_AT", "DATA_HASH", "SPECIMEN_DATA")
+TOKEN_RE = re.compile(r"\{\{([A-Z0-9_]+)\}\}")
+HASH_MARKER = "<!-- design-language-specimen-hash: "
+VOLATILE_DATA = ("updated", "specimen_url")
 
 
 class MarkerError(ValueError):
@@ -162,6 +180,12 @@ def confined(path) -> Path:
 def read(path: Path) -> str:
     """The file's text with its line endings untouched."""
     return path.read_bytes().decode("utf-8")
+
+
+def load(path: Path) -> tuple:
+    """(text, region span): text is None for a missing file, the span None without a region."""
+    text = read(path) if path.exists() else None
+    return text, find_region(text) if text is not None else None
 
 
 def atomic_write(path: Path, data: bytes) -> None:
@@ -607,11 +631,7 @@ def parse_region(text: str) -> dict:
 @degrades
 def cmd_region(file) -> str:
     """`region <sha256>` plus the region text, or `region none`."""
-    path = confined(file)
-    if not path.exists():
-        return STATUS_PREFIX + "region none"
-    text = read(path)
-    span = find_region(text)
+    text, span = load(confined(file))
     if span is None:
         return STATUS_PREFIX + "region none"
     region = region_text(text, span)
@@ -631,15 +651,14 @@ def cmd_write(file, region, expect, now=None) -> str:
     if START in body or END in body:
         raise ValueError("the region input contains a design-language marker")
     parse_region(body)
-    text = read(path) if path.exists() else None
-    span = find_region(text) if text is not None else None
+    text, span = load(path)
     old = region_text(text, span) if span else None
     if expect != (region_hash(old) if old is not None else "none"):
         raise ValueError("region changed since read")
     digest = region_hash(body)
     if old is not None and normalise(old, ("Updated",)) == normalise(body, ("Updated",)):
         return f"{STATUS_PREFIX}unchanged {digest}"
-    stamp = (now or datetime.now(timezone.utc)).strftime("%Y-%m-%d %H:%M UTC")
+    stamp = (now or datetime.now(timezone.utc)).strftime(STAMP)
     body = re.sub(r"(?m)^\|\s*Updated\s*\|.*$", f"| Updated | {stamp} |", body, count=1)
     if text is None:
         outcome, new = "created", PREAMBLE + _block(body, "\n") + "\n"
@@ -653,6 +672,66 @@ def cmd_write(file, region, expect, now=None) -> str:
             outcome, new = "written", before + _block(body, nl) + after
     atomic_write(path, new.encode("utf-8"))
     return f"{STATUS_PREFIX}{outcome} {digest}"
+
+
+# --- Specimen -----------------------------------------------------------------
+
+
+def default_template() -> Path:
+    return Path(__file__).resolve().parent.parent / "templates" / "design-specimen.html"
+
+
+def data_hash(data: dict, template: bytes) -> str:
+    """sha256 over the data's canonical JSON, less its volatile fields, plus the template bytes."""
+    stable = {key: value for key, value in data.items() if key not in VOLATILE_DATA}
+    canonical = json.dumps(stable, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    return hashlib.sha256(canonical.encode("utf-8") + template).hexdigest()
+
+
+def embed_json(data: dict) -> str:
+    """JSON no string in the data can close a <script> element with."""
+    text = json.dumps(data, ensure_ascii=False, separators=(",", ":"))
+    return text.replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
+
+
+def _check_template(page: str) -> None:
+    found = set(TOKEN_RE.findall(page))
+    for token in TOKENS:
+        if token not in found:
+            raise ValueError(f"template lacks {{{{{token}}}}}")
+    unknown = sorted(found - set(TOKENS))
+    if unknown:
+        raise ValueError(f"template carries an unknown token {{{{{unknown[0]}}}}}")
+    if HASH_MARKER + "{{DATA_HASH}} -->" not in page:
+        raise ValueError("template lacks the hash marker")
+
+
+@degrades
+def cmd_render(file, template, out, force=False, now=None) -> str:
+    """Render the specimen page from the region; `<rendered|unchanged> <short hash>`."""
+    target = confined(out)
+    text, span = load(confined(file))
+    if span is None:
+        raise ValueError("no region to render")
+    data = parse_region(region_text(text, span))
+    source = Path(template) if template else default_template()
+    if not source.is_file():
+        raise ValueError("template not found")
+    raw = source.read_bytes()
+    page = raw.decode("utf-8")
+    _check_template(page)
+    digest = data_hash(data, raw)
+    if not force and target.is_file() and f"{HASH_MARKER}{digest} -->".encode() in target.read_bytes():
+        return f"{STATUS_PREFIX}unchanged {digest[:7]}"
+    values = {
+        "PROJECT_NAME": html.escape(data["project"]),
+        "GENERATED_AT": (now or datetime.now(timezone.utc)).strftime(STAMP),
+        "DATA_HASH": digest,
+        "SPECIMEN_DATA": embed_json(data),
+    }
+    target.parent.mkdir(parents=True, exist_ok=True)
+    atomic_write(target, TOKEN_RE.sub(lambda match: values[match.group(1)], page).encode("utf-8"))
+    return f"{STATUS_PREFIX}rendered {digest[:7]}"
 
 
 class _ArgError(Exception):
@@ -673,12 +752,18 @@ def _parse_args(argv):
     write.add_argument("--file", required=True)
     write.add_argument("--region", required=True)
     write.add_argument("--expect", required=True)
+    render = commands.add_parser("render", add_help=False)
+    render.add_argument("--file", required=True)
+    render.add_argument("--template")
+    render.add_argument("--out", required=True)
+    render.add_argument("--force", action="store_true")
     return parser.parse_args(argv)
 
 
 COMMANDS = {
     "region": lambda args: cmd_region(args.file),
     "write": lambda args: cmd_write(args.file, args.region, args.expect),
+    "render": lambda args: cmd_render(args.file, args.template, args.out, args.force),
 }
 
 

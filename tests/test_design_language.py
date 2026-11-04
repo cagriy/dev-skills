@@ -4,6 +4,7 @@ Every test runs with the cwd set to tmp_path, so the script's write-path
 confinement is exercised for real rather than mocked.
 """
 
+import json
 import os
 import re
 from datetime import datetime, timezone
@@ -436,10 +437,10 @@ def write(tmp_path_factory):
     return run
 
 
-def outcome(line):
-    """`design-language: <outcome> <sha256>` → (outcome, sha256)."""
+def outcome(line, digest_re=HEX64):
+    """`design-language: <outcome> <digest>` → (outcome, digest)."""
     word, digest = line.removeprefix(dl.STATUS_PREFIX).split(" ")
-    assert HEX64.fullmatch(digest), line
+    assert digest_re.fullmatch(digest), line
     return word, digest
 
 
@@ -576,6 +577,168 @@ class TestWrite:
         os.chmod("DESIGN.md", 0o640)
         write(FULL_REGION.replace("Calm", "Quiet"), expect=dl.region_hash(FULL_REGION))
         assert os.stat("DESIGN.md").st_mode & 0o777 == 0o640
+
+
+SHORT = re.compile(r"[0-9a-f]{7}")
+SPECIMEN_TEMPLATE = """<title>{{PROJECT_NAME}} — design language</title>
+<!-- design-language-specimen-hash: {{DATA_HASH}} -->
+<h1>{{PROJECT_NAME}} — design language</h1>
+<p>Generated {{GENERATED_AT}}</p>
+<script type="application/json" id="specimen-data">{{SPECIMEN_DATA}}</script>
+"""
+SPECIMEN = Path("design/specimen.html")
+LITERAL_TOKEN = re.compile(r"\{\{[A-Z0-9_]+\}\}")
+
+
+def embedded(page):
+    """The specimen data a rendered page carries, parsed."""
+    blocks = re.findall(r'<script type="application/json" id="specimen-data">(.*?)</script>', page, re.S)
+    assert len(blocks) == 1, "the page carries exactly one specimen-data block"
+    return json.loads(blocks[0])
+
+
+@pytest.fixture
+def specimen_template(tmp_path_factory):
+    """A minimal template outside the cwd, as the plugin cache is."""
+    return put(tmp_path_factory.mktemp("plugin") / "design-specimen.html", SPECIMEN_TEMPLATE)
+
+
+@pytest.fixture
+def render(specimen_template):
+    """cmd_render of DESIGN.md (rewritten to hold `region` when one is given)."""
+
+    def run(region=None, force=False, template=specimen_template, out=SPECIMEN, file="DESIGN.md"):
+        if region is not None:
+            put("DESIGN.md", doc(region))
+        return dl.cmd_render(file, template, out, force=force, now=NOW)
+
+    return run
+
+
+class TestRender:
+    def test_renders_and_creates_design_dir(self, render):
+        word, short = outcome(render(FULL_REGION), SHORT)
+        assert word == "rendered"
+        page = SPECIMEN.read_text()
+        digest = dl.data_hash(dl.parse_region(FULL_REGION), SPECIMEN_TEMPLATE.encode())
+        assert short == digest[:7]
+        assert f"{dl.HASH_MARKER}{digest} -->" in page
+        assert not LITERAL_TOKEN.search(page), "no token is left literal"
+        assert "<title>Acme Billing — design language</title>" in page
+        assert "<p>Generated 2026-11-04 09:30 UTC</p>" in page
+        assert embedded(page) == dl.parse_region(FULL_REGION)
+
+    def test_cli_render(self, specimen_template, capsys):
+        put("DESIGN.md", doc(FULL_REGION))
+        argv = ["render", "--file", "DESIGN.md", "--template", str(specimen_template), "--out", str(SPECIMEN)]
+        for extra, word in (([], "rendered"), ([], "unchanged"), (["--force"], "rendered")):
+            assert dl.main(argv + extra) == 0
+            assert re.fullmatch(rf"design-language: {word} [0-9a-f]{{7}}\n", capsys.readouterr().out)
+
+    def test_unchanged_on_equal_hash(self, render):
+        short = outcome(render(FULL_REGION), SHORT)[1]
+        before = (SPECIMEN.read_bytes(), SPECIMEN.stat().st_mtime_ns)
+        assert outcome(render(), SHORT) == ("unchanged", short)
+        assert (SPECIMEN.read_bytes(), SPECIMEN.stat().st_mtime_ns) == before
+
+    def test_rerenders_on_changed_table(self, render):
+        short = outcome(render(FULL_REGION), SHORT)[1]
+        word, changed = outcome(render(FULL_REGION.replace("#4f46e5", "#1d4ed8")), SHORT)
+        assert (word, changed != short) == ("rendered", True)
+        assert embedded(SPECIMEN.read_text())["colours"][0]["light"] == "#1d4ed8"
+
+    def test_rerenders_on_changed_template(self, render, specimen_template):
+        short = outcome(render(FULL_REGION), SHORT)[1]
+        put(specimen_template, SPECIMEN_TEMPLATE + "<p>v2</p>\n")
+        word, changed = outcome(render(), SHORT)
+        assert (word, changed != short) == ("rendered", True)
+        assert "<p>v2</p>" in SPECIMEN.read_text()
+
+    def test_force_rerenders(self, render):
+        short = outcome(render(FULL_REGION), SHORT)[1]
+        SPECIMEN.write_text(SPECIMEN.read_text() + "hand edit\n")
+        assert outcome(render(), SHORT) == ("unchanged", short)
+        assert outcome(render(force=True), SHORT) == ("rendered", short)
+        assert "hand edit" not in SPECIMEN.read_text()
+
+    def test_hash_excludes_updated_and_specimen_url(self, render):
+        data = dl.parse_region(FULL_REGION)
+        digest = dl.data_hash(data, b"t")
+        assert HEX64.fullmatch(digest)
+        assert dl.data_hash({**data, "updated": "later", "specimen_url": None}, b"t") == digest
+        assert dl.data_hash({**data, "project": "Other"}, b"t") != digest
+        assert dl.data_hash(data, b"t2") != digest
+        short = outcome(render(FULL_REGION), SHORT)[1]
+        moved = FULL_REGION.replace(UPDATED_ROW, STAMPED_ROW).replace("abc123", "new456")
+        assert outcome(render(moved), SHORT) == ("unchanged", short)
+
+    def test_embedded_json_escapes_script_breakers(self, render):
+        render(FULL_REGION.replace("Calm,", "Calm </script><script>alert(1)</script> & co,"))
+        page = SPECIMEN.read_text()
+        assert page.count("</script>") == SPECIMEN_TEMPLATE.count("</script>")
+        assert "<script>alert" not in page
+        assert "\\u003c/script\\u003e" in page and "\\u0026 co" in page
+        assert embedded(page)["theme"]["text"].startswith("Calm </script><script>alert(1)</script> & co,")
+
+    def test_project_name_is_html_escaped(self, render):
+        render(FULL_REGION.replace("Acme Billing", 'Acme <b>"Billing"</b> & Co'))
+        page = SPECIMEN.read_text()
+        assert "<h1>Acme &lt;b&gt;&quot;Billing&quot;&lt;/b&gt; &amp; Co — design language</h1>" in page
+        assert "<b>" not in page
+        assert embedded(page)["project"] == 'Acme <b>"Billing"</b> & Co'
+
+    def test_data_text_is_never_rescanned_for_tokens(self, render):
+        region = FULL_REGION.replace("Acme Billing", "Acme {{SPECIMEN_DATA}}").replace(
+            "Calm,", "Calm {{DATA_HASH}} {{PROJECT_NAME}},"
+        )
+        render(region)
+        page = SPECIMEN.read_text()
+        assert "<title>Acme {{SPECIMEN_DATA}} — design language</title>" in page
+        assert embedded(page)["theme"]["text"].startswith("Calm {{DATA_HASH}} {{PROJECT_NAME}},")
+
+    @pytest.mark.parametrize(
+        "template, defect",
+        [
+            (SPECIMEN_TEMPLATE.replace("<p>Generated {{GENERATED_AT}}</p>\n", ""), "template lacks {{GENERATED_AT}}"),
+            (SPECIMEN_TEMPLATE + "<p>{{FOOTER}}</p>\n", "template carries an unknown token {{FOOTER}}"),
+            (SPECIMEN_TEMPLATE.replace("design-language-specimen-hash: ", ""), "template lacks the hash marker"),
+        ],
+        ids=["token-missing", "unknown-token", "marker-missing"],
+    )
+    def test_drifted_template_is_refused(self, render, specimen_template, template, defect):
+        put(specimen_template, template)
+        assert render(FULL_REGION) == f"design-language: skipped — {defect}"
+        assert not Path("design").exists()
+
+    def test_missing_template_is_refused(self, render, tmp_path_factory):
+        absent = tmp_path_factory.mktemp("gone") / "design-specimen.html"
+        assert render(FULL_REGION, template=absent) == "design-language: skipped — template not found"
+        assert not Path("design").exists()
+
+    def test_missing_region_is_skipped(self, render):
+        assert render() == "design-language: skipped — no region to render"
+        put("DESIGN.md", "# DESIGN.md\n\nNotes only.\n")
+        assert render() == "design-language: skipped — no region to render"
+        assert not Path("design").exists()
+
+    def test_schema_violation_is_skipped(self, render):
+        line = render(FULL_REGION.replace("| brand |", "| accent |"))
+        assert line.startswith("design-language: skipped — schema: Color Palette & Roles: "), line
+        assert not Path("design").exists()
+
+    def test_out_outside_cwd_is_refused(self, render, tmp_path_factory):
+        out = tmp_path_factory.mktemp("elsewhere") / "specimen.html"
+        assert render(FULL_REGION, out=out) == "design-language: skipped — path outside the project"
+        assert not out.exists()
+
+    def test_file_outside_cwd_is_refused(self, render, tmp_path_factory):
+        outside = put(tmp_path_factory.mktemp("elsewhere") / "DESIGN.md", doc(FULL_REGION))
+        assert render(file=outside) == "design-language: skipped — path outside the project"
+        assert not Path("design").exists()
+
+    def test_template_outside_cwd_is_accepted(self, render, specimen_template, in_tmp):
+        assert not specimen_template.resolve().is_relative_to(in_tmp.resolve())
+        assert outcome(render(FULL_REGION), SHORT)[0] == "rendered"
 
 
 class TestMain:
