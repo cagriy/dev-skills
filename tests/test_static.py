@@ -1746,6 +1746,19 @@ class TestDesignLanguageContract:
         assert "jq -r .name" not in text, "no plugin-identity gate"
         assert re.search(r"runs in any repo", text, re.IGNORECASE)
 
+    def test_view_harvest_is_capped(self):
+        # A brownfield repo with inline styles and no token layer would
+        # otherwise read views without limit inside /feature-design.
+        text = self.skill_text()
+        start, end = step_span(text, 3)
+        step3 = text[start:end]
+        cap = re.search(r"at most \*\*(\d+)\*\* view files", step3)
+        assert cap, "Step 3 must cap the views tier at a fixed number of files"
+        assert int(cap.group(1)) <= 10
+        assert "fan-in" in step3, "the cap must say which views to read first"
+        assert "Step 6" in step3, "sections the cap leaves unevidenced go to the catalogue"
+        assert re.search(r"`notes`", step3), "a capped harvest is reported in notes"
+
     def test_documents_its_two_outputs_and_never_commits(self):
         text = self.skill_text()
         for output in ("DESIGN.md", "design/specimen.html"):

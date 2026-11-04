@@ -123,12 +123,12 @@ From `prior_region`, note the recorded Decisions (and the highest `#`), every `p
 
 Skipped in `render` and `record` modes.
 
-A bounded, read-only harvest, in priority order. Use `Glob`, `Grep` and `Read` only. Stop reading a tier once its sections are evidenced; never read every view in a large UI.
+A bounded, read-only harvest, in priority order. Use `Glob`, `Grep` and `Read` only. Stop reading a tier once its sections are evidenced.
 
 1. **Token, theme and design-system files** — CSS custom properties, SCSS/Less variables, Tailwind/UnoCSS-style config, style-dictionary or design-token JSON, theme objects in UI kits, native colour and type resources (asset catalogs, `res/values/*.xml`, Flutter `ThemeData`, Compose `MaterialTheme`).
 2. **Global stylesheets** — resets, base typography, layout primitives.
 3. **The component library** — one canonical file per category (`button`, `input`, `card`, `table`, `nav`, `alert`, `other`). Count call sites per variant with `Grep` in count mode; that count settles the canonical-variant fallback.
-4. **The UI layer's templates or views** — only as far as the earlier tiers left a section unevidenced.
+4. **The UI layer's templates or views** — only for sections the earlier tiers left unevidenced, and at most **8** view files per run. Choose by fan-in: app shells, root layouts and route entry points first, then the views imported most often (count with `Grep`). Only files you `Read` count against the cap; `Grep` in count or files mode does not. A section still unevidenced at the cap stays unevidenced: Step 4 classifies it so, Step 6's catalogue asks about it where it has an item or takes its fallback, and `notes` reads `views capped at 8 — <sections> unevidenced`.
 5. **Terminal or CLI render modules** for terminal surfaces (styling helpers of rich, lipgloss, chalk, crossterm and the like).
 6. **Email templates**.
 7. **Accepted prior mockups** — `features/feature-v*/mockups/*` whose banner reads `Accepted`, each recorded as `mockup:` evidence.
