@@ -38,7 +38,7 @@ ARTEFACTS = {
         "kind": "design document",
         "eval_type": "design_quality",
         "rubric": design_quality_rubric,
-        "items_assessed": 15,
+        "items_assessed": 17,
     },
     "plan": {
         "kind": "implementation-plan document",

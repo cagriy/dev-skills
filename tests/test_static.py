@@ -1902,3 +1902,31 @@ class TestDesignLanguageContract:
             "stage subagents must be briefed with the DESIGN.md path"
         )
         assert "Design-language conformance" in self.span(text, "### 5g.", "### 5h.")
+
+    # --- evals-e2e-run: design_quality judges §5 Design language (R13) ---
+
+    def test_design_quality_item_17_judges_design_language(self):
+        rubric = design_quality_rubric()
+        item = re.search(r"^17\. \*\*Design language \(§5\)\*\*.*$", rubric, re.MULTILINE)
+        assert item, "design_quality has no item 17 judging §5 Design language"
+        assert "DESIGN.md" in item.group(0)
+        sync = re.search(r"^Items [\d, and]+ quote `feature-design`.*$", rubric, re.MULTILINE)
+        assert sync, "design_quality: sync note not found"
+        assert re.search(r"\b17\b", sync.group(0)), "the sync note never names item 17"
+
+    def test_llm_design_items_assessed_matches_the_rubric(self):
+        items = len(re.findall(r"^\d+\. \*\*", design_quality_rubric(), re.MULTILINE))
+        llm = (REPO / "tests" / "test_rubric_llm.py").read_text()
+        m = re.search(r'"design":\s*\{[^}]*"items_assessed":\s*(\d+)', llm)
+        assert m, "test_rubric_llm.py: design items_assessed not found"
+        assert int(m.group(1)) == items, (
+            f"the LLM judge test expects {m.group(1)} design items; the rubric has {items}"
+        )
+
+    def test_flawless_design_fixture_carries_the_design_language_subsection(self):
+        fixture = (REPO / "tests" / "fixtures" / "design-flawless.md").read_text()
+        section_5 = self.span(fixture, "## 5. Design", "## 6.")
+        assert "### Design language" in section_5, (
+            "the flawless fixture must stay flawless under item 17"
+        )
+        assert "DESIGN.md" in section_5.split("### Design language", 1)[1].split("\n### ", 1)[0]

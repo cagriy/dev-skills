@@ -56,6 +56,11 @@ Four small components, each separately testable; the existing renderer, permissi
 - Job payload for `export_send`: `{schedule_id, scheduled_for, attempt}` — small and replayable.
 - In-app notification on final delivery failure reuses the existing notification write path.
 
+### Design language
+- `ScheduleSettingsPanel` follows [`DESIGN.md`](../../DESIGN.md), reconciled before this design; specimen at [`design/specimen.html`](../../design/specimen.html) (https://claude.ai/artifact/9fK2mQ7xLwR4tVb8NcHs3D). Its rows, form, buttons and error banner use the recorded canonical `table`, `input`, `button` and `alert` components and the recorded type and spacing tokens; it introduces no other value.
+- Language deltas: `Color: color.status-paused = #B45309 / #F59E0B — paused rows in the schedule list` — `pending v3`.
+- Drift: none touches this surface.
+
 ### Control flow
 Happy path: worker tick → `ScheduleDispatcher` finds due schedules → enqueues `export_send` (jittered, low lane) → `ExportSender` filters recipients through `can_open` (owner check for external addresses) → `render_export` once per schedule → `mailer.send` per recipient batch → `record_outcome(sent)`. The 15-minute budget (R3) breaks down as ≤1 min dispatch, ≤2 min renders at p99, remainder queue headroom at peak.
 Alternative flow — owner departure (R7): the existing workspace-membership removal hook calls `ScheduleStore.pause_all_for_owner(user_id)` and notifies admins; paused schedules are skipped by `list_due`.
