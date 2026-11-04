@@ -130,6 +130,7 @@ STALE_SERIAL_REFERENCES = (
 
 # `{{TOKEN}}` appears in prose as a meta-placeholder, not a real template token.
 GENERIC_TOKEN_NAMES = {"TOKEN"}
+TEMPLATE_TOKEN_RE = re.compile(r"\{\{([A-Z][A-Z0-9_]*)\}\}")
 
 # The eight usage tokens, keyed by the tracker panel each pair must sit in
 # (the `id="panel-<key>"` sections of templates/feature-tracker.html). Chip
@@ -757,9 +758,9 @@ class TestC4DiagramContract:
         # test_skill_tokens_exist_in_templates only checks skill -> template.
         # A token left in the template with no skill authoring it renders as a
         # literal `{{...}}` on the page, so check the reverse too.
-        skill_tokens = set(re.findall(r"\{\{([A-Z][A-Z0-9_]*)\}\}", self.skill_text()))
+        skill_tokens = set(TEMPLATE_TOKEN_RE.findall(self.skill_text()))
         template_tokens = set(
-            re.findall(r"\{\{([A-Z][A-Z0-9_]*)\}\}", self.template_text())
+            TEMPLATE_TOKEN_RE.findall(self.template_text())
         )
         assert template_tokens, "c4-diagram.html defines no tokens"
         assert template_tokens - skill_tokens == set(), (
@@ -1421,7 +1422,7 @@ def test_terminology_block_mirrored():
 def test_skill_tokens_exist_in_templates():
     template_text = "".join(p.read_text() for p in sorted(TEMPLATES.glob("*.html")))
     for skill_file in all_skill_files():
-        tokens = set(re.findall(r"\{\{([A-Z][A-Z0-9_]*)\}\}", skill_file.read_text()))
+        tokens = set(TEMPLATE_TOKEN_RE.findall(skill_file.read_text()))
         for token in sorted(tokens - GENERIC_TOKEN_NAMES):
             assert f"{{{{{token}}}}}" in template_text, (
                 f"{skill_file.parent.name}: {{{{{token}}}}} not found in any template"
@@ -1477,6 +1478,7 @@ class TestSkillCustomizeContract:
         "feature-design",
         "feature-plan",
         "feature-implement",
+        "design-language-update",
     )
     # Readers whose Step 0 is the proactive-invocation confirmation gate. The
     # load must sit *after* it: a run the
@@ -1487,6 +1489,7 @@ class TestSkillCustomizeContract:
         "feature-design",
         "feature-plan",
         "feature-implement",
+        "design-language-update",
     )
     # Readers that hand their real work to subagents. A subagent starts with a
     # fresh context and cannot resolve the data directory reliably, so the main
@@ -1695,3 +1698,98 @@ class TestSkillCustomizeContract:
             assert re.search(r"silent|say nothing|no output", section, re.IGNORECASE), (
                 f"{slug}: a missing .extras file must be a silent no-op"
             )
+
+
+class TestDesignLanguageContract:
+    """design-language-update is the single writer of DESIGN.md and its specimen.
+
+    The skill decides the managed region's content; scripts/design_language.py
+    does every deterministic file operation, and templates/design-specimen.html
+    owns the specimen's presentation. These tests pin the strings the three
+    share, and the posture that keeps the skill safe to run from feature-design
+    in any repo: no repo gate, no git, no Edit tool, no chain helpers.
+    """
+
+    SKILL = SKILLS / "design-language-update" / "SKILL.md"
+    TEMPLATE = TEMPLATES / "design-specimen.html"
+    RESULT_KEYS = (
+        "status", "mode", "design_md", "classification", "specimen",
+        "specimen_url", "decisions", "drift", "pending", "notes",
+    )
+
+    def skill_text(self):
+        assert self.SKILL.exists(), "skills/design-language-update/SKILL.md is missing"
+        return self.SKILL.read_text()
+
+    def frontmatter(self):
+        m = re.match(r"---\n(.*?)\n---\n", self.skill_text(), re.DOTALL)
+        assert m, "design-language-update: missing frontmatter"
+        return m.group(1)
+
+    def test_frontmatter(self):
+        frontmatter = self.frontmatter()
+        assert re.search(r"^user-invocable:\s*true\s*$", frontmatter, re.MULTILINE)
+        assert not re.search(r"^disable-model-invocation:\s*true\s*$", frontmatter, re.MULTILINE), (
+            "design-language-update must stay model-invocable"
+        )
+        assert re.search(r'^argument-hint:\s*"\[fresh\|render\]"\s*$', frontmatter, re.MULTILINE)
+        for pin in ("model", "effort"):
+            assert not re.search(rf"^{pin}:", frontmatter, re.MULTILINE), (
+                f"design-language-update pins {pin} in frontmatter"
+            )
+
+    def test_runs_in_any_repo(self):
+        text = self.skill_text()
+        assert "only runs inside the dev-skills" not in text
+        assert "jq -r .name" not in text, "no plugin-identity gate"
+        assert re.search(r"runs in any repo", text, re.IGNORECASE)
+
+    def test_documents_its_two_outputs_and_never_commits(self):
+        text = self.skill_text()
+        for output in ("DESIGN.md", "design/specimen.html"):
+            assert output in text
+        assert re.search(r"never commits? or push", text, re.IGNORECASE)
+        tools = re.search(r"^allowed-tools:\s*(.+)$", self.frontmatter(), re.MULTILINE)
+        assert tools, "design-language-update: no allowed-tools line"
+        listed = [tool.strip() for tool in tools.group(1).split(",")]
+        assert "Edit" not in listed, "the skill never edits DESIGN.md — the script splices it"
+        assert "Bash" not in listed, "a bare Bash grant would make never-commit a promise, not a fact"
+        assert not any(tool.startswith("Bash(git") for tool in listed)
+
+    def test_marker_strings_match_the_script(self):
+        from scripts import design_language as dl
+
+        text = self.skill_text()
+        assert dl.START in text and dl.END in text, "the skill and the script spell the markers differently"
+        assert dl.HASH_MARKER in self.TEMPLATE.read_text()
+
+    def test_template_tokens_agree_both_ways(self):
+        skill_tokens = set(TEMPLATE_TOKEN_RE.findall(self.skill_text()))
+        template_tokens = set(TEMPLATE_TOKEN_RE.findall(self.TEMPLATE.read_text()))
+        assert template_tokens, "design-specimen.html defines no tokens"
+        assert skill_tokens == template_tokens, (
+            f"skill-only: {sorted(skill_tokens - template_tokens)}; "
+            f"template-only: {sorted(template_tokens - skill_tokens)}"
+        )
+
+    def test_result_block_declares_every_key(self):
+        text = self.skill_text()
+        block = re.search(r"^design-language-update result\n---\n(.*?)^```", text, re.DOTALL | re.MULTILINE)
+        assert block, "design-language-update: result block not found"
+        keys = tuple(re.findall(r"^([a-z_]+):", block.group(1), re.MULTILINE))
+        assert keys == self.RESULT_KEYS
+
+    def test_never_calls_chain_helpers(self):
+        for line in self.skill_text().splitlines():
+            for helper in ("feature-resolve", "lessons-capture", "usage-report"):
+                if helper in line:
+                    assert "never" in line.lower(), f"names {helper} without 'never': {line[:120]}"
+
+    def test_arguments_are_closed(self):
+        text = self.skill_text()
+        for form in ("`fresh`", "`render`", "caller=feature-design", "mode=record"):
+            assert form in text, f"design-language-update never documents {form}"
+        assert "design-language-update: refused — unknown argument" in text
+
+    def test_caller_runs_continue_the_turn(self):
+        assert "do not end your turn" in self.skill_text().lower()
