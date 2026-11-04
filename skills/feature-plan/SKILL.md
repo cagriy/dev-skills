@@ -141,6 +141,8 @@ If a brainstorm file also lives in `feature_folder` (`feature-storm-v<N>-<descri
 
 If the design cites an external document as a mandatory dependency or prerequisite (scan the requirements, architecture, risks, and rollout sections for cited paths or links), `Read` it as well before drafting — a stage that depends on it cannot be made concrete from the citation alone.
 
+When the design's §5 cites `DESIGN.md` (its *Design language* sub-section), `Read` it too: it is the project's recorded design language, and every stage that builds or changes UI is planned against it.
+
 ## Step 4 — Ground the plan in the codebase *(subagent)*
 
 Use `Read`, `Grep`, and `Glob` to verify the design's assumptions about the existing codebase: do the files/functions/utilities cited in §4 and §5 actually exist? What is already in place vs. what needs to be built? Bound the exploration to what the plan touches.
@@ -246,7 +248,7 @@ Every design requirement must appear in this table with at least one stage. If y
 
 ### Stage 1 — <Short title>
 **Goal:** <one sentence — what this stage delivers>
-**Design references:** §<n>, §<n> of feature-design-v<N>-<description>.md
+**Design references:** §<n>, §<n> of feature-design-v<N>-<description>.md[; `DESIGN.md` — for a stage that builds or changes UI, when the design cites it]
 **Touches:** <files to create/modify, by path>
 
 **Steps (TDD):**

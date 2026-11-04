@@ -111,6 +111,7 @@ EXPECTED_SELF_REVIEW_LENSES = [
     "Functional issues",
     "Inefficiencies",
     "Security issues",
+    "Design-language conformance",
     "Style/comments",
 ]
 
@@ -323,38 +324,36 @@ class TestSelfReviewLensAlignment:
         lenses = re.findall(r"^- \*\*(.+?)\*\* —", section, re.MULTILINE)
         assert lenses == EXPECTED_SELF_REVIEW_LENSES
 
+    def mirror_sites(self):
+        """The three shorthand mirrors of the 5g lens list, lower-cased, by name.
+
+        The README no longer enumerates the lens list — the per-skill docs
+        moved to the GitHub wiki (a separate repo this suite can't read).
+        The wiki's Skills-Reference page mirrors these lenses; keep it
+        aligned manually when the lens list changes.
+        """
+        lines = self.IMPLEMENT_SKILL.read_text().splitlines()
+        sites = {
+            "subagent-contract Discipline bullet": lambda l: l.startswith("- **Discipline**"),
+            "Constraints self-review bullet": lambda l: "Self-review every stage before commit" in l,
+            "frontmatter description": lambda l: l.startswith("description:"),
+        }
+        found = {}
+        for name, matches in sites.items():
+            line = next((l for l in lines if matches(l)), None)
+            assert line, f"{name} not found"
+            found[name] = line.lower()
+        return found
+
     def test_mirror_sites_name_duplication(self):
-        text = self.IMPLEMENT_SKILL.read_text()
-        lines = text.splitlines()
+        for name, line in self.mirror_sites().items():
+            assert "duplicat" in line, f"{name}'s lens shorthand omits duplication"
 
-        discipline = next(
-            (l for l in lines if l.startswith("- **Discipline**")), None
-        )
-        assert discipline, "subagent-contract Discipline bullet not found"
-        assert "duplication" in discipline.lower(), (
-            "Discipline bullet's lens shorthand omits duplication"
-        )
-
-        constraint = next(
-            (l for l in lines if "Self-review every stage before commit" in l), None
-        )
-        assert constraint, "self-review constraint bullet not found"
-        assert "duplicat" in constraint.lower(), (
-            "Constraints self-review bullet omits duplication"
-        )
-
-        description = next(
-            (l for l in lines if l.startswith("description:")), None
-        )
-        assert description, "frontmatter description not found"
-        assert "duplication" in description.lower(), (
-            "frontmatter description's lens list omits duplication"
-        )
-
-        # The README no longer enumerates the lens list — the per-skill docs
-        # moved to the GitHub wiki (a separate repo this suite can't read).
-        # The wiki's Skills-Reference page mirrors these lenses; keep it
-        # aligned manually when the lens list changes.
+    def test_mirror_sites_name_design_language_conformance(self):
+        for name, line in self.mirror_sites().items():
+            assert "design-language conformance" in line, (
+                f"{name}'s lens shorthand omits design-language conformance"
+            )
 
 
 class TestFeatureListContract:
@@ -1870,3 +1869,36 @@ class TestDesignLanguageContract:
             "plan and implement read the design, which cites the mockup — not the mockup"
         )
         assert "which design language wins on a greenfield project" not in text
+
+    # --- feature-plan and feature-implement: consume DESIGN.md (R11, R12) ---
+
+    def test_feature_plan_step_3_reads_design_md(self):
+        text = skill_text("feature-plan")
+        start, end = step_span(text, 3)
+        assert "DESIGN.md" in text[start:end], "feature-plan Step 3 never reads DESIGN.md"
+
+    def test_plan_stage_template_lists_design_md(self):
+        template = next(
+            (b for b in fenced_blocks(skill_text("feature-plan")) if "### Stage 1 —" in b), None
+        )
+        assert template, "feature-plan: stage template not found"
+        refs = next(
+            (l for l in template.splitlines() if l.startswith("**Design references:**")), None
+        )
+        assert refs, "feature-plan: stage template has no **Design references:** line"
+        assert "DESIGN.md" in refs, "UI stages must list DESIGN.md among their design references"
+
+    def test_feature_implement_consumes_design_md(self):
+        text = skill_text("feature-implement")
+        for n in (2, 3):
+            start, end = step_span(text, n)
+            assert "DESIGN.md" in text[start:end], f"feature-implement Step {n} never names DESIGN.md"
+        start, end = step_span(text, 3)
+        assert "design/specimen.html" in text[start:end], (
+            "Step 3's churn rule must commit the specimen with DESIGN.md"
+        )
+        contract = self.span(text, "#### Subagent contract", "#### Parallel addendum")
+        assert "- **Design language**" in contract, (
+            "stage subagents must be briefed with the DESIGN.md path"
+        )
+        assert "Design-language conformance" in self.span(text, "### 5g.", "### 5h.")
