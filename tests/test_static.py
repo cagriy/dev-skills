@@ -455,6 +455,7 @@ class TestFeatureMockupContract:
         "artifact_urls",
         "alternatives",
         "design_language",
+        "language_deltas",
         "decisions",
         "open_ui_questions",
         "notes",
@@ -629,8 +630,8 @@ class TestFeatureMockupContract:
 
     def test_the_mockup_file_remains_the_source_of_record(self):
         # Publishing must not turn into "write it to a scratch dir and host it":
-        # /feature-plan and /feature-implement read the accepted page out of the
-        # feature folder, and the design links it by relative path.
+        # the design links the accepted page by relative path, and
+        # /feature-plan and /feature-implement read the design, which cites it.
         text = self.MOCKUP_SKILL.read_text()
         assert "mockup-v<N>-<name>.html" in text, (
             "feature-mockup no longer documents its on-disk filename convention"
@@ -1844,3 +1845,28 @@ class TestDesignLanguageContract:
             "DESIGN.md" in line and "design-language-update" in line
             for line in constraints.splitlines()
         ), "feature-design's constraints must leave DESIGN.md to design-language-update"
+
+    # --- feature-mockup: reads DESIGN.md, never writes it (R10) ---
+
+    def test_feature_mockup_reads_design_md(self):
+        text = skill_text("feature-mockup")
+        start, end = step_span(text, 2)
+        step_2 = text[start:end]
+        assert "DESIGN.md" in step_2, "feature-mockup Step 2 never grounds in DESIGN.md"
+        assert "AskUserQuestion" not in step_2, (
+            "the greenfield interview belongs to design-language-update now"
+        )
+
+    def test_feature_mockup_never_writes_design_md(self):
+        constraints = skill_text("feature-mockup").split("## Constraints (non-negotiable)")[1]
+        assert any(
+            "DESIGN.md" in line and "never" in line.lower()
+            for line in constraints.splitlines()
+        ), "feature-mockup's constraints must state it never writes DESIGN.md"
+
+    def test_feature_mockup_drops_the_stale_claims(self):
+        text = skill_text("feature-mockup")
+        assert "read again by `/feature-plan` and `/feature-implement`" not in text, (
+            "plan and implement read the design, which cites the mockup — not the mockup"
+        )
+        assert "which design language wins on a greenfield project" not in text
