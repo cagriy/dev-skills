@@ -1078,6 +1078,133 @@ class TestSetHerdrLabelContract:
         )
 
 
+class TestSessionControlContract:
+    """session-control is the model-only helper behind chain session control.
+
+    It reads the user's declarations, compares the session with a stage
+    profile, and relaunches or hands over through one tool the user names.
+    The repo stays harness-neutral: no skill file names the plugin that
+    supplies the tool, or its acknowledgement prefix. Its result block is
+    machine-read by the four chain skills, and the `next:` values each mode
+    may return are the whole of that contract.
+    """
+
+    SKILL = SKILLS / "session-control" / "SKILL.md"
+    RESULT_KEYS = ["mode", "next", "session", "notes"]
+    NEXT_VALUES = ("continue", "end-turn", "offer", "inline", "stop")
+    ENSURE_NEXT = ("continue", "end-turn")
+    HANDOVER_NEXT = ("end-turn", "offer", "inline", "stop")
+    # The cc plugin's tool and acknowledgement prefix live in the user's
+    # extras file and the brief, never in skill text.
+    PLUGIN_STRINGS = ("mcp__cc__", "cc:cc-", "cc: queued")
+
+    def text(self):
+        return self.SKILL.read_text()
+
+    def frontmatter(self):
+        m = re.match(r"---\n(.*?)\n---\n", self.text(), re.DOTALL)
+        assert m, "session-control: missing frontmatter"
+        return m.group(1)
+
+    def test_is_internal_and_model_invocable(self):
+        frontmatter = self.frontmatter()
+        assert re.search(r"^user-invocable:\s*false\s*$", frontmatter, re.MULTILINE), (
+            "session-control must not be user-invocable — the chain skills call it"
+        )
+        assert not re.search(
+            r"^disable-model-invocation:\s*true\s*$", frontmatter, re.MULTILINE
+        ), "session-control must stay model-invocable"
+        for pin in ("model", "effort"):
+            assert not re.search(rf"^{pin}:", frontmatter, re.MULTILINE), (
+                f"session-control pins {pin} in frontmatter"
+            )
+
+    def test_holds_no_skill_tool(self):
+        tools = re.search(r"^allowed-tools:\s*(.+)$", self.frontmatter(), re.MULTILINE)
+        assert tools, "session-control: no allowed-tools line"
+        tools = tools.group(1)
+        for needed in ("Read", "AskUserQuestion", "ToolSearch"):
+            assert re.search(rf"\b{needed}\b", tools), (
+                f"session-control must hold {needed}"
+            )
+        for forbidden in ("Skill", "Agent", "Write", "Edit"):
+            assert not re.search(rf"\b{forbidden}\b", tools), (
+                f"session-control must not hold the {forbidden} tool"
+            )
+        assert not re.search(r"\bBash\b(?!\()", tools), (
+            "session-control must hold only scoped Bash patterns"
+        )
+
+    def test_names_no_plugin(self):
+        files = set(all_skill_files()) | {self.SKILL}
+        offenders = [
+            f"{path.relative_to(REPO)}: {s!r}"
+            for path in sorted(files)
+            for s in self.PLUGIN_STRINGS
+            if s in path.read_text()
+        ]
+        assert not offenders, "skill text names a harness plugin:\n" + "\n".join(offenders)
+
+    def test_documents_the_three_declaration_kinds(self):
+        text = self.text()
+        for phrase in (
+            "Session control: relaunch with the tool",
+            "ask before switching",
+            "switch without asking",
+            "Handover: automatic",
+            "Handover: ask",
+        ):
+            assert phrase in text, f"session-control never documents {phrase!r}"
+
+    def test_documents_its_inputs(self):
+        text = self.text()
+        for form in (
+            "ensure <slug>",
+            "handover from=<slug>, to=<slug>, version=<N>, "
+            "hold=<none|deviations|briefs|briefs-joint>",
+        ):
+            assert form in text, f"session-control never documents the input {form!r}"
+
+    def test_result_block_declares_every_key(self):
+        block = next(
+            (b for b in fenced_blocks(self.text())
+             if b.startswith("session-control result\n---\n")),
+            None,
+        )
+        assert block, "session-control: no fenced `session-control result` block"
+        keys = re.findall(r"^([a-z_]+):", block, re.MULTILINE)
+        assert keys == self.RESULT_KEYS, f"result block keys are {keys}"
+        assert f"next: <{' | '.join(self.NEXT_VALUES)}>" in block, (
+            "the result block's next: line must list all five values"
+        )
+
+    def test_ensure_returns_only_continue_or_end_turn(self):
+        text = self.text()
+        start, end = step_span(text, 2)
+        step = text[start:end]
+        for value in self.NEXT_VALUES:
+            named = f"next: {value}" in step
+            assert named == (value in self.ENSURE_NEXT), (
+                f"Step 2 (ensure) {'omits' if not named else 'returns'} next: {value}"
+            )
+
+    def test_handover_returns_its_four_values(self):
+        text = self.text()
+        start, end = step_span(text, 3)
+        step = text[start:end]
+        for value in self.HANDOVER_NEXT:
+            assert f"next: {value}" in step, f"Step 3 (handover) never returns next: {value}"
+
+    def test_turn_ends_only_on_acknowledgement(self):
+        text = self.text().lower()
+        assert "do not end your turn" in text, (
+            "session-control: missing the inline do-not-end-your-turn guard"
+        )
+        assert "acknowledg" in text, (
+            "session-control must end the turn only on an acknowledged call"
+        )
+
+
 class TestUsageReportLifecycle:
     """The four chain skills report what a run cost, via the usage-report helper.
 
@@ -1481,11 +1608,13 @@ class TestSkillCustomizeContract:
         "feature-plan",
         "feature-implement",
         "design-language-update",
+        "session-control",
     )
     # Readers whose Step 0 is the proactive-invocation confirmation gate. The
     # load must sit *after* it: a run the
-    # user declined must not have done work first. feature-mockup is excluded
-    # because it has no gate (its caller already gated) and its load IS Step 0.
+    # user declined must not have done work first. feature-mockup and
+    # session-control are excluded because they have no gate (their callers
+    # already gated) and their load IS Step 0.
     GATED_READERS = (
         "feature-storm",
         "feature-design",
