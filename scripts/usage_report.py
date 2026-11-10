@@ -2,7 +2,7 @@
 
 Reads Claude Code's own session transcripts — which already record a per-request
 `usage` block and a timestamp on every assistant entry — and turns the slice
-between a run's start marker and now into a token/timing report.
+between a run's start marker and now into a token, timing and cost report.
 
 Stdlib only, deliberately: this is invoked as the system `python3`, which is not
 the project's uv-managed virtualenv, so a third-party import would pass under
@@ -19,7 +19,8 @@ import json
 import os
 import re
 import sys
-from dataclasses import dataclass
+from collections import Counter
+from dataclasses import astuple, dataclass, fields
 from itertools import zip_longest
 from datetime import datetime, timezone
 from pathlib import Path
@@ -47,6 +48,78 @@ NUMERIC_FIELDS = (
     "web_fetch",
 )
 
+# API list prices in USD per million tokens, pinned rather than fetched (the
+# script makes no network calls); the date prints under every reported cost.
+# Each row: input, cache write 5m, cache write 1h, cache read, output.
+PRICING_AS_OF = "2026-11-10"
+
+PRICES = {
+    model: rates
+    for models, rates in (
+        (("claude-fable-5-2", "claude-mythos-5-2"), (8, 10, 16, 0.20, 40)),
+        (("claude-fable-5-1", "claude-mythos-5-1"), (10, 12.50, 20, 0.25, 50)),
+        (("claude-fable-5", "claude-mythos-5"), (10, 12.50, 20, 1, 50)),
+        (("claude-opus-5-5",), (4, 5, 8, 0.20, 20)),
+        (("claude-opus-5", "claude-opus-4-8", "claude-opus-4-7", "claude-opus-4-6",
+          "claude-opus-4-5"), (5, 6.25, 10, 0.50, 25)),
+        (("claude-opus-4-1", "claude-opus-4"), (15, 18.75, 30, 1.50, 75)),
+        (("claude-sonnet-5-5",), (2, 2.50, 4, 0.10, 10)),
+        (("claude-sonnet-5",), (2, 2.50, 4, 0.20, 10)),
+        (("claude-sonnet-4-6", "claude-sonnet-4-5", "claude-sonnet-4"),
+         (3, 3.75, 6, 0.30, 15)),
+        (("claude-haiku-4-5",), (1, 1.25, 2, 0.10, 5)),
+    )
+    for model in models
+}
+
+# (threshold, rates for a prompt at or below it, rates above it), where a
+# request's prompt is its input + cache write + cache read tokens.
+TIERED_PRICES = {
+    "claude-haiku-5-5": (
+        100_000, (0.10, 0.125, 0.20, 0.01, 0.50), (0.50, 0.625, 1, 0.05, 2.50)
+    ),
+}
+
+# Fast mode's (input, output) only: its cache rates keep the model's own
+# multipliers over input, so they are derived rather than stored.
+FAST_PRICES = {
+    "claude-fable-5-2": (16, 80),
+    "claude-mythos-5-2": (16, 80),
+    "claude-opus-5-5": (8, 40),
+    "claude-opus-5": (10, 50),
+    "claude-opus-4-8": (10, 50),
+}
+
+WEB_SEARCH_USD = 0.01
+
+# The harness's own placeholder entries, not API requests.
+SYNTHETIC = "<synthetic>"
+
+
+@dataclass(frozen=True)
+class Cost:
+    """USD by token type, for one request or a sum of them."""
+
+    input: float = 0.0
+    cache_write_5m: float = 0.0
+    cache_write_1h: float = 0.0
+    cache_read: float = 0.0
+    output: float = 0.0
+    web_search: float = 0.0
+
+    def __add__(self, other: "Cost") -> "Cost":
+        return Cost(*(a + b for a, b in zip(astuple(self), astuple(other))))
+
+    @property
+    def total(self) -> float:
+        return sum(astuple(self))
+
+    def as_log(self) -> dict:
+        """Six-decimal parts, and a `total` summed from them so the line adds up."""
+        parts = {f.name: round(getattr(self, f.name), 6) for f in fields(self)}
+        parts["total"] = round(sum(parts.values()), 6)
+        return parts
+
 
 @dataclass(frozen=True)
 class Usage:
@@ -65,14 +138,26 @@ class Usage:
     models: tuple[str, ...] = ()
     service_tier: str | None = None
     speed: str | None = None
+    cost: Cost = Cost()
+    unpriced: tuple[tuple[str, int], ...] = ()  # (normalised model, requests)
 
     def __add__(self, other: "Usage") -> "Usage":
         return Usage(
             models=tuple(sorted(set(self.models) | set(other.models))),
             service_tier=self.service_tier or other.service_tier,
             speed=self.speed or other.speed,
+            cost=self.cost + other.cost,
+            unpriced=_merge_tallies(self.unpriced, other.unpriced),
             **{f: getattr(self, f) + getattr(other, f) for f in NUMERIC_FIELDS},
         )
+
+
+def _merge_tallies(*tallies) -> tuple:
+    """Sum (model, count) tallies — pairs or mappings — sorted by model."""
+    merged = Counter()
+    for tally in tallies:
+        merged.update(dict(tally))
+    return tuple(sorted(merged.items()))
 
 
 @dataclass(frozen=True)
@@ -165,16 +250,80 @@ def window_entries(entries, start, end) -> list:
     return kept
 
 
+def _request_counts(usage: dict) -> dict:
+    """One request's usage block, keyed like `NUMERIC_FIELDS` less `requests`."""
+    creation = usage.get("cache_creation")
+    tools = usage.get("server_tool_use")
+    return {
+        "input_tokens": _int(usage, "input_tokens"),
+        "output_tokens": _int(usage, "output_tokens"),
+        "thinking_tokens": _int(usage.get("output_tokens_details"), "thinking_tokens"),
+        "cache_write": _int(usage, "cache_creation_input_tokens"),
+        "ephemeral_1h": _int(creation, "ephemeral_1h_input_tokens"),
+        "ephemeral_5m": _int(creation, "ephemeral_5m_input_tokens"),
+        "cache_read": _int(usage, "cache_read_input_tokens"),
+        "web_search": _int(tools, "web_search_requests"),
+        "web_fetch": _int(tools, "web_fetch_requests"),
+    }
+
+
+def normalise_model(model: str) -> str:
+    """One key per model: lower-case, no `[…]` suffix, no `-YYYYMMDD` date."""
+    name = re.sub(r"\[[^\]]*\]$", "", model.strip().lower())
+    return re.sub(r"-\d{8}$", "", name)
+
+
+def price_request(model, usage: dict) -> Cost | None:
+    """One request's cost, or None when it cannot be priced exactly.
+
+    Unpriced rather than estimated: a model not in the table, fast mode on a
+    model with no fast price, or cache-write tokens not fully attributed to the
+    two lifetimes, which are priced differently.
+    """
+    if not isinstance(model, str):
+        return None
+    name = normalise_model(model)
+    counts = _request_counts(usage)
+    if counts["ephemeral_5m"] + counts["ephemeral_1h"] != counts["cache_write"]:
+        return None
+
+    if name in TIERED_PRICES:
+        threshold, low, high = TIERED_PRICES[name]
+        prompt = counts["input_tokens"] + counts["cache_write"] + counts["cache_read"]
+        rates = low if prompt <= threshold else high
+    elif name in PRICES:
+        rates = PRICES[name]
+    else:
+        return None
+
+    if usage.get("speed") == "fast":
+        if name not in FAST_PRICES:
+            return None
+        fast_input, fast_output = FAST_PRICES[name]
+        scale = fast_input / rates[0]
+        rates = tuple(rate * scale for rate in rates[:4]) + (fast_output,)
+
+    tokens = (counts["input_tokens"], counts["ephemeral_5m"], counts["ephemeral_1h"],
+              counts["cache_read"], counts["output_tokens"])
+    return Cost(
+        *(count * rate / 1_000_000 for count, rate in zip(tokens, rates)),
+        web_search=counts["web_search"] * WEB_SEARCH_USD,
+    )
+
+
 def aggregate(entries) -> Usage:
     """Sum the usage blocks of the assistant entries, one count per request.
 
     The transcript writes several snapshots per request with identical usage, so
     deduplication by `requestId` is mandatory — without it every figure inflates.
+    Pricing happens here for the same reason.
     """
     seen = set()
     totals = dict.fromkeys(NUMERIC_FIELDS, 0)
     models = set()
     service_tier = speed = None
+    cost = Cost()
+    unpriced = Counter()
 
     for entry in entries:
         if entry.get("type") != "assistant":
@@ -188,20 +337,10 @@ def aggregate(entries) -> Usage:
             continue
         seen.add(key)
 
-        creation = usage.get("cache_creation")
-        tools = usage.get("server_tool_use")
+        counts = _request_counts(usage)
         totals["requests"] += 1
-        totals["input_tokens"] += _int(usage, "input_tokens")
-        totals["output_tokens"] += _int(usage, "output_tokens")
-        totals["thinking_tokens"] += _int(
-            usage.get("output_tokens_details"), "thinking_tokens"
-        )
-        totals["cache_write"] += _int(usage, "cache_creation_input_tokens")
-        totals["ephemeral_1h"] += _int(creation, "ephemeral_1h_input_tokens")
-        totals["ephemeral_5m"] += _int(creation, "ephemeral_5m_input_tokens")
-        totals["cache_read"] += _int(usage, "cache_read_input_tokens")
-        totals["web_search"] += _int(tools, "web_search_requests")
-        totals["web_fetch"] += _int(tools, "web_fetch_requests")
+        for field, value in counts.items():
+            totals[field] += value
 
         model = message.get("model")
         if isinstance(model, str):
@@ -209,10 +348,21 @@ def aggregate(entries) -> Usage:
         service_tier = service_tier or usage.get("service_tier")
         speed = speed or usage.get("speed")
 
+        if model == SYNTHETIC or not any(counts.values()):
+            continue
+        priced = price_request(model, usage)
+        if priced is None:
+            name = normalise_model(model) if isinstance(model, str) else ""
+            unpriced[name or "unknown"] += 1
+        else:
+            cost += priced
+
     return Usage(
         models=tuple(sorted(models)),
         service_tier=service_tier,
         speed=speed,
+        cost=cost,
+        unpriced=_merge_tallies(unpriced),
         **totals,
     )
 
@@ -318,6 +468,7 @@ class RunContext:
     feature_version: int | None = None
     outcome: str = "completed"
     evals_included: bool = False
+    cwd: str | None = None
 
 
 # Total-column-only rows. Their keys are deliberately not Usage field names, so
@@ -385,6 +536,11 @@ def _duration(seconds) -> str:
 
 def _rate(value) -> str:
     return "—" if value is None else f"{value:.1f}"
+
+
+def _money(value: float, plus: bool = False) -> str:
+    """`$6.78`, or `$6.78+` when unpriced requests are left out of the figure."""
+    return f"${value:.2f}{'+' if plus else ''}"
 
 
 def _cells(metrics: RunMetrics, source: str) -> tuple:
@@ -459,11 +615,13 @@ def render_tracker_html(metrics: RunMetrics) -> tuple:
     The chip must never read `Updated <date>`: feature-list derives a feature's
     last-activity date by matching that shape in the tracker's chips.
     """
+    spent = metrics.total.cost.total
+    cost = f" · {_money(spent, bool(metrics.total.unpriced))}" if spent > 0 else ""
     chip = (
         '<span class="chip usage">'
         f"{_duration(metrics.timings.elapsed_seconds)} · "
         f"{metrics.total.output_tokens:,} out · "
-        f"{_rate(metrics.output_tokens_per_second)} tok/s</span>"
+        f"{_rate(metrics.output_tokens_per_second)} tok/s{cost}</span>"
     )
 
     halves = (_LEFT_GROUPS, _RIGHT_GROUPS)
@@ -527,6 +685,10 @@ def log_entry(metrics: RunMetrics, context: RunContext) -> dict:
                   "cache_write", "ephemeral_1h", "ephemeral_5m", "cache_read",
                   "web_search", "web_fetch"):
         entry[field] = _columns(metrics, field)
+    entry["cwd"] = context.cwd
+    entry["pricing_as_of"] = PRICING_AS_OF
+    entry["cost"] = metrics.total.cost.as_log()
+    entry["unpriced"] = dict(metrics.total.unpriced)
     return entry
 
 
@@ -760,6 +922,7 @@ def _run_report(args) -> None:
         feature_version=args.feature_version,
         outcome=args.outcome,
         evals_included=args.evals_included,
+        cwd=marker.get("cwd"),
     )
 
     print(render_markdown(metrics, context))

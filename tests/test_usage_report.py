@@ -7,6 +7,7 @@ schema change fails here rather than silently reporting zeros.
 
 import json
 import re
+from dataclasses import astuple, replace
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -30,7 +31,7 @@ def ts(minute, second):
     return f"2026-08-21T12:{minute:02d}:{second:02d}.000Z"
 
 
-def assistant(stamp, request_id, output_tokens=0, **usage):
+def assistant(stamp, request_id, output_tokens=0, model="claude-opus-5", **usage):
     """A minimal in-memory assistant entry, for cases no fixture pins."""
     block = {"input_tokens": 0, "output_tokens": output_tokens}
     block.update(usage)
@@ -38,8 +39,29 @@ def assistant(stamp, request_id, output_tokens=0, **usage):
         "type": "assistant",
         "requestId": request_id,
         "timestamp": stamp,
-        "message": {"model": "claude-opus-5", "usage": block},
+        "message": {"model": model, "usage": block},
     }
+
+
+def usage_block(input_tokens=0, write_5m=0, write_1h=0, read=0, output=0,
+                searches=0, fetches=0, **extra):
+    """One request's `message.usage`, in the transcript's own shape."""
+    block = {
+        "input_tokens": input_tokens,
+        "output_tokens": output,
+        "cache_creation_input_tokens": write_5m + write_1h,
+        "cache_creation": {
+            "ephemeral_5m_input_tokens": write_5m,
+            "ephemeral_1h_input_tokens": write_1h,
+        },
+        "cache_read_input_tokens": read,
+        "server_tool_use": {
+            "web_search_requests": searches,
+            "web_fetch_requests": fetches,
+        },
+    }
+    block.update(extra)
+    return block
 
 
 def user(stamp):
@@ -259,6 +281,155 @@ def test_the_fixture_window_is_the_one_the_tests_assume():
     assert END - START == timedelta(minutes=1)
 
 
+# --- Pricing ----------------------------------------------------------------
+
+MILLION = 1_000_000
+
+# Design §5 "The price table", transcribed row for row independently of the
+# module, so a mistyped rate fails here. Columns: input, cache write 5m, cache
+# write 1h, cache read, output — USD per million tokens.
+DESIGN_PRICE_ROWS = (
+    (("claude-fable-5-2", "claude-mythos-5-2"), (8, 10, 16, 0.20, 40)),
+    (("claude-fable-5-1", "claude-mythos-5-1"), (10, 12.50, 20, 0.25, 50)),
+    (("claude-fable-5", "claude-mythos-5"), (10, 12.50, 20, 1, 50)),
+    (("claude-opus-5-5",), (4, 5, 8, 0.20, 20)),
+    (("claude-opus-5", "claude-opus-4-8", "claude-opus-4-7", "claude-opus-4-6",
+      "claude-opus-4-5"), (5, 6.25, 10, 0.50, 25)),
+    (("claude-opus-4-1", "claude-opus-4"), (15, 18.75, 30, 1.50, 75)),
+    (("claude-sonnet-5-5",), (2, 2.50, 4, 0.10, 10)),
+    (("claude-sonnet-5",), (2, 2.50, 4, 0.20, 10)),
+    (("claude-sonnet-4-6", "claude-sonnet-4-5", "claude-sonnet-4"),
+     (3, 3.75, 6, 0.30, 15)),
+    (("claude-haiku-4-5",), (1, 1.25, 2, 0.10, 5)),
+)
+
+HAIKU_5_5_LOW = (0.10, 0.125, 0.20, 0.01, 0.50)
+HAIKU_5_5_HIGH = (0.50, 0.625, 1, 0.05, 2.50)
+
+DESIGN_FAST_PRICES = {
+    "claude-fable-5-2": (16, 80),
+    "claude-mythos-5-2": (16, 80),
+    "claude-opus-5-5": (8, 40),
+    "claude-opus-5": (10, 50),
+    "claude-opus-4-8": (10, 50),
+}
+
+
+class TestNormaliseModel:
+    @pytest.mark.parametrize("raw, normalised", [
+        ("claude-opus-4-5-20251101", "claude-opus-4-5"),
+        ("claude-sonnet-4-20250514", "claude-sonnet-4"),
+        ("claude-opus-5-5[1m]", "claude-opus-5-5"),
+        ("Claude-Fable-5-2", "claude-fable-5-2"),
+    ])
+    def test_normalises(self, raw, normalised):
+        assert ur.normalise_model(raw) == normalised
+
+
+class TestPriceTable:
+    def test_the_table_is_dated(self):
+        assert ur.PRICING_AS_OF == "2026-11-10"
+
+    def test_flat_rates_match_the_design_table(self):
+        expected = {
+            model: rates for models, rates in DESIGN_PRICE_ROWS for model in models
+        }
+        assert ur.PRICES == expected
+
+    def test_tiered_rates_match_the_design_table(self):
+        assert ur.TIERED_PRICES == {
+            "claude-haiku-5-5": (100_000, HAIKU_5_5_LOW, HAIKU_5_5_HIGH),
+        }
+
+    def test_fast_rates_match_the_design_table(self):
+        assert ur.FAST_PRICES == DESIGN_FAST_PRICES
+
+
+class TestPriceRequest:
+    def test_a_standard_request_prices_every_type_and_ignores_web_fetches(self):
+        block = usage_block(MILLION, MILLION, MILLION, MILLION, MILLION,
+                            searches=3, fetches=5)
+        cost = ur.price_request("claude-opus-5-5", block)
+        assert astuple(cost) == pytest.approx((4, 5, 8, 0.20, 20, 0.03))
+        assert cost.total == pytest.approx(37.23)
+
+    def test_a_suffixed_id_prices_as_its_model(self):
+        block = usage_block(output=MILLION)
+        assert ur.price_request("claude-opus-5-5[1m]", block) == \
+            ur.price_request("claude-opus-5-5", block)
+
+    @pytest.mark.parametrize("read, rates", [
+        (50_000, HAIKU_5_5_LOW),  # prompt 1 + 49,999 + 50,000 = 100,000
+        (50_001, HAIKU_5_5_HIGH),  # one token over
+    ])
+    def test_haiku_5_5_takes_the_high_tier_above_100k_prompt_tokens(self, read, rates):
+        counts = (1, 24_999, 25_000, read, 10)
+        block = usage_block(*counts)
+        expected = tuple(n * rate / MILLION for n, rate in zip(counts, rates)) + (0,)
+        assert astuple(ur.price_request("claude-haiku-5-5", block)) == \
+            pytest.approx(expected)
+
+    def test_fast_mode_uses_fast_rates_and_derives_the_cache_rates(self):
+        block = usage_block(MILLION, MILLION, MILLION, MILLION, MILLION, speed="fast")
+        cost = ur.price_request("claude-opus-5-5", block)
+        assert astuple(cost) == pytest.approx((8, 10, 16, 0.40, 40, 0))
+
+    def test_fast_mode_on_a_model_with_no_fast_price_is_unpriced(self):
+        block = usage_block(output=10, speed="fast")
+        assert ur.price_request("claude-sonnet-5-5", block) is None
+
+    @pytest.mark.parametrize("model", ["claude-unknown-9", None])
+    def test_an_unknown_or_missing_model_is_unpriced(self, model):
+        assert ur.price_request(model, usage_block(output=10)) is None
+
+    def test_a_cache_write_not_fully_split_by_lifetime_is_unpriced(self):
+        block = usage_block(write_5m=600, cache_creation_input_tokens=1000)
+        assert ur.price_request("claude-opus-5-5", block) is None
+
+
+class TestAggregatePricing:
+    def test_the_fixture_window_prices_every_type(self, metrics):
+        cost = metrics.total.cost
+        assert astuple(cost) == pytest.approx(
+            (0.000098, 0.003625, 0.03, 0.00681, 0.0102, 0.01)
+        )
+        assert cost.total == pytest.approx(0.060733)
+        assert metrics.total.unpriced == ()
+
+    def test_repeated_snapshots_of_one_request_are_priced_once(self):
+        snapshots = [
+            assistant(ts(0, s), "req_A", output_tokens=1000) for s in (5, 6, 7, 8)
+        ]
+        assert ur.aggregate(snapshots).cost.output == pytest.approx(1000 * 25 / MILLION)
+
+    def test_synthetic_and_zero_usage_requests_add_neither_cost_nor_unpriced(self):
+        entries = [
+            assistant(ts(0, 1), "req_S", output_tokens=10, model="<synthetic>"),
+            assistant(ts(0, 2), "req_Z", model="claude-unknown-9"),
+        ]
+        usage = ur.aggregate(entries)
+        assert usage.cost == ur.Cost()
+        assert usage.unpriced == ()
+
+    def test_unpriced_requests_are_tallied_by_normalised_model(self):
+        entries = [
+            assistant(ts(0, 1), "r1", output_tokens=10, model="claude-unknown-9-20260101"),
+            assistant(ts(0, 2), "r2", output_tokens=10, model="Claude-Unknown-9[1m]"),
+            assistant(ts(0, 3), "r3", output_tokens=10, model=None),
+            assistant(ts(0, 4), "r4", output_tokens=10),
+        ]
+        usage = ur.aggregate(entries)
+        assert usage.unpriced == (("claude-unknown-9", 2), ("unknown", 1))
+        assert usage.cost.output == pytest.approx(10 * 25 / MILLION)
+
+    def test_adding_two_columns_sums_cost_and_merges_the_tally(self):
+        left = ur.Usage(cost=ur.Cost(output=1.0), unpriced=(("m-a", 1), ("m-b", 2)))
+        right = ur.Usage(cost=ur.Cost(input=0.5), unpriced=(("m-b", 3),))
+        both = left + right
+        assert both.cost == ur.Cost(input=0.5, output=1.0)
+        assert both.unpriced == (("m-a", 1), ("m-b", 5))
+
+
 # --- Stage 2: rendering and the log entry ----------------------------------
 
 # Golden strings, compared whole. A substring check would silently tolerate a
@@ -279,7 +450,7 @@ EXPECTED_MARKDOWN = """### Run usage
 
 standard tier · standard speed · 2 subagents · outcome completed"""
 
-EXPECTED_CHIP = '<span class="chip usage">1m 00s · 440 out · 9.4 tok/s</span>'
+EXPECTED_CHIP = '<span class="chip usage">1m 00s · 440 out · 9.4 tok/s · $0.06</span>'
 
 # The HTML halves indent their sub-rows with the template's `tr.sub` padding,
 # not the markdown table's `↳` — the glyph exists only because chat has no CSS.
@@ -320,7 +491,7 @@ EXPECTED_LOG_FIELDS = [
     "output_tokens_per_second", "subagent_count", "service_tier", "speed",
     "models", "requests", "output_tokens", "thinking_tokens", "input_tokens",
     "cache_write", "ephemeral_1h", "ephemeral_5m", "cache_read", "web_search",
-    "web_fetch",
+    "web_fetch", "cwd", "pricing_as_of", "cost", "unpriced",
 ]
 
 
@@ -385,6 +556,19 @@ class TestRenderTrackerHtml:
         chip, _ = ur.render_tracker_html(metrics)
         assert re.search(r"Updated\s+\d", chip) is None
 
+    def test_an_unpriced_request_marks_the_cost(self, metrics):
+        total = replace(metrics.total, unpriced=(("claude-unknown-9", 1),))
+        chip, _ = ur.render_tracker_html(replace(metrics, total=total))
+        assert chip == EXPECTED_CHIP.replace("$0.06", "$0.06+")
+
+    @pytest.mark.parametrize("unpriced", [(), (("claude-unknown-9", 3),)])
+    def test_a_run_with_nothing_priced_shows_no_cost(self, unpriced):
+        empty = empty_metrics()
+        chip, _ = ur.render_tracker_html(
+            replace(empty, total=replace(empty.total, unpriced=unpriced))
+        )
+        assert "$" not in chip
+
     def test_table_matches_the_accepted_mockup(self, metrics):
         _, table = ur.render_tracker_html(metrics)
         assert table == EXPECTED_TRACKER_TABLE
@@ -439,14 +623,40 @@ class TestLogEntry:
     def test_evals_included_is_always_present(self, metrics):
         assert "evals_included" in ur.log_entry(metrics, context())
 
-    def test_the_serialised_entry_stays_under_2048_bytes(self):
+    def test_the_cost_fields_come_from_the_context_and_the_total_column(self, metrics):
+        entry = ur.log_entry(metrics, context(cwd="/Users/someone/Git/dev-skills"))
+        assert entry["cwd"] == "/Users/someone/Git/dev-skills"
+        assert entry["pricing_as_of"] == ur.PRICING_AS_OF
+        assert entry["unpriced"] == {}
+        assert list(entry["cost"]) == [
+            "input", "cache_write_5m", "cache_write_1h", "cache_read", "output",
+            "web_search", "total",
+        ]
+        assert entry["cost"]["total"] == pytest.approx(0.060733)
+
+    def test_logged_costs_are_rounded_to_six_decimals_and_sum_to_the_total(self):
+        total = ur.Usage(cost=ur.Cost(1 / 3, 1 / 7, 2 / 3, 1 / 9, 5 / 7, 0.03),
+                         unpriced=(("claude-unknown-9", 2),))
+        metrics = ur.RunMetrics(ur.Usage(), ur.Usage(), total, ur.Timings())
+        entry = ur.log_entry(metrics, context())
+        parts = [value for key, value in entry["cost"].items() if key != "total"]
+        assert all(value == round(value, 6) for value in parts)
+        assert entry["cost"]["total"] == round(sum(parts), 6)
+        assert entry["unpriced"] == {"claude-unknown-9": 2}
+
+    def test_the_serialised_entry_stays_under_4096_bytes(self):
         """Below PIPE_BUF a single O_APPEND write of one line is atomic."""
+        unpriced = tuple((f"claude-unpriced-model-{n}-5", 999_999_999) for n in range(4))
         fat = ur.Usage(**{f: 999_999_999 for f in ur.NUMERIC_FIELDS},
-                       models=("claude-opus-5", "claude-haiku-4-5"),
-                       service_tier="standard", speed="standard")
+                       models=("claude-opus-5", "claude-haiku-4-5")
+                       + tuple(f"{model}-20991231" for model, _ in unpriced),
+                       service_tier="standard", speed="standard",
+                       cost=ur.Cost(*(999_999.123456,) * 6), unpriced=unpriced)
         metrics = ur.RunMetrics(fat, fat, fat + fat, ur.Timings(999999, 999999, 999999), 99)
-        entry = ur.log_entry(metrics, context(slug="feature-implement"))
-        assert len(json.dumps(entry).encode()) < 2048
+        entry = ur.log_entry(
+            metrics, context(slug="feature-implement", cwd="/" + "x" * 1023)
+        )
+        assert len(json.dumps(entry).encode()) < 4096
 
 
 class TestNoConversationContentLeaks:
@@ -628,6 +838,15 @@ class TestMainReport:
         assert entry["repo_name"] == "dev-skills"
         assert entry["evals_included"] is False
         assert not marker.exists()
+
+    def test_the_log_line_carries_the_markers_cwd_and_the_runs_cost(self, cli, capsys):
+        config_dir, session_id = cli
+        seed_marker(config_dir, session_id)
+        ur.main(["report", "--slug", "feature-plan", "--feature-version", "1"])
+        capsys.readouterr()
+        entry = json.loads(runs_log(config_dir)[0])
+        assert entry["cwd"] == "/Users/someone/Git/dev-skills"
+        assert entry["cost"]["total"] == pytest.approx(0.060733)
 
     def test_halted_outcome_and_evals_included_reach_the_log(self, cli, capsys):
         config_dir, session_id = cli
