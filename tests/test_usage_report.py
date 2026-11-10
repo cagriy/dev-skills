@@ -1010,3 +1010,305 @@ class TestApplyTrackerAgainstTheShippedTemplate:
             "literal usage tokens left in the rendered body"
         )
 
+
+
+# --- Cycle: selection, legacy pricing, grouping, rendering ------------------
+
+# The fixture reproduces the accepted stage-columns mockup's figures; its
+# eighth line does not parse. Lines 6 and 7 are v6 and another directory.
+CYCLE_CWD = "/work/todo-app"
+CHAIN = ("feature-storm", "feature-design", "feature-plan", "feature-implement")
+
+
+def cycle_lines():
+    return list(ur.iter_entries(FIXTURES / "usage-cycle-runs.jsonl"))
+
+
+def cycle_selected():
+    return ur.select_cycle(cycle_lines(), 7, CYCLE_CWD)
+
+
+def cycle_stages(*extra, drop=()):
+    kept = [e for e in cycle_selected() if e["slug"] not in drop]
+    return ur.group_cycle(kept + list(extra))
+
+
+def column(n):
+    return {"main": n, "subagents": 0, "total": n}
+
+
+def legacy_line(models, requests=12, speed="standard", input_tokens=0, write_5m=0,
+                write_1h=0, read=0, output=0, searches=0, cache_write=None,
+                slug="feature-plan"):
+    """A log line written before costs were logged: no cost, unpriced or cwd."""
+    line = {
+        "repo_name": "todo-app", "slug": slug, "feature_version": 7,
+        "outcome": "completed", "evals_included": False, "elapsed_seconds": 60,
+        "speed": speed, "models": models,
+        "requests": column(requests),
+        "input_tokens": column(input_tokens),
+        "cache_write": column(write_5m + write_1h if cache_write is None else cache_write),
+        "ephemeral_5m": column(write_5m),
+        "ephemeral_1h": column(write_1h),
+        "cache_read": column(read),
+        "output_tokens": column(output),
+        "thinking_tokens": column(0),
+        "web_search": column(searches),
+    }
+    if speed is None:
+        del line["speed"]
+    return line
+
+
+def md_rows(markdown):
+    """Body rows of the first markdown table, as stripped cell lists."""
+    rows = [
+        [cell.strip() for cell in line.split("|")[1:-1]]
+        for line in markdown.splitlines() if line.startswith("|")
+    ]
+    return rows[2:]  # drop the header row and the alignment rule
+
+
+EXPECTED_CYCLE_MARKDOWN = """### Cycle usage: v7 add-reminders
+
+| metric | storm | design | plan | implement | total | cost |
+|---|---:|---:|---:|---:|---:|---:|
+| **tokens** | | | | | | |
+| input | 120 | 210 | 150 | 7,500 | 7,980 | $0.03 |
+| cache write 1h | 150,000 | 280,000 | 30,000 | 1,300,000 | 1,760,000 | $17.52 |
+| cache write 5m | 0 | 40,000 | 320,000 | 3,450,000 | 3,810,000 | $19.25 |
+| cache read | 2,300,000 | 12,700,000 | 13,500,000 | 96,200,000 | 124,700,000 | $24.94 |
+| output | 38,000 | 108,000 | 112,000 | 360,000 | 618,000 | $15.28 |
+| ↳ thinking | 17,900 | 50,150 | 51,260 | 50,900 | 170,210 | — |
+| web searches | 2 | 0 | 0 | 0 | 2 | $0.02 |
+| **cost** | $4.40 | $11.74 | $6.78 | $54.12 | | **$77.04** |
+| **run** | | | | | | |
+| model | fable-5-2 | fable-5-2 | opus-5-5 | opus-5-5 | | |
+| runs | 1 | 2 | 1 | 1 | 5 | |
+| elapsed | 24m 10s | 1h 06m 12s | 16m 53s | 2h 41m 30s | 4h 28m 45s | |
+
+API list prices as of 2026-11-10, not subscription billing · 1 halted run included (design) · evals included (implement)"""
+
+EXPECTED_CYCLE_HTML = """<p class="section-timestamp">4 of 4 stages · 5 runs</p>
+<span class="chip usage">$77.04 · 4h 28m 45s · 618,000 out</span>
+<article class="panel-section">
+<h2 class="section-label">Cycle usage</h2>
+<div class="usage-scroll"><table class="usage">
+<thead><tr><th>Metric</th><th>Storm</th><th>Design</th><th>Plan</th><th>Implement</th><th>Total</th><th>Cost</th></tr></thead>
+<tbody>
+<tr class="grp"><td colspan="7">Tokens</td></tr>
+<tr><td>input</td><td>120</td><td>210</td><td>150</td><td>7,500</td><td>7,980</td><td>$0.03</td></tr>
+<tr><td>cache write 1h</td><td>150,000</td><td>280,000</td><td>30,000</td><td>1,300,000</td><td>1,760,000</td><td>$17.52</td></tr>
+<tr><td>cache write 5m</td><td>0</td><td>40,000</td><td>320,000</td><td>3,450,000</td><td>3,810,000</td><td>$19.25</td></tr>
+<tr><td>cache read</td><td>2,300,000</td><td>12,700,000</td><td>13,500,000</td><td>96,200,000</td><td>124,700,000</td><td>$24.94</td></tr>
+<tr><td>output</td><td>38,000</td><td>108,000</td><td>112,000</td><td>360,000</td><td>618,000</td><td>$15.28</td></tr>
+<tr class="sub"><td>thinking</td><td>17,900</td><td>50,150</td><td>51,260</td><td>50,900</td><td>170,210</td><td>—</td></tr>
+<tr><td>web searches</td><td>2</td><td>0</td><td>0</td><td>0</td><td>2</td><td>$0.02</td></tr>
+<tr class="tp"><td>cost</td><td>$4.40</td><td>$11.74</td><td>$6.78</td><td>$54.12</td><td></td><td>$77.04</td></tr>
+<tr class="grp"><td colspan="7">Run</td></tr>
+<tr><td>model</td><td>fable-5-2</td><td>fable-5-2</td><td>opus-5-5</td><td>opus-5-5</td><td></td><td></td></tr>
+<tr><td>runs</td><td>1</td><td>2</td><td>1</td><td>1</td><td>5</td><td></td></tr>
+<tr><td>elapsed</td><td>24m 10s</td><td>1h 06m 12s</td><td>16m 53s</td><td>2h 41m 30s</td><td>4h 28m 45s</td><td></td></tr>
+</tbody>
+</table></div>
+<p class="usage-note">API list prices as of 2026-11-10, not subscription billing · 1 halted run included (design) · evals included (implement)</p>
+</article>"""
+
+
+class TestSelectCycle:
+    def test_selects_every_run_of_the_version_in_this_directory_whatever_its_outcome(self):
+        assert len(cycle_lines()) == 7  # the eighth line does not parse
+        assert [(e["slug"], e["outcome"]) for e in cycle_selected()] == [
+            ("feature-storm", "completed"),
+            ("feature-design", "halted"),
+            ("feature-design", "completed"),
+            ("feature-plan", "completed"),
+            ("feature-implement", "completed"),
+        ]
+
+    def test_other_versions_and_other_directories_are_excluded(self):
+        selected = cycle_selected()
+        assert all(e["feature_version"] == 7 for e in selected)
+        assert all(e["cwd"] == CYCLE_CWD for e in selected)
+
+    def test_directories_compare_as_real_paths(self):
+        assert ur.select_cycle(cycle_lines(), 7, "/work/elsewhere/../todo-app/") == \
+            cycle_selected()
+
+    @pytest.mark.parametrize("repo_name, selected", [("todo-app", True), ("other-app", False)])
+    def test_a_line_without_cwd_falls_back_to_the_repo_name(self, repo_name, selected):
+        line = legacy_line(["claude-opus-5-5"])
+        line["repo_name"] = repo_name
+        assert ur.select_cycle([line], 7, CYCLE_CWD) == ([line] if selected else [])
+
+    def test_a_line_without_a_feature_version_never_joins_a_cycle(self):
+        line = dict(cycle_lines()[0], feature_version=None)
+        assert ur.select_cycle([line], 7, CYCLE_CWD) == []
+        assert ur.select_cycle([line], None, CYCLE_CWD) == []
+
+
+class TestEntryCost:
+    def test_a_logged_cost_is_returned_as_logged(self):
+        cost, unpriced = ur.entry_cost(cycle_lines()[0])
+        assert cost == ur.Cost(input=0.00096, cache_write_1h=2.4, cache_read=0.46,
+                               output=1.52, web_search=0.02)
+        assert unpriced == ()
+
+    def test_a_logged_unpriced_tally_is_returned_as_logged(self):
+        line = dict(cycle_lines()[0], unpriced={"claude-unknown-9": 3, "claude-x": 1})
+        assert ur.entry_cost(line)[1] == (("claude-unknown-9", 3), ("claude-x", 1))
+
+    @pytest.mark.parametrize("models", [
+        ["claude-opus-5-5"], ["<synthetic>", "claude-opus-5-5-20261001"],
+    ])
+    @pytest.mark.parametrize("speed", ["standard", None])
+    def test_a_legacy_line_with_one_flat_rate_model_is_priced_from_its_totals(
+        self, models, speed
+    ):
+        line = legacy_line(models, speed=speed, input_tokens=MILLION, write_5m=MILLION,
+                           write_1h=MILLION, read=MILLION, output=MILLION, searches=3)
+        cost, unpriced = ur.entry_cost(line)
+        assert astuple(cost) == pytest.approx((4, 5, 8, 0.20, 20, 0.03))
+        assert unpriced == ()
+
+    @pytest.mark.parametrize("line, key", [
+        (legacy_line(["claude-fable-5-2", "<synthetic>", "claude-haiku-5-5"], output=10),
+         "claude-fable-5-2, claude-haiku-5-5"),
+        (legacy_line(["claude-haiku-5-5"], output=10), "claude-haiku-5-5"),
+        (legacy_line(["claude-opus-5-5"], speed="fast", output=10), "claude-opus-5-5"),
+        (legacy_line(["claude-opus-5-5"], write_5m=500, write_1h=400, cache_write=1000),
+         "claude-opus-5-5"),
+        (legacy_line(["claude-unknown-9"], output=10), "claude-unknown-9"),
+    ], ids=["two-models", "tiered", "fast", "unattributed-write", "unknown"])
+    def test_a_legacy_line_that_cannot_be_priced_exactly_is_unpriced(self, line, key):
+        cost, unpriced = ur.entry_cost(line)
+        assert cost == ur.Cost()
+        assert unpriced == ((key, 12),)
+
+
+class TestGroupCycle:
+    def test_runs_halts_and_evals_per_stage(self):
+        stages = cycle_stages()
+        assert list(stages) == list(CHAIN)
+        assert [stages[s].runs for s in CHAIN] == [1, 2, 1, 1]
+        assert [stages[s].halted for s in CHAIN] == [0, 1, 0, 0]
+        assert [stages[s].evals_included for s in CHAIN] == [False, False, False, True]
+
+    def test_tokens_cost_and_time_sum_per_stage(self):
+        design = cycle_stages()["feature-design"]
+        assert design.usage.input_tokens == 210
+        assert design.usage.ephemeral_1h == 280_000
+        assert design.usage.ephemeral_5m == 40_000
+        assert design.usage.cache_read == 12_700_000
+        assert design.usage.output_tokens == 108_000
+        assert design.usage.thinking_tokens == 50_150
+        assert design.elapsed_seconds == 3972
+        assert design.usage.cost.total == pytest.approx(11.74168)
+        assert design.usage.cost.cache_write_1h == pytest.approx(4.48)
+
+    def test_models_union_without_synthetic(self):
+        stages = cycle_stages()
+        assert stages["feature-design"].usage.models == ("claude-fable-5-2",)
+        assert stages["feature-implement"].usage.models == ("claude-opus-5-5",)
+
+    def test_unpriced_tallies_union_with_counts_summed(self):
+        first = dict(cycle_lines()[0], unpriced={"claude-unknown-9": 2})
+        second = dict(cycle_lines()[0], unpriced={"claude-unknown-9": 3, "claude-x": 1})
+        storm = ur.group_cycle([first, second])["feature-storm"]
+        assert storm.usage.unpriced == (("claude-unknown-9", 5), ("claude-x", 1))
+
+    def test_a_stage_with_no_run_and_a_line_from_outside_the_chain(self):
+        stages = cycle_stages(dict(cycle_lines()[0], slug="bug-fix"),
+                              drop=("feature-implement",))
+        assert stages["feature-implement"].runs == 0
+        assert sum(stage.runs for stage in stages.values()) == 4
+
+
+class TestRenderCycleMarkdown:
+    def test_matches_the_accepted_mockup(self):
+        rendered = ur.render_cycle_markdown(cycle_stages(), 7, "add-reminders")
+        assert rendered == EXPECTED_CYCLE_MARKDOWN
+
+    def test_a_stage_with_no_run_shows_a_dash_in_every_cell(self):
+        rendered = ur.render_cycle_markdown(cycle_stages(drop=("feature-implement",)), 7)
+        for row in md_rows(rendered):
+            group = row[0] in ("**tokens**", "**run**")
+            assert row[4] == ("" if group else "—"), row
+        assert "evals included" not in rendered
+        runs = next(row for row in md_rows(rendered) if row[0] == "runs")
+        assert runs[5] == "4"
+
+    @pytest.mark.parametrize("requests, clause", [
+        (3, "3 requests unpriced"), (1, "1 request unpriced"),
+    ])
+    def test_unpriced_requests_mark_every_cost_they_touch(self, requests, clause):
+        mixed = legacy_line(["claude-fable-5-2", "claude-haiku-5-5"], requests=requests,
+                            output=1000)
+        rendered = ur.render_cycle_markdown(cycle_stages(mixed), 7)
+        rows = {row[0]: row for row in md_rows(rendered)}
+        assert [rows["**cost**"][i] for i in range(1, 5)] == [
+            "$4.40", "$11.74", "$6.78+", "$54.12"
+        ]
+        assert rows["**cost**"][6] == "**$77.04+**"
+        for label in ("input", "cache write 1h", "cache write 5m", "cache read",
+                      "output", "web searches"):
+            assert rows[label][6].endswith("+"), label
+        assert rows["↳ thinking"][6] == "—"
+        assert rows["model"][3] == "fable-5-2 + haiku-5-5 + opus-5-5"
+        assert rendered.endswith(f" · fable-5-2, haiku-5-5: {clause}")
+
+    def test_without_a_description_the_heading_is_the_version(self):
+        rendered = ur.render_cycle_markdown(cycle_stages(), 7)
+        assert rendered.splitlines()[0] == "### Cycle usage: v7"
+
+    def test_no_html_entity_reaches_chat(self):
+        assert "&" not in ur.render_cycle_markdown(cycle_stages(), 7, "add-reminders")
+
+
+class TestRenderCycleHtml:
+    def test_matches_the_accepted_mockup(self):
+        assert ur.render_cycle_html(cycle_stages()) == EXPECTED_CYCLE_HTML
+
+    def test_one_run_reads_in_the_singular(self):
+        storm_only = ur.group_cycle(cycle_selected()[:1])
+        assert ur.render_cycle_html(storm_only).startswith(
+            '<p class="section-timestamp">1 of 4 stages · 1 run</p>'
+        )
+
+    def test_neither_chip_is_mistakable_for_a_timestamp_chip(self):
+        """feature-list derives last_activity from `Updated <date>` chips."""
+        chips = ur.render_cycle_html(cycle_stages()).splitlines()[:2]
+        assert all(re.search(r"Updated\s+\d", chip) is None for chip in chips)
+
+    def test_a_cycle_with_nothing_priced_shows_no_cost_in_the_chip(self):
+        unpriced = ur.group_cycle([legacy_line(["claude-unknown-9"], output=10)])
+        chip = ur.render_cycle_html(unpriced).splitlines()[1]
+        assert chip == '<span class="chip usage">1m 00s · 10 out</span>'
+
+    def test_model_ids_are_escaped(self):
+        odd = legacy_line(["claude-<b>"], output=10)
+        rendered = ur.render_cycle_html(ur.group_cycle([odd]))
+        assert "<b>" not in rendered
+        assert "&lt;b&gt;" in rendered
+
+    def test_chat_and_tracker_list_the_same_rows_in_the_same_order(self):
+        stages = cycle_stages()
+        chat = [
+            row[0].strip("*").removeprefix(ur._SUB.strip()).strip()
+            for row in md_rows(ur.render_cycle_markdown(stages, 7))
+        ]
+        tracker = [
+            label.lower() for label in re.findall(
+                r"<tr[^>]*><td(?: colspan=\"7\")?>([^<]+)</td>",
+                ur.render_cycle_html(stages),
+            )
+        ]
+        assert chat == tracker
+        assert len(chat) == 13
+
+
+class TestCycleLeaksNothing:
+    def test_a_field_the_cycle_does_not_read_never_reaches_either_rendering(self):
+        stages = cycle_stages(dict(cycle_lines()[3], note=SECRET))
+        assert SECRET not in ur.render_cycle_markdown(stages, 7)
+        assert SECRET not in ur.render_cycle_html(stages)

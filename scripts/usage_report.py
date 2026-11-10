@@ -23,6 +23,7 @@ from collections import Counter
 from dataclasses import astuple, dataclass, fields
 from itertools import zip_longest
 from datetime import datetime, timezone
+from html import escape
 from pathlib import Path
 
 # `slug` reaches a filename, so it is validated before any path is built with
@@ -208,6 +209,13 @@ def _int(mapping, key) -> int:
     return value if isinstance(value, int) and not isinstance(value, bool) else 0
 
 
+def _number(mapping, key) -> float:
+    value = mapping.get(key)
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return 0.0
+    return float(value)
+
+
 def resolve_transcript(session_id: str, config_dir):
     """The main transcript for a session, or None.
 
@@ -282,8 +290,14 @@ def price_request(model, usage: dict) -> Cost | None:
     """
     if not isinstance(model, str):
         return None
-    name = normalise_model(model)
-    counts = _request_counts(usage)
+    return _price(
+        normalise_model(model), _request_counts(usage), usage.get("speed") == "fast"
+    )
+
+
+def _price(name: str, counts: dict, fast: bool) -> Cost | None:
+    """`price_request` over counts keyed like `NUMERIC_FIELDS`, so a log line's
+    totals price through the same rules as one request."""
     if counts["ephemeral_5m"] + counts["ephemeral_1h"] != counts["cache_write"]:
         return None
 
@@ -296,7 +310,7 @@ def price_request(model, usage: dict) -> Cost | None:
     else:
         return None
 
-    if usage.get("speed") == "fast":
+    if fast:
         if name not in FAST_PRICES:
             return None
         fast_input, fast_output = FAST_PRICES[name]
@@ -543,6 +557,14 @@ def _money(value: float, plus: bool = False) -> str:
     return f"${value:.2f}{'+' if plus else ''}"
 
 
+def _spent(usage: Usage) -> str:
+    return _money(usage.cost.total, bool(usage.unpriced))
+
+
+def _plural(count: int, noun: str) -> str:
+    return f"{count:,} {noun}{'' if count == 1 else 's'}"
+
+
 def _cells(metrics: RunMetrics, source: str) -> tuple:
     """The three column cells for one row, already formatted."""
     if source in _TOTAL_ONLY:
@@ -553,11 +575,11 @@ def _cells(metrics: RunMetrics, source: str) -> tuple:
 
 @dataclass(frozen=True)
 class _Row:
-    """One rendered row of one column half."""
+    """One rendered table row: a stage table half's, or the cycle table's."""
 
     label: str
-    cells: tuple  # ("", "", "") for a group heading
-    kind: str  # "group" | "sub" | "rate" | ""
+    cells: tuple  # all "" for a group heading
+    kind: str  # "group" | "sub" | "rate" | "cost" | ""
 
 
 def _half(metrics: RunMetrics, groups) -> list:
@@ -572,11 +594,19 @@ def _half(metrics: RunMetrics, groups) -> list:
 
 
 def _md_cells(row: _Row) -> tuple:
-    """One half's four markdown cells: the metric name and its figures."""
+    """A row's markdown cells: the metric name and its figures."""
     if row.kind == "group":
         return (f"**{row.label}**",) + row.cells
+    if row.kind == "cost":
+        return (f"**{row.label}**",) + row.cells[:-1] + (f"**{row.cells[-1]}**",)
     label = f"{_SUB}{row.label}" if row.kind == "sub" else row.label
     return (label,) + row.cells
+
+
+def _md_row(cells) -> str:
+    # An empty cell renders as `| |` rather than `|  |`, so a group
+    # heading's row reads the same as it did when it spanned the table.
+    return "|" + "".join(f" {cell} |" if cell else " |" for cell in cells)
 
 
 def render_markdown(metrics: RunMetrics, footer: RunContext) -> str:
@@ -590,12 +620,9 @@ def render_markdown(metrics: RunMetrics, footer: RunContext) -> str:
     ]
     halves = (_half(metrics, _LEFT_GROUPS), _half(metrics, _RIGHT_GROUPS))
     for left, right in zip_longest(*halves):
-        cells = (_md_cells(left) if left else _BLANK) + (
-            _md_cells(right) if right else _BLANK
-        )
-        # An empty cell renders as `| |` rather than `|  |`, so a group
-        # heading's row reads the same as it did when it spanned the table.
-        lines.append("|" + "".join(f" {cell} |" if cell else " |" for cell in cells))
+        lines.append(_md_row(
+            (_md_cells(left) if left else _BLANK) + (_md_cells(right) if right else _BLANK)
+        ))
     lines += ["", _footer_line(metrics, footer)]
     return "\n".join(lines)
 
@@ -615,8 +642,7 @@ def render_tracker_html(metrics: RunMetrics) -> tuple:
     The chip must never read `Updated <date>`: feature-list derives a feature's
     last-activity date by matching that shape in the tracker's chips.
     """
-    spent = metrics.total.cost.total
-    cost = f" · {_money(spent, bool(metrics.total.unpriced))}" if spent > 0 else ""
+    cost = f" · {_spent(metrics.total)}" if metrics.total.cost.total > 0 else ""
     chip = (
         '<span class="chip usage">'
         f"{_duration(metrics.timings.elapsed_seconds)} · "
@@ -631,23 +657,29 @@ def render_tracker_html(metrics: RunMetrics) -> tuple:
 
 def _tracker_table(metrics: RunMetrics, groups) -> str:
     """One half, as a table. The pair sits side by side in `.usage-pair`."""
-    rows = [
+    return _html_table(("Metric", "Main", "Subagents", "Total"), _half(metrics, groups))
+
+
+def _html_table(headers, rows) -> str:
+    """A `table.usage` of rendered rows, shared by the stage and cycle tables."""
+    lines = [
         '<table class="usage">',
-        "<thead><tr><th>Metric</th><th>Main</th><th>Subagents</th>"
-        "<th>Total</th></tr></thead>",
+        "<thead><tr>" + "".join(f"<th>{header}</th>" for header in headers)
+        + "</tr></thead>",
         "<tbody>",
     ]
-    for row in _half(metrics, groups):
+    for row in rows:
         if row.kind == "group":
-            rows.append(
-                f'<tr class="grp"><td colspan="4">{row.label.capitalize()}</td></tr>'
+            lines.append(
+                f'<tr class="grp"><td colspan="{len(headers)}">'
+                f"{escape(row.label.capitalize())}</td></tr>"
             )
             continue
         css = f' class="{"sub" if row.kind == "sub" else "tp"}"' if row.kind else ""
-        cells = "".join(f"<td>{cell}</td>" for cell in row.cells)
-        rows.append(f"<tr{css}><td>{row.label}</td>{cells}</tr>")
-    rows += ["</tbody>", "</table>"]
-    return "\n".join(rows)
+        cells = "".join(f"<td>{escape(cell)}</td>" for cell in row.cells)
+        lines.append(f"<tr{css}><td>{escape(row.label)}</td>{cells}</tr>")
+    lines += ["</tbody>", "</table>"]
+    return "\n".join(lines)
 
 
 def _columns(metrics: RunMetrics, field: str) -> dict:
@@ -701,6 +733,236 @@ TRACKER_TOKENS = {
     "feature-plan": ("{{PLAN_USAGE_CHIP}}", "{{PLAN_USAGE}}"),
     "feature-implement": ("{{IMPLEMENTATION_USAGE_CHIP}}", "{{IMPLEMENTATION_USAGE}}"),
 }
+
+
+@dataclass(frozen=True)
+class StageTotals:
+    """One chain stage's logged runs summed; also the cycle's total column."""
+
+    usage: Usage = Usage()
+    runs: int = 0
+    halted: int = 0
+    elapsed_seconds: int = 0
+    evals_included: bool = False
+
+    def __add__(self, other: "StageTotals") -> "StageTotals":
+        return StageTotals(
+            usage=self.usage + other.usage,
+            runs=self.runs + other.runs,
+            halted=self.halted + other.halted,
+            elapsed_seconds=self.elapsed_seconds + other.elapsed_seconds,
+            evals_included=self.evals_included or other.evals_included,
+        )
+
+
+def select_cycle(entries, version, cwd) -> list:
+    """Every log line of one feature version run in this directory, any outcome.
+
+    Directories compare as real paths, so `/var` and `/private/var` or a
+    symlinked checkout still match. A line logged before `cwd` was recorded
+    falls back to the directory's name.
+    """
+    here = os.path.realpath(cwd)
+    name = os.path.basename(here)
+    chosen = []
+    for entry in entries:
+        if version is None or entry.get("feature_version") != version:
+            continue
+        logged = entry.get("cwd")
+        if isinstance(logged, str) and logged:
+            if os.path.realpath(logged) != here:
+                continue
+        elif entry.get("repo_name") != name:
+            continue
+        chosen.append(entry)
+    return chosen
+
+
+def _line_totals(entry) -> dict:
+    """A log line's `total` column for each of `NUMERIC_FIELDS`."""
+    return {field: _int(entry.get(field), "total") for field in NUMERIC_FIELDS}
+
+
+def _line_models(entry) -> tuple:
+    """A log line's models, normalised, less the harness's placeholder."""
+    models = entry.get("models")
+    names = {normalise_model(m) for m in models if isinstance(m, str)} \
+        if isinstance(models, list) else set()
+    names.discard(SYNTHETIC)
+    return tuple(sorted(names))
+
+
+def entry_cost(entry) -> tuple:
+    """(Cost, unpriced tally) for one log line.
+
+    A line written before costs were logged is priced from its totals only when
+    that is exact: one flat-rate model at standard speed, with every cache-write
+    token attributed to a lifetime. The Haiku 5.5 tier is decided per request,
+    which totals cannot recover. Anything else counts its requests as unpriced
+    under its models joined by `, ` (design §3 R25).
+    """
+    logged = entry.get("cost")
+    if isinstance(logged, dict):
+        tally = entry.get("unpriced")
+        counts = {m: _int(tally, m) for m in tally} if isinstance(tally, dict) else {}
+        return (
+            Cost(*(_number(logged, part.name) for part in fields(Cost))),
+            _merge_tallies({m: n for m, n in counts.items() if n}),
+        )
+
+    models, totals = _line_models(entry), _line_totals(entry)
+    if len(models) == 1 and models[0] in PRICES and entry.get("speed") in (None, "standard"):
+        priced = _price(models[0], totals, fast=False)
+        if priced is not None:
+            return priced, ()
+    if not totals["requests"]:
+        return Cost(), ()
+    return Cost(), ((", ".join(models) or "unknown", totals["requests"]),)
+
+
+def group_cycle(entries) -> dict:
+    """The cycle's lines summed per chain stage, keyed in chain order."""
+    stages = dict.fromkeys(TRACKER_TOKENS, StageTotals())
+    for entry in entries:
+        slug = entry.get("slug")
+        if slug not in stages:
+            continue
+        cost, unpriced = entry_cost(entry)
+        stages[slug] += StageTotals(
+            usage=Usage(models=_line_models(entry), cost=cost, unpriced=unpriced,
+                        **_line_totals(entry)),
+            runs=1,
+            halted=int(entry.get("outcome") == "halted"),
+            elapsed_seconds=_int(entry, "elapsed_seconds"),
+            evals_included=entry.get("evals_included") is True,
+        )
+    return stages
+
+
+# The accepted stage-columns layout (design §5 The cycle report), walked by
+# both cycle renderers so chat and tracker cannot drift apart. A token row's
+# source is (Usage field, Cost part); thinking has no part, its cost being
+# inside output's.
+_CYCLE_ROWS = (
+    ("tokens", "group", None),
+    ("input", "", ("input_tokens", "input")),
+    ("cache write 1h", "", ("ephemeral_1h", "cache_write_1h")),
+    ("cache write 5m", "", ("ephemeral_5m", "cache_write_5m")),
+    ("cache read", "", ("cache_read", "cache_read")),
+    ("output", "", ("output_tokens", "output")),
+    ("thinking", "sub", ("thinking_tokens", None)),
+    ("web searches", "", ("web_search", "web_search")),
+    ("cost", "cost", "cost"),
+    ("run", "group", None),
+    ("model", "", "model"),
+    ("runs", "", "runs"),
+    ("elapsed", "", "elapsed"),
+)
+
+# Rows whose total column stays empty: the stage costs' total is the cost
+# column's to show, and models do not sum.
+_STAGE_ONLY = ("cost", "model")
+
+
+def _stage_name(slug: str) -> str:
+    return slug.removeprefix("feature-")
+
+
+def _short_model(model: str) -> str:
+    return model.removeprefix("claude-")
+
+
+def _cycle_figure(source, stage: StageTotals) -> str:
+    """One stage cell, or a total-column cell, for a row source."""
+    if isinstance(source, tuple):
+        return f"{getattr(stage.usage, source[0]):,}"
+    if source == "cost":
+        return _spent(stage.usage)
+    if source == "model":
+        return " + ".join(map(_short_model, stage.usage.models))
+    if source == "runs":
+        return f"{stage.runs:,}"
+    return _duration(stage.elapsed_seconds)
+
+
+def _cycle_cost(source, total: StageTotals) -> str:
+    """The cost column: each token type across the cycle, then the cycle."""
+    if source == "cost":
+        return _spent(total.usage)
+    if not isinstance(source, tuple):
+        return ""
+    if source[1] is None:
+        return "—"
+    return _money(getattr(total.usage.cost, source[1]), bool(total.usage.unpriced))
+
+
+def _cycle_rows(stages: dict, total: StageTotals) -> list:
+    rows = []
+    for label, kind, source in _CYCLE_ROWS:
+        if kind == "group":
+            rows.append(_Row(label, ("",) * (len(stages) + 2), kind))
+            continue
+        cells = [_cycle_figure(source, stage) if stage.runs else "—"
+                 for stage in stages.values()]
+        cells.append("" if source in _STAGE_ONLY else _cycle_figure(source, total))
+        cells.append(_cycle_cost(source, total))
+        rows.append(_Row(label, tuple(cells), kind))
+    return rows
+
+
+def _cycle_footnote(stages: dict, total: StageTotals) -> str:
+    clauses = [f"API list prices as of {PRICING_AS_OF}, not subscription billing"]
+    halted = [_stage_name(slug) for slug, stage in stages.items() if stage.halted]
+    if halted:
+        clauses.append(
+            f"{_plural(total.halted, 'halted run')} included ({', '.join(halted)})"
+        )
+    evals = [_stage_name(slug) for slug, stage in stages.items() if stage.evals_included]
+    if evals:
+        clauses.append(f"evals included ({', '.join(evals)})")
+    for models, count in total.usage.unpriced:
+        names = ", ".join(map(_short_model, models.split(", ")))
+        clauses.append(f"{names}: {_plural(count, 'request')} unpriced")
+    return " · ".join(clauses)
+
+
+def render_cycle_markdown(stages: dict, version, description=None) -> str:
+    """The cycle report as chat prints it (design §5 The cycle report)."""
+    total = sum(stages.values(), StageTotals())
+    heading = f"### Cycle usage: v{version}" + (f" {description}" if description else "")
+    lines = [
+        heading,
+        "",
+        _md_row(("metric", *map(_stage_name, stages), "total", "cost")),
+        "|---|" + "---:|" * (len(stages) + 2),
+    ]
+    lines += [_md_row(_md_cells(row)) for row in _cycle_rows(stages, total)]
+    lines += ["", _cycle_footnote(stages, total)]
+    return "\n".join(lines)
+
+
+def render_cycle_html(stages: dict) -> str:
+    """The tracker's Usage tab: two chips, the table and its footnote.
+
+    Neither chip may read `Updated <date>`, for the reason `render_tracker_html`
+    gives.
+    """
+    total = sum(stages.values(), StageTotals())
+    ran = sum(1 for stage in stages.values() if stage.runs)
+    cost = f"{_spent(total.usage)} · " if total.usage.cost.total > 0 else ""
+    headers = ("Metric", *(_stage_name(slug).capitalize() for slug in stages),
+               "Total", "Cost")
+    return "\n".join([
+        f'<p class="section-timestamp">{ran} of {len(stages)} stages · '
+        f'{_plural(total.runs, "run")}</p>',
+        f'<span class="chip usage">{cost}{_duration(total.elapsed_seconds)} · '
+        f"{total.usage.output_tokens:,} out</span>",
+        '<article class="panel-section">',
+        '<h2 class="section-label">Cycle usage</h2>',
+        f'<div class="usage-scroll">{_html_table(headers, _cycle_rows(stages, total))}</div>',
+        f'<p class="usage-note">{escape(_cycle_footnote(stages, total))}</p>',
+        "</article>",
+    ])
 
 
 def _now():
