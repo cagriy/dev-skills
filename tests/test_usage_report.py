@@ -681,6 +681,19 @@ def tracker(tmp_path):
     return path
 
 
+USAGE_SECTION = '\n<section class="panel" id="panel-usage">{{CYCLE_USAGE}}</section>\n'
+
+
+@pytest.fixture
+def legacy_tracker(tmp_path):
+    """A tracker seeded before the Usage tab existed."""
+    text = (FIXTURES / "usage-tracker-min.html").read_text()
+    assert USAGE_SECTION in text
+    path = tmp_path / "feature-v1-legacy-tracker.html"
+    path.write_text(text.replace(USAGE_SECTION, ""))
+    return path
+
+
 @pytest.fixture
 def cli(session, monkeypatch):
     """The environment `main` reads: config dir, session id and a fixed clock."""
@@ -696,10 +709,11 @@ def runs_log(config_dir):
     return path.read_text().splitlines() if path.exists() else []
 
 
-def seed_marker(config_dir, session_id, slug="feature-plan"):
+def seed_marker(config_dir, session_id, slug="feature-plan",
+                cwd="/Users/someone/Git/dev-skills"):
     return ur.write_start(
         slug, session_id, STARTED, config_dir / "dev-skills" / "usage" / "state",
-        cwd="/Users/someone/Git/dev-skills",
+        cwd=str(cwd),
     )
 
 
@@ -798,6 +812,42 @@ class TestApplyTracker:
         assert ur.apply_tracker(tracker, "bug-fix", "c", "t") is False
         assert tracker.read_text() == before
 
+    @pytest.mark.parametrize("slug", list(ur.TRACKER_TOKENS))
+    def test_blanks_the_cycle_token_while_literal(self, tracker, slug):
+        ur.apply_tracker(tracker, slug, "<span>CHIP</span>", "<table>T</table>")
+        text = tracker.read_text()
+        assert "{{CYCLE_USAGE}}" not in text
+        assert "<!-- usage:CYCLE_USAGE --><!-- /usage:CYCLE_USAGE -->" in text
+
+
+class TestApplyCycle:
+    def test_fills_the_usage_tab(self, tracker):
+        assert ur.apply_cycle(tracker, "<p>CYCLE</p>") is True
+        text = tracker.read_text()
+        assert "{{CYCLE_USAGE}}" not in text
+        assert "<!-- usage:CYCLE_USAGE --><p>CYCLE</p><!-- /usage:CYCLE_USAGE -->" in text
+
+    def test_fills_the_region_a_stage_report_left_empty(self, tracker):
+        ur.apply_tracker(tracker, "feature-storm", "<span>S</span>", "<table>S</table>")
+        assert ur.apply_cycle(tracker, "<p>CYCLE</p>") is True
+        assert "<p>CYCLE</p>" in tracker.read_text()
+
+    def test_a_second_call_replaces_the_first(self, tracker):
+        ur.apply_cycle(tracker, "<p>OLD</p>")
+        ur.apply_cycle(tracker, "<p>NEW</p>")
+        text = tracker.read_text()
+        assert "OLD" not in text
+        assert text.count("<p>NEW</p>") == 1
+
+    def test_a_tracker_without_the_tab_is_left_byte_for_byte(self, legacy_tracker):
+        before = legacy_tracker.read_bytes()
+        assert ur.apply_cycle(legacy_tracker, "<p>CYCLE</p>") is False
+        assert legacy_tracker.read_bytes() == before
+
+    def test_a_missing_tracker_is_a_silent_no_op(self, tmp_path, capsys):
+        assert ur.apply_cycle(tmp_path / "absent.html", "<p>CYCLE</p>") is False
+        assert capsys.readouterr().out == ""
+
 
 class TestMainStart:
     def test_start_writes_a_marker(self, cli, capsys):
@@ -881,6 +931,48 @@ class TestMainReport:
         assert SECRET not in capsys.readouterr().out
         assert SECRET not in "".join(runs_log(config_dir))
 
+    def test_a_tracker_and_a_version_rewrite_the_usage_tab(self, cli, capsys, cycle_repo):
+        config_dir, session_id = cli
+        repo, tracker = cycle_repo
+        seed_marker(config_dir, session_id, cwd=repo)
+        assert ur.main(["report", "--slug", "feature-plan", "--tracker", str(tracker),
+                        "--feature-version", "7"]) == 0
+        capsys.readouterr()
+        text = tracker.read_text()
+        assert '<p class="section-timestamp">4 of 4 stages · 6 runs</p>' in text
+        assert text.count('<h2 class="section-label">Cycle usage</h2>') == 1
+
+    def test_the_cycle_flag_prints_the_cycle_after_the_run(self, cli, capsys, cycle_repo):
+        config_dir, session_id = cli
+        repo, tracker = cycle_repo
+        seed_marker(config_dir, session_id, cwd=repo)
+        assert ur.main(["report", "--slug", "feature-plan", "--tracker", str(tracker),
+                        "--feature-version", "7", "--cycle"]) == 0
+        out = capsys.readouterr().out
+        run, cycle = out.split("### Cycle usage: v7 add-reminders\n")
+        assert run.startswith("### Run usage")
+        runs = next(row for row in md_rows(cycle) if row[0] == "runs")
+        assert runs[3:6] == ["2", "1", "6"]  # plan, implement, total
+
+    def test_the_cycle_flag_without_a_version_says_so_last(self, cli, capsys, cycle_repo):
+        config_dir, session_id = cli
+        repo, _ = cycle_repo
+        seed_marker(config_dir, session_id, cwd=repo)
+        assert ur.main(["report", "--slug", "feature-plan", "--cycle"]) == 0
+        assert capsys.readouterr().out.endswith(
+            "usage report skipped — no feature version to report a cycle for\n"
+        )
+
+    def test_the_cycle_still_prints_when_the_run_could_not_be_measured(
+        self, cli, capsys, cycle_repo
+    ):
+        _, tracker = cycle_repo
+        assert ur.main(["report", "--slug", "feature-plan", "--tracker", str(tracker),
+                        "--feature-version", "7", "--cycle"]) == 0
+        skip, cycle = capsys.readouterr().out.split("\n", 1)
+        assert skip.startswith("usage report skipped — no start marker")
+        assert cycle == EXPECTED_CYCLE_MARKDOWN + "\n"
+
 
 class TestMainNeverFailsTheCaller:
     """R13: every failure prints at most one line and still exits 0."""
@@ -922,6 +1014,11 @@ class TestMainNeverFailsTheCaller:
         seed_marker(config_dir, session_id)
         monkeypatch.setattr(ur, "collect", _boom)
         assert ur.main(["report", "--slug", "feature-plan"]) == 0
+        self.one_line(capsys)
+
+    def test_an_exception_in_the_cycle(self, cli, capsys, monkeypatch):
+        monkeypatch.setattr(ur, "group_cycle", _boom)
+        assert ur.main(["cycle", "--feature-version", "7"]) == 0
         self.one_line(capsys)
 
     def test_a_failed_log_write_still_prints_the_table(self, cli, capsys, monkeypatch):
@@ -1312,3 +1409,60 @@ class TestCycleLeaksNothing:
         stages = cycle_stages(dict(cycle_lines()[3], note=SECRET))
         assert SECRET not in ur.render_cycle_markdown(stages, 7)
         assert SECRET not in ur.render_cycle_html(stages)
+
+
+# --- Cycle on the CLI -------------------------------------------------------
+
+@pytest.fixture
+def cycle_repo(cli, tmp_path, monkeypatch):
+    """The cycle fixture's log, run from `<tmp>/todo-app`, which is the cwd.
+
+    Returns (repo, tracker): the tracker sits in the v7 feature folder, so its
+    parent directory names the description. On macOS `tmp_path` lies under
+    `/private`, which is why selection compares real paths.
+    """
+    config_dir, _ = cli
+    repo = tmp_path / "todo-app"
+    repo.mkdir()
+    log = config_dir / "dev-skills" / "usage" / "runs.jsonl"
+    log.parent.mkdir(parents=True, exist_ok=True)
+    log.write_text(
+        (FIXTURES / "usage-cycle-runs.jsonl").read_text().replace(CYCLE_CWD, str(repo))
+    )
+    monkeypatch.chdir(repo)
+    tracker = tmp_path / "feature-v7-add-reminders" / "feature-v7-tracker.html"
+    tracker.parent.mkdir()
+    tracker.write_bytes((FIXTURES / "usage-tracker-min.html").read_bytes())
+    return repo, tracker
+
+
+class TestMainCycle:
+    def test_prints_the_report_and_fills_the_usage_tab(self, cycle_repo, capsys):
+        _, tracker = cycle_repo
+        assert ur.main(["cycle", "--feature-version", "7", "--tracker", str(tracker)]) == 0
+        assert capsys.readouterr().out == EXPECTED_CYCLE_MARKDOWN + "\n"
+        assert ur._anchored(ur.CYCLE_TOKEN, EXPECTED_CYCLE_HTML) in tracker.read_text()
+
+    def test_without_a_tracker_the_heading_is_the_version(self, cycle_repo, capsys):
+        assert ur.main(["cycle", "--feature-version", "7"]) == 0
+        assert capsys.readouterr().out.startswith("### Cycle usage: v7\n")
+
+    def test_a_version_with_no_logged_runs(self, cycle_repo, capsys):
+        assert ur.main(["cycle", "--feature-version", "9"]) == 0
+        assert capsys.readouterr().out == \
+            "usage report skipped — no logged runs for v9 in this repo\n"
+
+    def test_runs_logged_in_another_directory_are_not_this_repos(
+        self, cycle_repo, capsys, tmp_path, monkeypatch
+    ):
+        elsewhere = tmp_path / "other-app"
+        elsewhere.mkdir()
+        monkeypatch.chdir(elsewhere)
+        assert ur.main(["cycle", "--feature-version", "7"]) == 0
+        assert capsys.readouterr().out == \
+            "usage report skipped — no logged runs for v7 in this repo\n"
+
+    def test_without_a_version_it_degrades_to_one_line(self, cycle_repo, capsys):
+        assert ur.main(["cycle"]) == 0
+        out = capsys.readouterr().out.strip().splitlines()
+        assert len(out) == 1 and out[0].startswith("usage report skipped — ")

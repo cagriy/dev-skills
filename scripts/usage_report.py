@@ -2,14 +2,16 @@
 
 Reads Claude Code's own session transcripts — which already record a per-request
 `usage` block and a timestamp on every assistant entry — and turns the slice
-between a run's start marker and now into a token, timing and cost report.
+between a run's start marker and now into a token, timing and cost report. The
+log of those reports then sums into one report per feature cycle.
 
 Stdlib only, deliberately: this is invoked as the system `python3`, which is not
 the project's uv-managed virtualenv, so a third-party import would pass under
 `uv run pytest` and fail in production.
 
-Everything above `main` is pure except the four functions whose names say
-otherwise (`write_start`, `read_start`, `append_log`, `apply_tracker`).
+Everything above the argument parsing is pure except the functions whose names
+say otherwise (`write_start`, `read_start`, `append_log`, `apply_tracker`,
+`apply_cycle`).
 """
 
 from __future__ import annotations
@@ -734,6 +736,10 @@ TRACKER_TOKENS = {
     "feature-implement": ("{{IMPLEMENTATION_USAGE_CHIP}}", "{{IMPLEMENTATION_USAGE}}"),
 }
 
+# The Usage tab's whole body. Kept out of TRACKER_TOKENS, which is one
+# (chip, table) pair per stage, but owned and replaced the same way.
+CYCLE_TOKEN = "{{CYCLE_USAGE}}"
+
 
 @dataclass(frozen=True)
 class StageTotals:
@@ -1045,7 +1051,7 @@ def _substitute(text: str, token: str, html: str) -> str:
 
     The first run replaces the literal `{{TOKEN}}`; every run after that
     replaces whatever sits between the anchors, so a re-run shows the new
-    figures rather than a second table (design §3 R10). These eight tokens have
+    figures rather than a second table (design §3 R10). These nine tokens have
     exactly one owner, which is what makes overwriting safe here when the rest
     of the plugin substitutes only-if-literal.
     """
@@ -1076,33 +1082,15 @@ def _split_doc_comment(text: str) -> tuple[str, str]:
     return text[:end], text[end:]
 
 
-def apply_tracker(tracker_path, slug, chip_html, table_html) -> bool:
-    """Write this stage's usage into the tracker. Silent no-op if it can't.
-
-    Blanks the other stages' tokens to an empty anchored region rather than to
-    nothing at all: a stage that has not run yet must render as empty now and
-    still be fillable when it does run.
-    """
-    if slug not in TRACKER_TOKENS:
-        return False
+def _rewrite_body(tracker_path, change) -> bool:
+    """Apply `change` to the tracker's body, never its legend, and write the
+    result if it differs. False, silently, when nothing was written."""
     try:
         original = Path(tracker_path).read_text(encoding="utf-8")
     except OSError:
         return False
-
-    legend, text = _split_doc_comment(original)
-    for stage, (chip_token, table_token) in TRACKER_TOKENS.items():
-        if stage == slug:
-            text = _substitute(text, chip_token, chip_html)
-            text = _substitute(text, table_token, table_html)
-        else:
-            # Only while still literal: an anchored region belongs to the stage
-            # that owns it, whether it holds that stage's figures or is empty
-            # pending its first run.
-            text = text.replace(chip_token, _anchored(chip_token, ""))
-            text = text.replace(table_token, _anchored(table_token, ""))
-
-    text = legend + text
+    legend, body = _split_doc_comment(original)
+    text = legend + change(body)
     if text == original:
         return False
     try:
@@ -1110,6 +1098,38 @@ def apply_tracker(tracker_path, slug, chip_html, table_html) -> bool:
     except OSError:
         return False
     return True
+
+
+def apply_tracker(tracker_path, slug, chip_html, table_html) -> bool:
+    """Write this stage's usage into the tracker. Silent no-op if it can't.
+
+    Blanks the other stages' tokens, and the Usage tab's, to an empty anchored
+    region rather than to nothing at all: a region that has nothing to show yet
+    must render as empty now and still be fillable later.
+    """
+    if slug not in TRACKER_TOKENS:
+        return False
+
+    def change(text):
+        for stage, (chip_token, table_token) in TRACKER_TOKENS.items():
+            if stage == slug:
+                text = _substitute(text, chip_token, chip_html)
+                text = _substitute(text, table_token, table_html)
+            else:
+                # Only while still literal: an anchored region belongs to the
+                # stage that owns it, whether it holds that stage's figures or
+                # is empty pending its first run.
+                text = text.replace(chip_token, _anchored(chip_token, ""))
+                text = text.replace(table_token, _anchored(table_token, ""))
+        return text.replace(CYCLE_TOKEN, _anchored(CYCLE_TOKEN, ""))
+
+    return _rewrite_body(tracker_path, change)
+
+
+def apply_cycle(tracker_path, html) -> bool:
+    """Rewrite the tracker's Usage tab. A tracker seeded before the tab existed
+    has neither the token nor its anchors and is left untouched."""
+    return _rewrite_body(tracker_path, lambda body: _substitute(body, CYCLE_TOKEN, html))
 
 
 class _ArgError(Exception):
@@ -1134,6 +1154,11 @@ def _parse_args(argv):
     report.add_argument("--feature-version", type=int, default=None)
     report.add_argument("--outcome", choices=("completed", "halted"), default="completed")
     report.add_argument("--evals-included", action="store_true")
+    report.add_argument("--cycle", action="store_true")
+
+    cycle = commands.add_parser("cycle", add_help=False)
+    cycle.add_argument("--feature-version", type=int, required=True)
+    cycle.add_argument("--tracker")
 
     return parser.parse_args(argv)
 
@@ -1146,6 +1171,49 @@ def _run_start(args) -> None:
 
 
 def _run_report(args) -> None:
+    """The stage's own report, then the Usage tab and, with `--cycle`, the cycle.
+
+    The cycle part runs even when the stage could not be measured: the chain
+    has still stopped here, and the log holds every earlier run.
+    """
+    _report_stage(args)
+    if args.feature_version is None:
+        if args.cycle:
+            print("usage report skipped — no feature version to report a cycle for")
+        return
+    if args.cycle or args.tracker:
+        cycle = _cycle_report(args.feature_version, args.tracker)
+        if args.cycle:
+            print(cycle)
+
+
+def _run_cycle(args) -> None:
+    print(_cycle_report(args.feature_version, args.tracker))
+
+
+def _cycle_report(version: int, tracker) -> str:
+    """This directory's cycle report for a version, or its skip line. Rewrites
+    the tracker's Usage tab on the way when one is given."""
+    log = _usage_dir(_config_dir()) / "runs.jsonl"
+    stages = group_cycle(select_cycle(iter_entries(log), version, os.getcwd()))
+    if not any(stage.runs for stage in stages.values()):
+        return f"usage report skipped — no logged runs for v{version} in this repo"
+    if tracker:
+        apply_cycle(tracker, render_cycle_html(stages))
+    return render_cycle_markdown(stages, version, _description_from_tracker(tracker))
+
+
+def _description_from_tracker(tracker) -> str | None:
+    """`add-reminders`, from `…/feature-v7-add-reminders/feature-v7-tracker.html`."""
+    if not tracker:
+        return None
+    match = re.match(r"feature-v\d+-(.+)$", Path(tracker).parent.name)
+    return match.group(1) if match else None
+
+
+def _report_stage(args) -> None:
+    """Measure the run, print its table, log it and fill its stage tokens; or
+    print one skip line."""
     session_id = os.environ.get("CLAUDE_CODE_SESSION_ID")
     if not session_id:
         print("usage report skipped — CLAUDE_CODE_SESSION_ID is not set")
@@ -1208,8 +1276,9 @@ def main(argv=None) -> int:
         print(f"usage report skipped — {problem}")
         return 0
 
+    runners = {"start": _run_start, "report": _run_report, "cycle": _run_cycle}
     try:
-        (_run_start if args.command == "start" else _run_report)(args)
+        runners[args.command](args)
     except Exception as problem:
         print(f"usage report skipped — {problem}")
     return 0
