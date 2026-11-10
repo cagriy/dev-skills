@@ -37,9 +37,7 @@ If the user picks "No" or "Other", stop the skill immediately and do not start S
 
 ## Step 1 — Capture requirements
 
-**Start the usage window.** Before anything else in this step, invoke `usage-report` via the `Skill` tool with the argument `start feature-design`, so the final step can report what this run cost. It runs inline, prints nothing, and is a silent no-op when `CLAUDE_CODE_SESSION_ID` is unset — **do not end your turn**, carry straight on with the rest of this step. It sits here rather than in Step 0 deliberately: a declined confirmation must never leave a start marker behind with no report to clear it.
-
-**Load your customisations.** Immediately after the usage window, read the house rules the user recorded for this skill with `/skill-customize feature-design`. It sits here rather than in Step 0 for the same reason the usage window does: a run the user declined must never have read, announced or applied a customisation first.
+**Load your customisations.** First in this step, read the house rules the user recorded for this skill with `/skill-customize feature-design`. It sits here rather than in Step 0 deliberately: a run the user declined must never have read, announced or applied a customisation first.
 
 **Resolving `${CLAUDE_PLUGIN_DATA}`.**
 
@@ -72,6 +70,10 @@ Read `<extras-dir>/feature-design.extras`.
 When the file does exist, treat every `- ` bullet in it as an instruction that applies to this run, on top of everything below. Announce it in one line — `Customisations active: <n> (feature-design.extras)` — and then actually apply it. Customisations legitimately change defaults, counts, thresholds, tone, formats, which optional behaviours fire, and what you settle yourself instead of asking: which sections get more depth, how many alternatives §6 records, how much detail the rollout plan carries, and firing the Step 5 mockup even where a named skip condition would have applied.
 
 **They never override the *Constraints (non-negotiable)* section at the end of this file.** `/skill-customize` refuses that kind of instruction at write time, so one arriving here means the file was hand-edited. Ignore that bullet, name the constraint it collides with in one line, and carry on with the rest. The file is never permission to skip Step 4's clarification loop, skip Step 7's self-review, write a design with a non-empty §8, or turn a Step 5 fire into a skip.
+
+**Check the session.** If `<extras-dir>/session-control.extras` does not exist, skip this block: say nothing and carry on. Otherwise invoke `session-control` via the `Skill` tool with the argument `ensure feature-design`. It runs inline. On `next: continue`, **do not end your turn** — carry straight on. On `next: end-turn` it has queued a relaunch of this skill on the session this stage is configured for: end your turn now and do nothing else. The relaunch starts this run again from Step 0, and nothing has been opened or written that needs closing — which is why this check sits before the usage window.
+
+**Start the usage window.** Immediately after the session check, invoke `usage-report` via the `Skill` tool with the argument `start feature-design`, so the final step can report what this run cost. It runs inline, prints nothing, and is a silent no-op when `CLAUDE_CODE_SESSION_ID` is unset — **do not end your turn**, carry straight on with the rest of this step. It sits here rather than earlier deliberately: a declined confirmation, or a relaunch that ends the turn at the session check, must never leave a start marker behind with no report to clear it.
 
 **Control tokens.** Before any other argument parsing, read the leading tokens of `$ARGUMENTS` in the order `[solo] [v<N>] [from=<slug>]`. Strip `solo` when it is the exact lowercase first token, and `from=<slug>` when it is the next token after `solo` and the version token (whichever of the two are present), and remember both; `from=`'s value is not validated. Leave the version token in place for the detection below. When `solo` was read, say so in one line — `Solo run: this stage will not hand over.` — so a requirements statement that merely starts with that word is caught at once.
 
@@ -548,7 +550,9 @@ Keep the chat output under ~30 lines. The file is the artifact; the chat is the 
 
 **Report the run usage.** Invoke `usage-report` via the `Skill` tool with the argument `report feature-design, tracker_file=<tracker_file>, feature_version=<version>`, taking both values from this skill's `feature-resolve` block. It prints nothing: it appends one line to the usage log, fills this stage's tracker panel and rewrites the tracker's Usage tab. Do this *before* the hand-over and offer below: on the chain-in branch this skill hands over through the `Skill` tool and never returns to the step, so a report placed afterwards would silently never run. It runs inline — **do not end your turn**, carry straight on.
 
-**Hand over, or offer.** If this run carries `solo`, skip the rest of this step: invoke `usage-report` via the `Skill` tool with `cycle feature_version=<version>, tracker_file=<tracker_file>` and emit the next-step line below. Otherwise carry on with the offer below.
+**Hand over, or offer.** If this run carries `solo`, skip the rest of this step: invoke `usage-report` via the `Skill` tool with `cycle feature_version=<version>, tracker_file=<tracker_file>` and emit the next-step line below. If `session-control.extras` did not exist in Step 1, go straight to the offer below. Otherwise invoke `session-control` via the `Skill` tool with `handover from=feature-design, to=feature-plan, version=<version>, hold=<hold>`, taking `<hold>` from the rule below. It runs inline. On `next: end-turn` the next stage is queued in a cleared conversation: end your turn now. On `next: inline`, invoke the `feature-plan` skill via the `Skill` tool with the argument `v<version> from=feature-design`, without asking again. On `next: stop`, invoke `usage-report` via the `Skill` tool with `cycle feature_version=<version>, tracker_file=<tracker_file>` and emit the next-step line below. On `next: offer`, carry on with the offer below.
+
+**The hold.** Pass `hold=briefs-joint` when Step 6b wrote briefs and §9 requires a single implementation plan spanning the projects, `hold=briefs` when Step 6b wrote briefs otherwise, and `hold=none` when it wrote none. A hold makes the helper ask the offer below even in automatic mode.
 
 After presenting the highlights, give the user a one-click way to continue into the planning skill. Call `AskUserQuestion` exactly once:
 
@@ -566,7 +570,7 @@ If the user picks "Not now" or "Other", the chain stops here: invoke `usage-repo
 **Next step:** when you're ready, run `/feature-plan v<version>`.
 ```
 
-Do not skip this step or substitute the AskUserQuestion with prose. The offer is the affordance; rendering it as a question is what makes it one-click. The "Next step" hint is only emitted where the chain stops: on decline, or on a `solo` run.
+Do not skip this step or substitute the AskUserQuestion with prose. The offer is the affordance; rendering it as a question is what makes it one-click. The "Next step" hint is only emitted where the chain stops: on decline, on a `solo` run, or on `next: stop`.
 
 ## Constraints (non-negotiable)
 
@@ -574,7 +578,8 @@ Do not skip this step or substitute the AskUserQuestion with prose. The offer is
 - **Integer versions only.** `v<N>` everywhere — no `v<N>.<M>` minor versions. No "next available version" math in this skill; the resolver decides.
 - **No open decisions.** §8 must be empty or "None — all decisions closed." before Step 8 begins.
 - **Clarify to exhaustion, not to a quota.** Step 4 is an interview that runs until the readiness test passes — a dry-drafted §5 with no guesses, no hedge language, an empty §8, every storm §7 item closed, the two-engineer test met, and a round that surfaced nothing new. Question count, elapsed rounds, and the user having already answered a few are not exit conditions. The one uncertainty allowed past it is appearance, which Step 5 closes with a rendered mockup.
-- **Report the run usage before you stop.** However this run ends — normal completion, a halt, a refusal, a stop condition, or an error surfaced to the user — invoke `usage-report` with `report feature-design, outcome=halted, cycle=true` — plus `tracker_file=<tracker_file>, feature_version=<version>` once Step 2's resolver has run — before you stop (Step 11's normal path passes `outcome=completed` instead). This covers every exit Step 11 does not. A halted run still cost tokens, and one that never reports vanishes from the log and skews every average drawn from it.
+- **Report the run usage before you stop.** However this run ends — normal completion, a halt, a refusal, a stop condition, or an error surfaced to the user — invoke `usage-report` with `report feature-design, outcome=halted, cycle=true` — plus `tracker_file=<tracker_file>, feature_version=<version>` once Step 2's resolver has run — before you stop (Step 11's normal path passes `outcome=completed` instead). This covers every exit Step 11 does not. A halted run still cost tokens, and one that never reports vanishes from the log and skews every average drawn from it. The one exception is a Step 1 relaunch (`next: end-turn` from **Check the session**): it ends the turn before the usage window opens, so there is no window to close.
+- **A queued relaunch or handover is the one place this skill ends its turn on a success path** besides any wait a helper sanctions; it never ends the turn on a `session-control` result other than `next: end-turn`.
 - **Self-review is mandatory.** Step 7 must run even if the draft looks clean — security and efficiency gaps are usually invisible on the first pass.
 - **UI decisions come from the user, via the mockup.** When the feature has a user-visible surface, Step 5 runs and the design records the direction the user accepted — never a surface you invented and never one the user has not seen. `feature-mockup` owns the mockup files under `<feature_folder>/mockups/` and their published artifacts; this skill only reads them and cites them, by URL and relative path both.
 - **`DESIGN.md` has one writer.** `DESIGN.md` and `design/specimen.html` are written only by `design-language-update`, which Step 5 invokes; this skill never edits either file.

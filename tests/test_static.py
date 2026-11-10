@@ -1319,6 +1319,111 @@ class TestSessionControlContract:
             "feature-implement asks before committing the chain's own artefacts"
         )
 
+    # --- The chain side: the session check and the handover --------------
+
+    CHECK_RE = r"^\*\*Check the session\.\*\*.*$"
+    LOAD_RE = r"^\*\*Load your customisations\.\*\*.*$"
+    HOLD_RE = r"^\*\*The hold\.\*\*.*$"
+
+    def test_step_1_order(self):
+        # A relaunch ends the turn at the session check, so nothing that needs
+        # closing may be opened before it; the customisations come first
+        # because they may carry set-up the check should already see.
+        for slug in FEATURE_SKILLS:
+            text = skill_text(slug)
+            start, end = step_span(text, 1)
+            step = text[start:end]
+            order = [
+                re.search(self.LOAD_RE, step, re.MULTILINE),
+                re.search(re.escape("**Resolving `${CLAUDE_PLUGIN_DATA}`.**"), step),
+                re.search(self.CHECK_RE, step, re.MULTILINE),
+                re.search(r"^\*\*Start the usage window\.\*\*", step, re.MULTILINE),
+            ]
+            assert all(order), f"{slug}: Step 1 lacks one of its four opening blocks"
+            positions = [m.start() for m in order]
+            assert positions == sorted(positions), (
+                f"{slug}: Step 1 must run customisations -> session check -> usage window"
+            )
+
+    def test_check_the_session_is_guarded_and_mirrored(self):
+        seen = set()
+        for slug in FEATURE_SKILLS:
+            block = re.search(self.CHECK_RE, skill_text(slug), re.MULTILINE)
+            assert block, f"{slug}: no **Check the session.** paragraph"
+            block = block.group(0)
+            for phrase in ("session-control.extras", "does not exist", f"`ensure {slug}`",
+                           "next: continue", "next: end-turn", "do not end your turn"):
+                assert phrase in block, f"{slug}: Check the session never names {phrase!r}"
+            seen.add(block.replace(slug, "<slug>"))
+        assert len(seen) == 1, "the Check the session paragraph has drifted between skills"
+
+    def test_customisation_and_start_blocks_are_reworded(self):
+        loads = set()
+        for slug in FEATURE_SKILLS:
+            text = skill_text(slug)
+            load = re.search(self.LOAD_RE, text, re.MULTILINE).group(0)
+            assert load.startswith("**Load your customisations.** First in this step"), (
+                f"{slug}: the customisation load does not open Step 1"
+            )
+            assert "**Start the usage window.** Immediately after the session check" in text, (
+                f"{slug}: the usage window does not follow the session check"
+            )
+            loads.add(load.replace(slug, "<slug>"))
+        assert len(loads) == 1, "the customisation-load line has drifted between skills"
+
+    def test_hand_over_or_offer_wires_the_helper(self):
+        seen = set()
+        for slug, target in self.CHAINING.items():
+            text = skill_text(slug)
+            start, end = self.final_step(text)
+            block = re.search(self.HANDOVER_RE, text[start:end], re.MULTILINE).group(0)
+            for phrase in (
+                "session-control.extras",
+                f"handover from={slug}, to={target}, version=<version>, hold=<hold>",
+                "next: end-turn", "next: inline", "next: stop", "next: offer",
+            ):
+                assert phrase in block, f"{slug}: Hand over, or offer never names {phrase!r}"
+            seen.add(block.replace(slug, "<slug>").replace(target, "<next>"))
+        assert len(seen) == 1, "the Hand over, or offer paragraph has drifted between skills"
+
+    def test_each_chaining_skill_states_its_hold(self):
+        holds = {
+            "feature-storm": ("hold=none",),
+            "feature-design": ("briefs-joint", "briefs", "none"),
+            "feature-plan": ("deviations", "Deviations from design"),
+        }
+        for slug, phrases in holds.items():
+            text = skill_text(slug)
+            start, end = self.final_step(text)
+            block = re.search(self.HOLD_RE, text[start:end], re.MULTILINE)
+            assert block, f"{slug}: no **The hold.** paragraph in the final step"
+            for phrase in phrases:
+                assert phrase in block.group(0), f"{slug}: the hold never names {phrase!r}"
+
+    def test_turn_end_constraint(self):
+        for slug in FEATURE_SKILLS:
+            text = skill_text(slug)
+            constraints = text[text.index("## Constraints (non-negotiable)"):]
+            bullet = re.search(
+                r"^- \*\*A queued relaunch or handover is the one place this skill ends "
+                r"its turn on a success path\*\*.*$",
+                constraints, re.MULTILINE,
+            )
+            assert bullet, f"{slug}: no turn-end constraint for a queued relaunch or handover"
+            assert "next: end-turn" in bullet.group(0)
+
+    def test_catch_all_excepts_the_step_1_relaunch(self):
+        # A relaunch ends the turn before the usage window opens, so a halted
+        # report there would close a window that was never opened.
+        for slug in FEATURE_SKILLS:
+            bullet = re.search(
+                r"^- \*\*Report the run usage before you stop\.\*\*.*$",
+                skill_text(slug), re.MULTILINE,
+            ).group(0)
+            assert "Step 1 relaunch" in bullet and "no window to close" in bullet, (
+                f"{slug}: the catch-all report does not except the Step 1 relaunch"
+            )
+
 
 class TestUsageReportLifecycle:
     """The four chain skills report what a run cost, via the usage-report helper.

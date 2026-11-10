@@ -33,9 +33,7 @@ If the user picks "No" or "Other", stop the skill immediately and do not start S
 
 ## Step 1 — Resolve the feature folder via `feature-resolve` *(main agent)*
 
-**Start the usage window.** Before anything else in this step, invoke `usage-report` via the `Skill` tool with the argument `start feature-plan`, so the final step can report what this run cost. It runs inline, prints nothing, and is a silent no-op when `CLAUDE_CODE_SESSION_ID` is unset — **do not end your turn**, carry straight on with the rest of this step. It sits here rather than in Step 0 deliberately: a declined confirmation must never leave a start marker behind with no report to clear it.
-
-**Load your customisations.** Immediately after the usage window, read the house rules the user recorded for this skill with `/skill-customize feature-plan`. It sits here rather than in Step 0 for the same reason the usage window does: a run the user declined must never have read, announced or applied a customisation first.
+**Load your customisations.** First in this step, read the house rules the user recorded for this skill with `/skill-customize feature-plan`. It sits here rather than in Step 0 deliberately: a run the user declined must never have read, announced or applied a customisation first.
 
 **Resolving `${CLAUDE_PLUGIN_DATA}`.**
 
@@ -70,6 +68,10 @@ When the file does exist, treat every `- ` bullet in it as an instruction that a
 **They never override the *Constraints (non-negotiable)* section at the end of this file.** `/skill-customize` refuses that kind of instruction at write time, so one arriving here means the file was hand-edited. Ignore that bullet, name the constraint it collides with in one line, and carry on with the rest. The file is never permission to make the planning core ask the user questions, plan past a non-empty design §8, or let the subagent commit anything.
 
 The customisations belong to the **main agent**, exactly as the usage window does. The planning subagent never resolves the data directory and never reads the file itself — you loaded it once, here, and you pass the text down in its Step 2 brief. Re-resolving it inside a fresh context is both wasteful and a way for the two agents to end up reading different files.
+
+**Check the session.** If `<extras-dir>/session-control.extras` does not exist, skip this block: say nothing and carry on. Otherwise invoke `session-control` via the `Skill` tool with the argument `ensure feature-plan`. It runs inline. On `next: continue`, **do not end your turn** — carry straight on. On `next: end-turn` it has queued a relaunch of this skill on the session this stage is configured for: end your turn now and do nothing else. The relaunch starts this run again from Step 0, and nothing has been opened or written that needs closing — which is why this check sits before the usage window.
+
+**Start the usage window.** Immediately after the session check, invoke `usage-report` via the `Skill` tool with the argument `start feature-plan`, so the final step can report what this run cost. It runs inline, prints nothing, and is a silent no-op when `CLAUDE_CODE_SESSION_ID` is unset — **do not end your turn**, carry straight on with the rest of this step. It sits here rather than earlier deliberately: a declined confirmation, or a relaunch that ends the turn at the session check, must never leave a start marker behind with no report to clear it.
 
 **Control tokens.** Before any other argument parsing, read the leading tokens of `$ARGUMENTS` in the order `[solo] [v<N>] [from=<slug>]`. Strip `solo` when it is the exact lowercase first token, and `from=<slug>` when it is the next token after `solo` and the version token (whichever of the two are present), and remember both; `from=`'s value is not validated. Leave the version token in place for the detection below. When `solo` was read, say so in one line — `Solo run: this stage will not hand over.` — so a requirements statement that merely starts with that word is caught at once.
 
@@ -461,7 +463,9 @@ First, output the subagent's Step 10 summary block to the user **verbatim** — 
 
 **Report the run usage.** Invoke `usage-report` via the `Skill` tool with the argument `report feature-plan, tracker_file=<tracker_file>, feature_version=<version>`, taking both values from this skill's `feature-resolve` block. It prints nothing: it appends one line to the usage log, fills this stage's tracker panel and rewrites the tracker's Usage tab. Do this *before* the hand-over and offer below: on the chain-in branch this skill hands over through the `Skill` tool and never returns to the step, so a report placed afterwards would silently never run. It runs inline — **do not end your turn**, carry straight on.
 
-**Hand over, or offer.** If this run carries `solo`, skip the rest of this step: invoke `usage-report` via the `Skill` tool with `cycle feature_version=<version>, tracker_file=<tracker_file>` and emit the next-step line below. Otherwise carry on with the offer below.
+**Hand over, or offer.** If this run carries `solo`, skip the rest of this step: invoke `usage-report` via the `Skill` tool with `cycle feature_version=<version>, tracker_file=<tracker_file>` and emit the next-step line below. If `session-control.extras` did not exist in Step 1, go straight to the offer below. Otherwise invoke `session-control` via the `Skill` tool with `handover from=feature-plan, to=feature-implement, version=<version>, hold=<hold>`, taking `<hold>` from the rule below. It runs inline. On `next: end-turn` the next stage is queued in a cleared conversation: end your turn now. On `next: inline`, invoke the `feature-implement` skill via the `Skill` tool with the argument `v<version> from=feature-plan`, without asking again. On `next: stop`, invoke `usage-report` via the `Skill` tool with `cycle feature_version=<version>, tracker_file=<tracker_file>` and emit the next-step line below. On `next: offer`, carry on with the offer below.
+
+**The hold.** Pass `hold=deviations` when the summary's *Deviations from design* line is not "None", else `hold=none`. A hold makes the helper ask the offer below even in automatic mode.
 
 Then give the user a one-click way to continue into implementation. Call `AskUserQuestion` exactly once:
 
@@ -483,7 +487,7 @@ If the user picks "Not now" or "Other", the chain stops here: invoke `usage-repo
 **Next step:** when you're ready, run `/feature-implement v<version>`.
 ```
 
-Do not skip this step or substitute the AskUserQuestion with prose. The offer is the affordance; rendering it as a question is what makes it one-click. Because `/feature-implement` writes code and commits, the "Not now" path is a perfectly reasonable choice — the user can review the plan first and run the chain later. The "Next step" hint is only emitted where the chain stops: on decline, or on a `solo` run.
+Do not skip this step or substitute the AskUserQuestion with prose. The offer is the affordance; rendering it as a question is what makes it one-click. Because `/feature-implement` writes code and commits, the "Not now" path is a perfectly reasonable choice — the user can review the plan first and run the chain later. The "Next step" hint is only emitted where the chain stops: on decline, on a `solo` run, or on `next: stop`.
 
 ## Constraints (non-negotiable)
 
@@ -491,7 +495,8 @@ Do not skip this step or substitute the AskUserQuestion with prose. The offer is
 - **Output path comes from `feature-resolve` only.** Never write to `docs/`, never construct `features/...` paths by hand. Step 1 is the single source of pathing.
 - **Integer versions only.** `v<N>` everywhere — no `v<N>.<M>`. The plan version matches the feature version; there is no separate plan minor-versioning.
 - **The design's open questions must be empty.** If design §8 has any open question, the run halts (`BLOCKED:`). The plan cannot resolve design ambiguity — only `/feature-design` can.
-- **Report the run usage before you stop.** However this run ends — normal completion, a `BLOCKED:` halt, a refusal, or an error surfaced to the user — invoke `usage-report` with `report feature-plan, outcome=halted, cycle=true` — plus `tracker_file=<tracker_file>, feature_version=<version>` once Step 1's resolver has run — before you stop (Step 11's normal path passes `outcome=completed` instead). Step 2 covers the `BLOCKED:` relay; this covers every other exit. The window is the main agent's alone — the planning subagent never opens or closes it.
+- **Report the run usage before you stop.** However this run ends — normal completion, a `BLOCKED:` halt, a refusal, or an error surfaced to the user — invoke `usage-report` with `report feature-plan, outcome=halted, cycle=true` — plus `tracker_file=<tracker_file>, feature_version=<version>` once Step 1's resolver has run — before you stop (Step 11's normal path passes `outcome=completed` instead). Step 2 covers the `BLOCKED:` relay; this covers every other exit. The window is the main agent's alone — the planning subagent never opens or closes it. The one exception is a Step 1 relaunch (`next: end-turn` from **Check the session**): it ends the turn before the usage window opens, so there is no window to close.
+- **A queued relaunch or handover is the one place this skill ends its turn on a success path** besides any wait a helper sanctions; it never ends the turn on a `session-control` result other than `next: end-turn`.
 - **TDD is non-optional for behavior-changing, host-testable stages.** Stages in a sanctioned non-red-first category (Step 5) carry their category label and one-line justification; everything else follows write → fail → code → pass.
 - **The planning core never prompts the user.** Steps 3–10 run without `AskUserQuestion` — in the subagent it is impossible, and the policy holds even in the direct-execution fallback. Only Steps 0, 1, and 11 may prompt, and only from the main agent.
 - **No silent scope or decision changes.** Divergence from the design lives in *Deviations from the design*; autonomous planning-level choices live in *Planning decisions taken*; both are surfaced in the Step 10 summary. Design-level ambiguity is never decided unilaterally — it halts.
