@@ -3,7 +3,7 @@ name: feature-design
 description: Produce a reviewed, decision-closed feature design document under features/feature-v<N>-<description>/ — grounded in the codebase, clarified with the user until no open decision remains, with a mockup of any user-visible surface whose appearance is not yet settled and a self-contained design brief for every other project the feature spans. Use when the user asks for a feature design, spec, design doc, or to scope a feature — after /feature-storm or cold. Not for planning (/feature-plan), implementation (/feature-implement) or bug work (/bug-*). Step 0 confirms with the user via AskUserQuestion before doing any work when invoked proactively; the confirmation is skipped when the user explicitly typed /feature-design, just chained in from /feature-storm, or just chained in from /feature-dispatch.
 user-invocable: true
 disable-model-invocation: false
-argument-hint: <free-form feature requirements (optionally including v<N>), or omit to be asked / picked up from a just-completed /feature-storm>
+argument-hint: "[solo] <free-form feature requirements (optionally including v<N>), or omit to be asked / picked up from a just-completed /feature-storm>"
 allowed-tools: Read, Grep, Glob, Write, Edit, AskUserQuestion, Skill, WebFetch, Bash(ls *), Bash(find *), Bash(mkdir -p *), Bash(test *), Bash(cp *), Bash(pwd), Bash(date *)
 ---
 
@@ -17,7 +17,7 @@ This skill has twelve steps (Steps 0–11). Execute them in order. Do not skip S
 
 ## Step 0 — Confirm before proceeding (when invoked proactively)
 
-Check the most recent user message in the conversation for the literal tag `<command-name>/feature-design</command-name>` (or, equivalently, a leading `/feature-design` typed by the user). If present, the user has explicitly opted in via the slash command — skip this step and continue with Step 1.
+Check the most recent user message in the conversation for the literal tag `<command-name>/feature-design</command-name>` or its plugin-qualified form `<command-name>/<plugin>:feature-design</command-name>` (or, equivalently, a leading `/feature-design` typed by the user). If present, the user has explicitly opted in via the slash command — skip this step and continue with Step 1.
 
 Also treat as opt-in (and skip this step) if you were just invoked as a chain from `/feature-storm`'s Step 9 — i.e. the immediately previous turn was an `AskUserQuestion` result with header `"Run /feature-design?"` and the user selected the option starting `"Yes, run /feature-design"`. In that case the user has already confirmed; do not re-ask.
 
@@ -73,6 +73,8 @@ When the file does exist, treat every `- ` bullet in it as an instruction that a
 
 **They never override the *Constraints (non-negotiable)* section at the end of this file.** `/skill-customize` refuses that kind of instruction at write time, so one arriving here means the file was hand-edited. Ignore that bullet, name the constraint it collides with in one line, and carry on with the rest. The file is never permission to skip Step 4's clarification loop, skip Step 7's self-review, write a design with a non-empty §8, or turn a Step 5 fire into a skip.
 
+**Control tokens.** Before any other argument parsing, read the leading tokens of `$ARGUMENTS` in the order `[solo] [v<N>] [from=<slug>]`. Strip `solo` when it is the exact lowercase first token, and `from=<slug>` when it is the next token after `solo` and the version token (whichever of the two are present), and remember both; `from=`'s value is not validated. Leave the version token in place for the detection below. When `solo` was read, say so in one line — `Solo run: this stage will not hand over.` — so a requirements statement that merely starts with that word is caught at once.
+
 Parse `$ARGUMENTS`. Detect three pieces of input, any of which may be absent:
 
 - **Explicit version token.** Look for a leading `v<N>` or `version <N>` (case-insensitive; bare `1` does **not** count — only `v1` / `v 1` / `version 1`). If found, record as `explicit_version`; strip from remaining text. Integer only — no minor versions under this plugin's scheme.
@@ -84,7 +86,7 @@ Resolve the requirements statement, in this priority order:
 1. If the parsed free-form text is meaningful (>~5 words), use it as the initial requirements statement.
 2. Else, if the conversation context shows a **just-completed `/feature-storm`** (storm bullets visible in recent assistant messages, or a `features/feature-v<N>-<desc>/feature-storm-v<N>-<desc>.md` path visible in recent tool results), use the storm's approved bullets as the requirements basis. Capture the storm's resolved `description` as `candidate_description` if Step 1 didn't already produce one. State in chat which storm you picked up (e.g. `"Continuing from /feature-storm: features/feature-v3-add-reminders/feature-storm-v3-add-reminders.md."`) so the user can redirect with one word.
 3. Else, if the recent conversation contains the requirements — a substantial design/requirements discussion, or an enumerated proposal the assistant just made that the arguments reference tersely (a number/range/ordinal like `1-4`, or "that" / "do it") — resolve the requirements from that context. State in chat which discussion or items you adopted (e.g. `"Designing items 1–4 of the remediation list above."`) so the user can redirect with one word.
-4. Else, if `$ARGUMENTS` was empty **and** the conversation carries no requirements at all — typically a fresh session, or a run right after a `/clear` — the requirements may still be sitting on disk as a storm that has not been designed yet. **Do not scan `features/` yourself**; pathing belongs to `feature-resolve`. Instead go straight to Step 2 with **no `description=`** and let the resolver decide. When the latest feature folder holds a storm but no design, it continues into that folder, and Step 3's storm read then supplies the requirements — adopt the storm's approved bullets as the requirements statement and state the pickup in chat (`"Picked up the storm awaiting design: <feature_folder>."`) so the user can redirect with one word. Skip Step 2's title confirmation entirely on this path: there is no candidate title to confirm and the folder's description is already authoritative. If the resolver instead stops with its "description required" error, there was no storm awaiting design and nothing was created — fall through to rule 5.
+4. Else, if the arguments carry no requirements text — nothing at all, or only `solo`, a version token and `from=` — **and** the conversation carries no requirements at all — typically a fresh session, a run right after a `/clear`, or a clean handover from `/feature-storm` — the requirements may still be sitting on disk as a storm that has not been designed yet. **Do not scan `features/` yourself**; pathing belongs to `feature-resolve`. Instead go straight to Step 2 with **no `description=`**, passing `version=<N>` when a version token was given, and let the resolver decide. With a version it continues into that version's folder; without one, when the latest feature folder holds a storm but no design, it continues into that folder. Either way, Step 3's storm read then supplies the requirements — adopt the storm's approved bullets as the requirements statement and state the pickup in chat (`"Picked up the storm awaiting design: <feature_folder>."`) so the user can redirect with one word. Skip Step 2's title confirmation entirely on this path: there is no candidate title to confirm and the folder's description is already authoritative. If the resolver instead stops with its "description required" error, there was no storm awaiting design and nothing was created — fall through to rule 5.
 5. Else, make exactly one `AskUserQuestion` call asking what feature the user wants designed. Their answer becomes the requirements statement.
 
 Do not proceed past Step 1 without a real requirements statement.
@@ -129,7 +131,7 @@ Parse the resolver's output block. Record these fields verbatim — every later 
 - `tracker_file` (absolute path — Step 8 edits this)
 - `notes` (surface to the user only if non-trivial — e.g. description conflict, tracker seed skipped)
 
-If the resolver stops with an error, pass the message to the user verbatim and stop. Do not retry with invented arguments. **One carve-out:** if you arrived here via Step 1's rule 4 (no arguments, no context, probing for a storm awaiting design) and the error is the resolver's "description required" exit, nothing was created and this is the expected negative result — do not surface it as a failure. Fall back to Step 1 rule 5, ask the user what they want designed, and then re-enter Step 2 normally with the description that produces.
+If the resolver stops with an error, pass the message to the user verbatim and stop. Do not retry with invented arguments. **One carve-out:** if you arrived here via Step 1's rule 4 (no requirements text, no context, probing for a storm awaiting design) and the error is the resolver's "description required" exit, nothing was created and this is the expected negative result — do not surface it as a failure. Fall back to Step 1 rule 5, ask the user what they want designed, and then re-enter Step 2 normally with the description that produces.
 
 **`feature-resolve` runs inline in this turn — do not end your turn when its result block appears.** The `Skill` tool loads it into your own context rather than delegating to a subagent, so the block is a checkpoint in the middle of *your* run, not a hand-off that returns control anywhere. Once you've recorded the fields above, continue straight into Step 3 in the same turn. Stopping here strands the user with a seeded folder, an empty tracker, and no design.
 
@@ -544,7 +546,9 @@ Keep the chat output under ~30 lines. The file is the artifact; the chat is the 
 
 ## Step 11 — Offer to chain into /feature-plan
 
-**Report the run usage.** Invoke `usage-report` via the `Skill` tool with the argument `report feature-design, tracker_file=<tracker_file>, feature_version=<version>`, taking both values from this skill's `feature-resolve` block. It prints nothing: it appends one line to the usage log, fills this stage's tracker panel and rewrites the tracker's Usage tab. Do this *before* the offer below: on the chain-in branch this skill hands over through the `Skill` tool and never returns to the step, so a report placed afterwards would silently never run. It runs inline — **do not end your turn**, carry straight on.
+**Report the run usage.** Invoke `usage-report` via the `Skill` tool with the argument `report feature-design, tracker_file=<tracker_file>, feature_version=<version>`, taking both values from this skill's `feature-resolve` block. It prints nothing: it appends one line to the usage log, fills this stage's tracker panel and rewrites the tracker's Usage tab. Do this *before* the hand-over and offer below: on the chain-in branch this skill hands over through the `Skill` tool and never returns to the step, so a report placed afterwards would silently never run. It runs inline — **do not end your turn**, carry straight on.
+
+**Hand over, or offer.** If this run carries `solo`, skip the rest of this step: invoke `usage-report` via the `Skill` tool with `cycle feature_version=<version>, tracker_file=<tracker_file>` and emit the next-step line below. Otherwise carry on with the offer below.
 
 After presenting the highlights, give the user a one-click way to continue into the planning skill. Call `AskUserQuestion` exactly once:
 
@@ -554,7 +558,7 @@ After presenting the highlights, give the user a one-click way to continue into 
   - `{ "label": "Yes, run /feature-plan", "description": "Launch the plan skill against the design just saved." }` (mark this as Recommended)
   - `{ "label": "Not now", "description": "Stop here; the design is saved." }`
 
-If the user picks "Yes, run /feature-plan", invoke the `feature-plan` skill via the `Skill` tool with the single argument `v<version>` (the integer feature version resolved in Step 2). The plan skill's Step 1 parses the version token and delegates to `feature-resolve`, which continues into the same feature folder — no conversation-context lookup involved.
+If the user picks "Yes, run /feature-plan", invoke the `feature-plan` skill via the `Skill` tool with the argument `v<version> from=feature-design` (the integer feature version resolved in Step 2, and this skill's slug, which the receiver strips). The plan skill's Step 1 parses the version token and delegates to `feature-resolve`, which continues into the same feature folder — no conversation-context lookup involved.
 
 If the user picks "Not now" or "Other", the chain stops here: invoke `usage-report` via the `Skill` tool with `cycle feature_version=<version>, tracker_file=<tracker_file>`, which prints the feature's cycle report and runs inline, then emit exactly one line before stopping:
 
@@ -562,7 +566,7 @@ If the user picks "Not now" or "Other", the chain stops here: invoke `usage-repo
 **Next step:** when you're ready, run `/feature-plan v<version>`.
 ```
 
-Do not skip this step or substitute the AskUserQuestion with prose. The offer is the affordance; rendering it as a question is what makes it one-click. The "Next step" hint is only emitted on decline.
+Do not skip this step or substitute the AskUserQuestion with prose. The offer is the affordance; rendering it as a question is what makes it one-click. The "Next step" hint is only emitted where the chain stops: on decline, or on a `solo` run.
 
 ## Constraints (non-negotiable)
 

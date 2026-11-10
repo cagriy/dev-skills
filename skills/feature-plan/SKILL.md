@@ -3,7 +3,7 @@ name: feature-plan
 description: Produce a staged, TDD-driven implementation plan that maps 1:1 to an existing feature design under features/feature-v<N>-<description>/. Use when the user asks to plan an implementation, break a feature into stages, or write a plan/roadmap for an existing design — typically as a follow-up to /feature-design. Refuses to plan without a real design file (delegated to feature-resolve). Runs its planning core (design read, codebase grounding, drafting, review, tracker update, lessons capture) inside a single general-purpose subagent; the subagent never asks the user questions — planning-level gaps are decided autonomously and recorded in the plan's "Planning decisions taken" section, and design-level gaps halt back to the main agent with a pointer to /feature-design. Reviews the plan for design coverage, inaccuracies, conflicts, and security issues before presenting staged highlights, then updates the per-feature tracker. Closes the plan with an execution schedule that groups independent stages into parallel batches — judged by a named independence rule, serial whenever independence is in doubt, never splitting or inventing a stage to gain parallelism — so /feature-implement can build them concurrently. Step 0 confirms with the user via AskUserQuestion before doing any work when invoked proactively; the confirmation is skipped when the user explicitly typed /feature-plan or just chained in from /feature-design.
 user-invocable: true
 disable-model-invocation: false
-argument-hint: <optional v<N> to target a specific feature, or omit to use the latest with a design and no plan yet>
+argument-hint: "[solo] <optional v<N> to target a specific feature, or omit to use the latest with a design and no plan yet>"
 allowed-tools: Read, Grep, Glob, Write, Edit, AskUserQuestion, Skill, Agent, Bash(ls *), Bash(find *), Bash(mkdir -p *), Bash(test *), Bash(cp *), Bash(pwd), Bash(date *)
 ---
 
@@ -17,7 +17,7 @@ You are running the `feature-plan` skill. The user may have arrived here by typi
 
 ## Step 0 — Confirm before proceeding (when invoked proactively) *(main agent)*
 
-Check the most recent user message in the conversation for the literal tag `<command-name>/feature-plan</command-name>` (or, equivalently, a leading `/feature-plan` typed by the user). If present, the user has explicitly opted in via the slash command — skip this step and continue with Step 1.
+Check the most recent user message in the conversation for the literal tag `<command-name>/feature-plan</command-name>` or its plugin-qualified form `<command-name>/<plugin>:feature-plan</command-name>` (or, equivalently, a leading `/feature-plan` typed by the user). If present, the user has explicitly opted in via the slash command — skip this step and continue with Step 1.
 
 Also treat as opt-in (and skip this step) if you were just invoked as a chain from `/feature-design`'s Step 11 — i.e. the immediately previous turn was an `AskUserQuestion` result with header `"Run /feature-plan?"` and the user selected the option starting `"Yes, run /feature-plan"`. In that case the user has already confirmed; do not re-ask.
 
@@ -70,6 +70,8 @@ When the file does exist, treat every `- ` bullet in it as an instruction that a
 **They never override the *Constraints (non-negotiable)* section at the end of this file.** `/skill-customize` refuses that kind of instruction at write time, so one arriving here means the file was hand-edited. Ignore that bullet, name the constraint it collides with in one line, and carry on with the rest. The file is never permission to make the planning core ask the user questions, plan past a non-empty design §8, or let the subagent commit anything.
 
 The customisations belong to the **main agent**, exactly as the usage window does. The planning subagent never resolves the data directory and never reads the file itself — you loaded it once, here, and you pass the text down in its Step 2 brief. Re-resolving it inside a fresh context is both wasteful and a way for the two agents to end up reading different files.
+
+**Control tokens.** Before any other argument parsing, read the leading tokens of `$ARGUMENTS` in the order `[solo] [v<N>] [from=<slug>]`. Strip `solo` when it is the exact lowercase first token, and `from=<slug>` when it is the next token after `solo` and the version token (whichever of the two are present), and remember both; `from=`'s value is not validated. Leave the version token in place for the detection below. When `solo` was read, say so in one line — `Solo run: this stage will not hand over.` — so a requirements statement that merely starts with that word is caught at once.
 
 Parse `$ARGUMENTS` for an explicit version token only — `/feature-plan` does not take requirements text or a description (the description is authoritative from the feature folder; the requirements are authoritative from the design).
 
@@ -457,7 +459,9 @@ Keep the block under ~35 lines — if the plan has more than 8 stages, group the
 
 First, output the subagent's Step 10 summary block to the user **verbatim** — do not compress, rewrite, or annotate it beyond fixing an obvious formatting break. This is the user's only view of the plan run.
 
-**Report the run usage.** Invoke `usage-report` via the `Skill` tool with the argument `report feature-plan, tracker_file=<tracker_file>, feature_version=<version>`, taking both values from this skill's `feature-resolve` block. It prints nothing: it appends one line to the usage log, fills this stage's tracker panel and rewrites the tracker's Usage tab. Do this *before* the offer below: on the chain-in branch this skill hands over through the `Skill` tool and never returns to the step, so a report placed afterwards would silently never run. It runs inline — **do not end your turn**, carry straight on.
+**Report the run usage.** Invoke `usage-report` via the `Skill` tool with the argument `report feature-plan, tracker_file=<tracker_file>, feature_version=<version>`, taking both values from this skill's `feature-resolve` block. It prints nothing: it appends one line to the usage log, fills this stage's tracker panel and rewrites the tracker's Usage tab. Do this *before* the hand-over and offer below: on the chain-in branch this skill hands over through the `Skill` tool and never returns to the step, so a report placed afterwards would silently never run. It runs inline — **do not end your turn**, carry straight on.
+
+**Hand over, or offer.** If this run carries `solo`, skip the rest of this step: invoke `usage-report` via the `Skill` tool with `cycle feature_version=<version>, tracker_file=<tracker_file>` and emit the next-step line below. Otherwise carry on with the offer below.
 
 Then give the user a one-click way to continue into implementation. Call `AskUserQuestion` exactly once:
 
@@ -471,7 +475,7 @@ Then give the user a one-click way to continue into implementation. Call `AskUse
 - If it says "None — plan matches design v<N> exactly." → mark **"Yes, run /feature-implement"** as Recommended.
 - If it lists any deviation → mark **"Not now"** as Recommended instead, and append to its description: `"Consider running /feature-design first to fold the deviations back into the design (as a new feature version) before implementing."` The user can still pick "Yes" if they want to implement against the deviated plan as-is.
 
-If the user picks "Yes, run /feature-implement", invoke the `feature-implement` skill via the `Skill` tool with the single argument `v<version>` (the integer feature version resolved in Step 1). The implement skill's Step 1 parses the version token and delegates to `feature-resolve`, which continues into the same feature folder — no conversation-context lookup involved.
+If the user picks "Yes, run /feature-implement", invoke the `feature-implement` skill via the `Skill` tool with the argument `v<version> from=feature-plan` (the integer feature version resolved in Step 1, and this skill's slug, which the receiver strips). The implement skill's Step 1 parses the version token and delegates to `feature-resolve`, which continues into the same feature folder — no conversation-context lookup involved.
 
 If the user picks "Not now" or "Other", the chain stops here: invoke `usage-report` via the `Skill` tool with `cycle feature_version=<version>, tracker_file=<tracker_file>`, which prints the feature's cycle report and runs inline, then emit exactly one line before stopping:
 
@@ -479,7 +483,7 @@ If the user picks "Not now" or "Other", the chain stops here: invoke `usage-repo
 **Next step:** when you're ready, run `/feature-implement v<version>`.
 ```
 
-Do not skip this step or substitute the AskUserQuestion with prose. The offer is the affordance; rendering it as a question is what makes it one-click. Because `/feature-implement` writes code and commits, the "Not now" path is a perfectly reasonable choice — the user can review the plan first and run the chain later. The "Next step" hint is only emitted on decline.
+Do not skip this step or substitute the AskUserQuestion with prose. The offer is the affordance; rendering it as a question is what makes it one-click. Because `/feature-implement` writes code and commits, the "Not now" path is a perfectly reasonable choice — the user can review the plan first and run the chain later. The "Next step" hint is only emitted where the chain stops: on decline, or on a `solo` run.
 
 ## Constraints (non-negotiable)
 

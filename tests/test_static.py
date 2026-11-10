@@ -1205,6 +1205,120 @@ class TestSessionControlContract:
             "session-control must end the turn only on an acknowledged call"
         )
 
+    # --- The chain side: entry tokens and the end of a stage -------------
+
+    CHAINING = {
+        "feature-storm": "feature-design",
+        "feature-design": "feature-plan",
+        "feature-plan": "feature-implement",
+    }
+    CYCLE_CALL = "cycle feature_version=<version>, tracker_file=<tracker_file>"
+    CONTROL_RE = r"^\*\*Control tokens\.\*\*.*$"
+    HANDOVER_RE = r"^\*\*Hand over, or offer\.\*\*.*$"
+
+    def final_step(self, text):
+        last = max(int(n) for n in re.findall(r"^## Step (\d+) —", text, re.MULTILINE))
+        return step_span(text, last)
+
+    def test_step_0_names_the_plugin_qualified_tag(self):
+        # A relaunched or handed-over stage arrives as `/dev:<slug>`, which the
+        # bare tag alone would not recognise as an opt-in.
+        for slug in FEATURE_SKILLS:
+            text = skill_text(slug)
+            start, end = step_span(text, 0)
+            for tag in (f"<command-name>/{slug}</command-name>",
+                        f"<command-name>/<plugin>:{slug}</command-name>"):
+                assert tag in text[start:end], f"{slug}: Step 0 never names {tag}"
+
+    def test_control_tokens_are_stripped_first(self):
+        seen = set()
+        for slug in FEATURE_SKILLS:
+            text = skill_text(slug)
+            start, end = step_span(text, 1)
+            block = re.search(self.CONTROL_RE, text[start:end], re.MULTILINE)
+            assert block, f"{slug}: Step 1 has no **Control tokens.** paragraph"
+            for phrase in ("[solo] [v<N>] [from=<slug>]", "`solo`", "`from=<slug>`",
+                           "Solo run: this stage will not hand over."):
+                assert phrase in block.group(0), f"{slug}: Control tokens never names {phrase!r}"
+            parse = text.index("Parse `$ARGUMENTS`", start)
+            assert start + block.start() < parse < end, (
+                f"{slug}: control tokens are not stripped before the argument parsing"
+            )
+            seen.add(block.group(0).replace(slug, "<slug>"))
+        assert len(seen) == 1, "the Control tokens paragraph has drifted between skills"
+
+    def test_solo_ends_the_chain_with_the_cycle(self):
+        for slug in self.CHAINING:
+            text = skill_text(slug)
+            start, end = self.final_step(text)
+            block = re.search(self.HANDOVER_RE, text[start:end], re.MULTILINE)
+            assert block, f"{slug}: no **Hand over, or offer.** paragraph in the final step"
+            at = start + block.start()
+            report = re.search(r"^\*\*Report the run usage\.\*\*", text[start:end], re.MULTILINE)
+            offer = text.index("AskUserQuestion", start + block.end())
+            assert start + report.start() < at < offer, (
+                f"{slug}: Hand over, or offer is not between the report and the offer"
+            )
+            paragraph = block.group(0)
+            assert "`solo`" in paragraph and self.CYCLE_CALL in paragraph, (
+                f"{slug}: a solo run does not print the cycle report"
+            )
+            assert "AskUserQuestion" not in paragraph, (
+                f"{slug}: Hand over, or offer names AskUserQuestion, which moves the offer"
+            )
+
+    def test_every_handover_carries_from(self):
+        for slug, target in self.CHAINING.items():
+            text = skill_text(slug)
+            start, end = self.final_step(text)
+            step = text[start:end]
+            handovers = re.findall(
+                rf"invoke the `{target}` skill via the `Skill` tool with the "
+                r"(?:single )?argument `([^`]*)`",
+                step,
+            )
+            assert handovers, f"{slug}: no Skill-tool handover to {target}"
+            assert set(handovers) == {f"v<version> from={slug}"}, (
+                f"{slug}: a handover does not pass v<version> from={slug}: {handovers}"
+            )
+            assert "single argument `v<version>`" not in step, (
+                f"{slug}: a handover still passes the bare version"
+            )
+
+    def test_design_picks_up_the_storm_without_requirements_text(self):
+        # A clean handover arrives as `/feature-design v<N> from=feature-storm`
+        # in a cleared conversation; reading that as "arguments present" would
+        # fall through to asking what to design.
+        text = skill_text("feature-design")
+        start, end = step_span(text, 1)
+        rule = re.search(r"^4\. Else, if .*$", text[start:end], re.MULTILINE)
+        assert rule, "feature-design Step 1 has no rule 4"
+        rule = rule.group(0)
+        assert "no requirements text" in rule, "rule 4 is not conditioned on requirements text"
+        for token in ("`solo`", "`from=`", "`version=<N>`"):
+            assert token in rule, f"rule 4 never names {token}"
+        start, end = step_span(text, 2)
+        carve_out = next(
+            line for line in text[start:end].splitlines() if "**One carve-out:**" in line
+        )
+        for stale in ("`$ARGUMENTS` was empty", "no arguments"):
+            assert stale not in rule, f"rule 4 still says {stale!r}"
+            assert stale not in carve_out, f"the Step 2 carve-out still says {stale!r}"
+
+    def test_implement_commits_the_chains_own_artefacts_without_asking(self):
+        # Characterization guard (R28): an unattended plan -> implement start
+        # relies on this commit happening with no question.
+        text = skill_text("feature-implement")
+        bullet = next(
+            line for line in text.splitlines()
+            if line.lstrip().startswith("- **First, distinguish the chain's own churn")
+        )
+        assert "directly" in bullet and "`docs(...)` commit" in bullet
+        assert "AskUserQuestion" not in bullet
+        assert not re.search(r"\bask\b", bullet, re.IGNORECASE), (
+            "feature-implement asks before committing the chain's own artefacts"
+        )
+
 
 class TestUsageReportLifecycle:
     """The four chain skills report what a run cost, via the usage-report helper.

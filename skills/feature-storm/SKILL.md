@@ -3,7 +3,7 @@ name: feature-storm
 description: Brainstorm the high-level product / requirements view of a feature before any technical design work. Use when the user wants to think through a feature at the product layer — goals, scope, users, rough technical direction — without committing to a design yet. Typically the first step in the feature-storm → feature-design → feature-plan → feature-implement chain, but optional; /feature-design can start from cold. Establishes initial requirements with the user, calls /feature-resolve to allocate the feature folder, then runs a structured brainstorming loop that generates ideas the brief did not contain in two waves — grounded ones first (adjacent capabilities, alternative product approaches, smaller cuts, unconsidered users), then a separate round of deliberately bold ones (inverted premises, a different consumer, a mechanism borrowed from another domain) that repeats nothing from the first — and offers them alongside its clarifying questions, converging only once the scope is fully settled (every capability explicitly in or deferred) and the user approves a ≤10-bullet summary, writes feature-storm-v<N>-<desc>.md, updates the per-feature tracker (header + storming section + progress bar), captures lessons, and offers to chain into /feature-design. Step 0 confirms with the user via AskUserQuestion before doing any work when invoked proactively; the confirmation is skipped when the user explicitly typed /feature-storm or just chained in from /feature-dispatch.
 user-invocable: true
 disable-model-invocation: false
-argument-hint: <free-form requirements (optionally including v<N> and a short title), or omit to be asked>
+argument-hint: "[solo] <free-form requirements (optionally including v<N> and a short title), or omit to be asked>"
 allowed-tools: Read, Grep, Glob, Write, Edit, AskUserQuestion, Skill, WebFetch, WebSearch, Bash(ls *), Bash(find *), Bash(mkdir -p *), Bash(test *), Bash(cp *), Bash(pwd), Bash(date *)
 ---
 
@@ -17,7 +17,7 @@ This skill has ten steps (Steps 0–9). Execute them in order. Do not skip Step 
 
 ## Step 0 — Confirm before proceeding (when invoked proactively)
 
-Check the most recent user message in the conversation for the literal tag `<command-name>/feature-storm</command-name>` (or, equivalently, a leading `/feature-storm` typed by the user). If present, the user has explicitly opted in via the slash command — skip this step and continue with Step 1.
+Check the most recent user message in the conversation for the literal tag `<command-name>/feature-storm</command-name>` or its plugin-qualified form `<command-name>/<plugin>:feature-storm</command-name>` (or, equivalently, a leading `/feature-storm` typed by the user). If present, the user has explicitly opted in via the slash command — skip this step and continue with Step 1.
 
 Also treat as opt-in (and skip this step) if you were just invoked as a chain from `/feature-dispatch` — i.e. the immediately previous turn was an `AskUserQuestion` result with header `"Route this feature?"` and the user selected an option whose label starts with `"Run /feature-storm"`. In that case the user has already confirmed via the dispatcher; do not re-ask.
 
@@ -68,6 +68,8 @@ Read `<extras-dir>/feature-storm.extras`.
 When the file does exist, treat every `- ` bullet in it as an instruction that applies to this run, on top of everything below. Announce it in one line — `Customisations active: <n> (feature-storm.extras)` — and then actually apply it. Customisations legitimately change defaults, counts, thresholds, tone, formats, which optional behaviours fire, and what you settle yourself instead of asking: how many rounds of idea generation you run before converging, how far afield the adjacent capabilities you offer are allowed to range, how long the closing summary runs, and how much grounding you do before the Step 3 round.
 
 **They never override the *Constraints (non-negotiable)* section at the end of this file.** `/skill-customize` refuses that kind of instruction at write time, so one arriving here means the file was hand-edited. Ignore that bullet, name the constraint it collides with in one line, and carry on with the rest. The file is never permission to skip Step 3's clarification and convergence loop, let the summary hedge scope, or carry an unsettled capability past Step 4 as a maybe.
+
+**Control tokens.** Before any other argument parsing, read the leading tokens of `$ARGUMENTS` in the order `[solo] [v<N>] [from=<slug>]`. Strip `solo` when it is the exact lowercase first token, and `from=<slug>` when it is the next token after `solo` and the version token (whichever of the two are present), and remember both; `from=`'s value is not validated. Leave the version token in place for the detection below. When `solo` was read, say so in one line — `Solo run: this stage will not hand over.` — so a requirements statement that merely starts with that word is caught at once.
 
 Parse `$ARGUMENTS`. Detect three pieces of input, any of which may be absent:
 
@@ -358,7 +360,9 @@ Keep the chat output under ~30 lines. The files are the artifact; the chat is th
 
 ## Step 9 — Offer to chain into /feature-design
 
-**Report the run usage.** Invoke `usage-report` via the `Skill` tool with the argument `report feature-storm, tracker_file=<tracker_file>, feature_version=<version>`, taking both values from this skill's `feature-resolve` block. It prints nothing: it appends one line to the usage log, fills this stage's tracker panel and rewrites the tracker's Usage tab. Do this *before* the offer below: on the chain-in branch this skill hands over through the `Skill` tool and never returns to the step, so a report placed afterwards would silently never run. It runs inline — **do not end your turn**, carry straight on.
+**Report the run usage.** Invoke `usage-report` via the `Skill` tool with the argument `report feature-storm, tracker_file=<tracker_file>, feature_version=<version>`, taking both values from this skill's `feature-resolve` block. It prints nothing: it appends one line to the usage log, fills this stage's tracker panel and rewrites the tracker's Usage tab. Do this *before* the hand-over and offer below: on the chain-in branch this skill hands over through the `Skill` tool and never returns to the step, so a report placed afterwards would silently never run. It runs inline — **do not end your turn**, carry straight on.
+
+**Hand over, or offer.** If this run carries `solo`, skip the rest of this step: invoke `usage-report` via the `Skill` tool with `cycle feature_version=<version>, tracker_file=<tracker_file>` and emit the next-step line below. Otherwise carry on with the offer below.
 
 Call `AskUserQuestion` exactly once:
 
@@ -368,7 +372,7 @@ Call `AskUserQuestion` exactly once:
   - `{ "label": "Yes, run /feature-design", "description": "Launch the design skill against the brainstorm just saved." }` (mark this as Recommended)
   - `{ "label": "Not now", "description": "Stop here; the brainstorm is saved." }`
 
-If the user picks "Yes, run /feature-design", invoke the `feature-design` skill via the `Skill` tool with the single argument `v<version>` (the integer feature version resolved in Step 2). Passing the version anchors the downstream resolver to the same feature folder explicitly; design also still picks up the storm's bullets and description from conversation context, but the version arg removes any ambiguity if other half-completed feature folders exist on disk.
+If the user picks "Yes, run /feature-design", invoke the `feature-design` skill via the `Skill` tool with the argument `v<version> from=feature-storm` (the integer feature version resolved in Step 2, and this skill's slug, which the receiver strips). Passing the version anchors the downstream resolver to the same feature folder explicitly; design also still picks up the storm's bullets and description from conversation context, but the version arg removes any ambiguity if other half-completed feature folders exist on disk.
 
 If the user picks "Not now" or "Other", the chain stops here: invoke `usage-report` via the `Skill` tool with `cycle feature_version=<version>, tracker_file=<tracker_file>`, which prints the feature's cycle report and runs inline, then emit exactly one line before stopping:
 
@@ -376,7 +380,7 @@ If the user picks "Not now" or "Other", the chain stops here: invoke `usage-repo
 **Next step:** when you're ready, run `/feature-design v<version>`.
 ```
 
-Do not skip this step or substitute the AskUserQuestion with prose. The offer is the affordance; rendering it as a question is what makes it one-click. The "Next step" hint is only emitted on decline — when the user accepts the chain, no hint is needed because the next skill is already running.
+Do not skip this step or substitute the AskUserQuestion with prose. The offer is the affordance; rendering it as a question is what makes it one-click. The "Next step" hint is only emitted where the chain stops: on decline, or on a `solo` run — when the user accepts the chain, no hint is needed because the next skill is already running.
 
 ## Constraints (non-negotiable)
 
