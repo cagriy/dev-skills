@@ -146,12 +146,13 @@ USAGE_TOKENS = {
 
 # Every feature-panel token. bug-tracker-render blanks all of them by name —
 # it is the template's second consumer, and the one nothing in the bug
-# workflow reminds you about. Twelve before the usage tokens, twenty after.
+# workflow reminds you about. Twelve before the usage tokens, twenty after
+# the stage ones, twenty-one with the Usage tab's.
 FEATURE_PANEL_TOKENS = tuple(
     "{{%s_%s}}" % (prefix, suffix)
     for prefix in ("BRAINSTORMING", "DESIGN", "PLAN", "IMPLEMENTATION")
     for suffix in ("AT", "BULLETS", "DETAILS", "USAGE_CHIP", "USAGE")
-)
+) + ("{{CYCLE_USAGE}}",)
 
 
 def all_skill_files():
@@ -1268,7 +1269,50 @@ class TestUsageReportLifecycle:
             f"{named ^ expected}"
         )
 
-    def test_bug_tracker_render_blanks_twenty_tokens(self):
+    def test_the_cycle_token_sits_in_the_usage_panel(self):
+        text = TRACKER_TEMPLATE.read_text()
+        panel = re.search(r'<section\b[^>]*\bid="panel-usage"[^>]*>', text)
+        assert panel, 'no id="panel-usage" section in the template'
+        for attribute in ('role="tabpanel"', 'aria-labelledby="tab-usage"'):
+            assert attribute in panel.group(0), f"the Usage panel lacks {attribute}"
+        assert re.search(r"\shidden[\s>]", panel.group(0)), "the Usage panel is not hidden"
+        start, end = self.panel_span(text, "usage")
+        assert "{{CYCLE_USAGE}}" in text[start:end]
+        assert start < text.index('id="panel-issues"'), "the Usage panel sits after Issues"
+
+        tab = re.search(r'<button\b[^>]*\bid="tab-usage"[^>]*>(.*?)</button>', text, re.DOTALL)
+        assert tab, 'no id="tab-usage" button in the template'
+        opening = tab.group(0)[: tab.group(0).index(">") + 1]
+        assert 'role="tab"' in opening and 'aria-controls="panel-usage"' in opening
+        # data-kind="issues" is what hides a tab outside the bug tracker.
+        assert "data-kind" not in opening, "the Usage tab must show in the feature view"
+        assert "<span>Usage</span>" in tab.group(1)
+        assert text.index('id="tab-implementation"') < tab.start() < \
+            text.index('id="tab-issues"'), "the Usage tab sits outside Implementation…Issues"
+
+    def test_the_cycle_fragment_is_styled_by_the_template(self):
+        script, template = USAGE_SCRIPT.read_text(), TRACKER_TEMPLATE.read_text()
+        for css_class in ("usage-scroll", "usage-note"):
+            assert f'class="{css_class}"' in script, (
+                f"usage_report.py no longer renders .{css_class}"
+            )
+            assert re.search(rf"^\s*\.{css_class}\s*\{{", template, re.MULTILINE), (
+                f"templates/feature-tracker.html has no `.{css_class}` rule"
+            )
+
+    def test_script_cycle_token_matches_the_template(self):
+        # Read as text, like TRACKER_TOKENS above.
+        match = re.search(
+            r'^CYCLE_TOKEN = "(\{\{[A-Z0-9_]+\}\})"', USAGE_SCRIPT.read_text(), re.MULTILINE
+        )
+        assert match, "scripts/usage_report.py: no CYCLE_TOKEN"
+        text = TRACKER_TEMPLATE.read_text()
+        start, end = self.panel_span(text, "usage")
+        assert re.findall(r"\{\{[A-Z0-9_]+\}\}", text[start:end]) == [match.group(1)]
+        legend = text[: text.index("-->", text.index("<!--"))]
+        assert match.group(1) in legend, "the doc-comment legend does not name the token"
+
+    def test_bug_tracker_render_blanks_twenty_one_tokens(self):
         # The bug tracker hides the feature panels but still renders their
         # text, so a token the renderer does not blank leaks as a literal
         # `{{...}}`. The blanking lives in scripts/render_bug_tracker.py; the
@@ -1276,7 +1320,7 @@ class TestUsageReportLifecycle:
         from scripts import render_bug_tracker
 
         assert set(render_bug_tracker.FEATURE_PANEL_TOKENS) == set(FEATURE_PANEL_TOKENS), (
-            "render_bug_tracker.py must blank exactly the twenty feature-panel tokens"
+            "render_bug_tracker.py must blank exactly the twenty-one feature-panel tokens"
         )
         skill = BUG_TRACKER_SKILL.read_text()
         assert "scripts/render_bug_tracker.py" in skill, (

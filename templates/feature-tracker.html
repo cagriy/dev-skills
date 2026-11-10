@@ -21,6 +21,7 @@
       Design         ←  /feature-design
       Plan           ←  /feature-plan
       Implementation ←  /feature-implement
+      Usage          ←  usage-report (one token; see Run usage)
 
     A skill substitutes its own panel's tokens with real HTML. For
     any panel whose owning skill has not yet run, the currently
@@ -69,7 +70,7 @@
                                     test results, coverage,
                                     deviations, etc.
 
-      Run usage (all eight owned by usage-report — never by the
+      Run usage (all nine owned by usage-report — never by the
       panel's own skill):
         {{BRAINSTORMING_USAGE_CHIP}}, {{DESIGN_USAGE_CHIP}},
         {{PLAN_USAGE_CHIP}}, {{IMPLEMENTATION_USAGE_CHIP}}
@@ -81,14 +82,19 @@
                                     <div class="usage-pair"> of two
                                     <table class="usage"> halves, below
                                     the panel's Highlights bullets
+        {{CYCLE_USAGE}}             the whole Usage tab: the cycle's
+                                    two chips, its stage-columns table
+                                    and footnote, rewritten from the
+                                    usage log by every report and cycle
 
-      These eight are the one exception to the substitute-only-if-
-      literal rule: usage-report fills its own stage's pair and blanks
-      the other six on every run, so a re-run shows the latest figures
-      rather than a second table. Safe because they have exactly one
-      owner. Note the template has TWO consumers — usage-report and
-      bug-tracker-render, which blanks all twenty feature-panel
-      tokens — so adding or renaming one here is a two-skill change.
+      These nine are the one exception to the substitute-only-if-
+      literal rule: usage-report fills its own stage's pair and the
+      Usage tab, and blanks the other six on every run, so a re-run
+      shows the latest figures rather than a second table. Safe
+      because they have exactly one owner. Note the template has TWO
+      consumers — usage-report and bug-tracker-render, which blanks
+      all twenty-one feature-panel tokens — so adding or renaming one
+      here is a two-skill change.
 
     Progress stepper (Storming → Design → Plan → Implement):
       The four <li class="step" data-stage="…"> elements track stage
@@ -117,15 +123,17 @@
     Tracker kind (feature view vs. bug tracker):
       The page BODY element carries an optional data-tracker-kind attr.
 
-        (absent)            → feature view: stepper + the four feature
-                              tabs are shown; the Issues tab and its
-                              panel are hidden. This is the default the
-                              feature-* skills seed via feature-resolve.
-        data-tracker-kind   → bug tracker: the stepper and the four
-          ="bugs"             feature tabs/panels are hidden; only the
-                              Issues tab/panel is shown, and the header
-                              version chip + slug are hidden. /bug-submit
-                              sets this when it generates the repo-wide
+        (absent)            → feature view: stepper, the four feature
+                              tabs and Usage are shown; the Issues tab
+                              and its panel are hidden. This is the
+                              default the feature-* skills seed via
+                              feature-resolve.
+        data-tracker-kind   → bug tracker: the stepper, the four
+          ="bugs"             feature tabs/panels and Usage are
+                              hidden; only the Issues tab/panel is
+                              shown, and the header version chip +
+                              slug are hidden. /bug-submit sets this
+                              when it generates the repo-wide
                               bugs/bugs-tracker.html from this template.
 
     Issues panel (owned by /bug-submit, bug tracker only):
@@ -686,6 +694,15 @@
       color: var(--accent);
     }
 
+    /* The Usage tab's seven-column cycle table scrolls rather than squeezes
+       on a narrow screen, so its cells never wrap. */
+    .usage-scroll { overflow-x: auto; white-space: nowrap; }
+    .usage-note {
+      margin: 12px 0 0;
+      font-size: 12px;
+      color: var(--text-subtle);
+    }
+
     /* Footer --------------------------------------------------------- */
 
     .feature-footer {
@@ -1008,6 +1025,19 @@
         <span>Implementation</span>
       </button>
 
+      <button class="tab" role="tab" aria-selected="false"
+              aria-controls="panel-usage" id="tab-usage" tabindex="-1">
+        <svg class="tab-icon" xmlns="http://www.w3.org/2000/svg"
+             viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M3 3v18h18"/>
+          <line x1="8" y1="17" x2="8" y2="12"/>
+          <line x1="13" y1="17" x2="13" y2="7"/>
+          <line x1="18" y1="17" x2="18" y2="14"/>
+        </svg>
+        <span>Usage</span>
+      </button>
+
       <button class="tab" role="tab" aria-selected="false" data-kind="issues"
               aria-controls="panel-issues" id="tab-issues" tabindex="-1">
         <svg class="tab-icon" xmlns="http://www.w3.org/2000/svg"
@@ -1081,6 +1111,11 @@
         <h2 class="section-label">Detail</h2>
         <div class="prose">{{IMPLEMENTATION_DETAILS}}</div>
       </article>
+    </section>
+
+    <section class="panel" role="tabpanel"
+             id="panel-usage" aria-labelledby="tab-usage" hidden>
+      {{CYCLE_USAGE}}
     </section>
 
     <section class="panel" role="tabpanel"

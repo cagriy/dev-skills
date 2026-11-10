@@ -20,8 +20,9 @@ CLAUDE.md → "Tracker token substitution"):
     bug-tracker view (Issues tab only; stepper and feature tabs hidden by CSS).
   * Header tokens: `{{FEATURE_TITLE}}` → "Bug Tracker"; `{{FEATURE_VERSION}}`
     and `{{FEATURE_SLUG}}` → empty; `{{GENERATED_AT}}` → today's ISO date.
-  * The twenty feature-panel tokens (FEATURE_PANEL_TOKENS) → empty. Those
-    panels are hidden, but a literal `{{…}}` would still be in the file.
+  * The twenty-one feature-panel tokens (FEATURE_PANEL_TOKENS), the Usage
+    tab's among them → empty. Those panels are hidden, but a literal `{{…}}`
+    would still be in the file.
   * The Issues panel is a marker-delimited living region, not a token:
     `<!-- ISSUES_AT:START -->…<!-- ISSUES_AT:END -->` carries the
     "Updated <UTC>" chip, `ISSUES_OPEN` and `ISSUES_CLOSED` carry the cards
@@ -54,7 +55,7 @@ FEATURE_PANEL_TOKENS = tuple(
     "{{%s_%s}}" % (prefix, suffix)
     for prefix in ("BRAINSTORMING", "DESIGN", "PLAN", "IMPLEMENTATION")
     for suffix in ("AT", "BULLETS", "DETAILS", "USAGE_CHIP", "USAGE")
-)
+) + ("{{CYCLE_USAGE}}",)
 
 REGIONS = ("AT", "OPEN", "CLOSED")
 PLACEHOLDERS = {

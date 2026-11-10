@@ -1097,6 +1097,17 @@ class TestApplyTrackerAgainstTheShippedTemplate:
                     f"which documents the token rather than rendering it"
                 )
 
+    def test_the_cycle_region_never_lands_in_the_doc_comment(self, tmp_path):
+        original = self.TEMPLATE.read_text()
+        tracker = tmp_path / "tracker.html"
+        tracker.write_text(original, encoding="utf-8")
+        assert ur.apply_cycle(tracker, "<p>CYCLE</p>")
+        rendered = tracker.read_text(encoding="utf-8")
+        end = self.doc_comment_end(original)
+        assert rendered.count("<!--", 0, end) == original.count("<!--", 0, end)
+        assert ur.CYCLE_TOKEN in rendered[: self.doc_comment_end(rendered)]
+        assert rendered[self.doc_comment_end(rendered) :].count("<p>CYCLE</p>") == 1
+
     def test_the_panel_is_still_filled(self, tmp_path):
         # The guard must not cost the substitution it exists to protect.
         rendered = self.rendered(tmp_path)

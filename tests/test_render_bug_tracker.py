@@ -265,12 +265,12 @@ class TestSkips:
 
 
 class TestContract:
-    def test_blanks_exactly_the_twenty_feature_panel_tokens(self):
+    def test_blanks_exactly_the_twenty_one_feature_panel_tokens(self):
         expected = tuple(
             "{{%s_%s}}" % (prefix, suffix)
             for prefix in ("BRAINSTORMING", "DESIGN", "PLAN", "IMPLEMENTATION")
             for suffix in ("AT", "BULLETS", "DETAILS", "USAGE_CHIP", "USAGE")
-        )
+        ) + ("{{CYCLE_USAGE}}",)
         assert tuple(rbt.FEATURE_PANEL_TOKENS) == expected
 
     def test_default_template_is_the_plugin_template(self):
