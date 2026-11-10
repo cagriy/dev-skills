@@ -36,6 +36,8 @@ A typical session:
                                                    #    the result with the eval suite
 ```
 
+Declare a relaunch tool from your harness with `/dev:skill-customize session-control`, and each stage runs on the model and effort you chose for it and hands over to the next in a cleared conversation; wherever the chain stops, one report shows the whole feature's tokens and cost.
+
 Run `/dev:feature-list` at any point to see which features are still open and which stage each of them reached, or `/dev:feature-list all` to include the finished ones.
 
 ### Let the skills improve themselves

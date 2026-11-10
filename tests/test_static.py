@@ -1424,6 +1424,23 @@ class TestSessionControlContract:
                 f"{slug}: the catch-all report does not except the Step 1 relaunch"
             )
 
+    def test_claude_md_documents_session_control_and_the_cycle_report(self):
+        # The wiki is outside the suite's reach; CLAUDE.md and the README are not.
+        text = (REPO / "CLAUDE.md").read_text()
+        for phrase in (
+            "session-control", "{{CYCLE_USAGE}}", "twenty-one",
+            "**Check the session**", "**Hand over, or offer**",
+        ):
+            assert phrase in text, f"CLAUDE.md never names {phrase!r}"
+        assert "twenty feature-panel tokens" not in text, (
+            "CLAUDE.md still counts twenty feature-panel tokens; the Usage tab made it twenty-one"
+        )
+
+    def test_readme_mentions_session_control(self):
+        assert "/dev:skill-customize session-control" in (REPO / "README.md").read_text(), (
+            "README.md never says how to opt in to session control"
+        )
+
 
 class TestUsageReportLifecycle:
     """The four chain skills report what a run cost, via the usage-report helper.
