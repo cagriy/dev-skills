@@ -23,7 +23,6 @@ import re
 import sys
 from collections import Counter
 from dataclasses import astuple, dataclass, fields
-from itertools import zip_longest
 from datetime import datetime, timezone
 from html import escape
 from pathlib import Path
@@ -495,13 +494,11 @@ _TOTAL_ONLY = {
     "tok/s": lambda m: _rate(m.output_tokens_per_second),
 }
 
-# The report's shape, from the accepted grouped-columns mockup: (group, rows),
-# each row (label, source, indented). Both renderers walk this one spec, so the
-# chat table and the tracker table cannot drift apart.
+# The stage panel's shape, from the accepted grouped-columns mockup: (group,
+# rows), each row (label, source, indented).
 #
-# The spec is two halves because the report renders them side by side — the
-# small total-only groups on the left, the token breakdown on the right. Nine
-# rows and eight rows zip into a nine-row table instead of a seventeen-row one.
+# The spec is two halves because the panel renders them side by side — the
+# small total-only groups on the left, the token breakdown on the right.
 _LEFT_GROUPS = (
     ("time", (
         ("elapsed", "elapsed", False),
@@ -534,9 +531,6 @@ _RIGHT_GROUPS = (
 # entities, so the entity reached the terminal verbatim. The tracker has CSS
 # for the job (`tr.sub`) and needs no glyph.
 _SUB = "\u21b3 "
-
-# The four cells of a blank row, used to pad the shorter half.
-_BLANK = ("", "", "", "")
 
 
 def _duration(seconds) -> str:
@@ -609,33 +603,6 @@ def _md_row(cells) -> str:
     # An empty cell renders as `| |` rather than `|  |`, so a group
     # heading's row reads the same as it did when it spanned the table.
     return "|" + "".join(f" {cell} |" if cell else " |" for cell in cells)
-
-
-def render_markdown(metrics: RunMetrics, footer: RunContext) -> str:
-    """The chat table. Chat renders markdown tables natively, so this is one."""
-    header = "| metric | main | subagents | total |"
-    lines = [
-        "### Run usage",
-        "",
-        header + header[1:],
-        "|---|---:|---:|---:|---|---:|---:|---:|",
-    ]
-    halves = (_half(metrics, _LEFT_GROUPS), _half(metrics, _RIGHT_GROUPS))
-    for left, right in zip_longest(*halves):
-        lines.append(_md_row(
-            (_md_cells(left) if left else _BLANK) + (_md_cells(right) if right else _BLANK)
-        ))
-    lines += ["", _footer_line(metrics, footer)]
-    return "\n".join(lines)
-
-
-def _footer_line(metrics: RunMetrics, footer: RunContext) -> str:
-    tier = metrics.total.service_tier or "unknown"
-    speed = metrics.total.speed or "unknown"
-    return (
-        f"{tier} tier · {speed} speed · {metrics.subagent_count} subagents "
-        f"· outcome {footer.outcome}"
-    )
 
 
 def render_tracker_html(metrics: RunMetrics) -> tuple:
@@ -1212,7 +1179,7 @@ def _description_from_tracker(tracker) -> str | None:
 
 
 def _report_stage(args) -> None:
-    """Measure the run, print its table, log it and fill its stage tokens; or
+    """Measure the run, log it and fill its stage tokens, printing nothing; or
     print one skip line."""
     session_id = os.environ.get("CLAUDE_CODE_SESSION_ID")
     if not session_id:
@@ -1254,8 +1221,6 @@ def _report_stage(args) -> None:
         evals_included=args.evals_included,
         cwd=marker.get("cwd"),
     )
-
-    print(render_markdown(metrics, context))
 
     try:
         append_log(log_entry(metrics, context), usage_dir / "runs.jsonl")

@@ -358,7 +358,7 @@ Keep the chat output under ~30 lines. The files are the artifact; the chat is th
 
 ## Step 9 — Offer to chain into /feature-design
 
-**Report the run usage.** Invoke `usage-report` via the `Skill` tool with the argument `report feature-storm, tracker_file=<tracker_file>, feature_version=<version>`, taking both values from this skill's `feature-resolve` block. It prints the run's usage table, appends one line to the usage log and fills this stage's tracker panel. Do this *before* the offer below: on the chain-in branch this skill hands over through the `Skill` tool and never returns to the step, so a report placed afterwards would silently never run. It runs inline — **do not end your turn**, carry straight on.
+**Report the run usage.** Invoke `usage-report` via the `Skill` tool with the argument `report feature-storm, tracker_file=<tracker_file>, feature_version=<version>`, taking both values from this skill's `feature-resolve` block. It prints nothing: it appends one line to the usage log, fills this stage's tracker panel and rewrites the tracker's Usage tab. Do this *before* the offer below: on the chain-in branch this skill hands over through the `Skill` tool and never returns to the step, so a report placed afterwards would silently never run. It runs inline — **do not end your turn**, carry straight on.
 
 Call `AskUserQuestion` exactly once:
 
@@ -370,7 +370,7 @@ Call `AskUserQuestion` exactly once:
 
 If the user picks "Yes, run /feature-design", invoke the `feature-design` skill via the `Skill` tool with the single argument `v<version>` (the integer feature version resolved in Step 2). Passing the version anchors the downstream resolver to the same feature folder explicitly; design also still picks up the storm's bullets and description from conversation context, but the version arg removes any ambiguity if other half-completed feature folders exist on disk.
 
-If the user picks "Not now" or "Other", emit exactly one line before stopping:
+If the user picks "Not now" or "Other", the chain stops here: invoke `usage-report` via the `Skill` tool with `cycle feature_version=<version>, tracker_file=<tracker_file>`, which prints the feature's cycle report and runs inline, then emit exactly one line before stopping:
 
 ```
 **Next step:** when you're ready, run `/feature-design v<version>`.
@@ -386,7 +386,7 @@ Do not skip this step or substitute the AskUserQuestion with prose. The offer is
 - **Mandatory clarification step.** Step 3 runs even when the harness instructs autonomous operation. Closing material product ambiguity is the whole point.
 - **Generate, don't just interview — twice.** Step 3a is not optional politeness. Wave 1 must put grounded ideas on the table the user did not bring (adjacent capabilities, alternative approaches, smaller cuts, unconsidered users); Wave 2 must then offer 4–5 deliberately bold ones, in a round of their own, repeating nothing from Wave 1. Ideas are offered, never assumed in; adopted ones shape §2/§3, rejected approaches land in §5 and rejected capabilities in §3's out-of-scope list.
 - **Scope must be 100% settled before Step 4.** Every capability discussed is either in this version or explicitly deferred by name. The only uncertainty allowed past the gate is design-level (recorded in §7). An unsettled item is a question for another round, never a hedge in the summary — and if it survives three rounds, force an in/out decision rather than carrying it forward.
-- **Report the run usage before you stop.** However this run ends — normal completion, a halt, a refusal, a stop condition, or an error surfaced to the user — invoke `usage-report` with `report feature-storm, outcome=halted` before you stop (Step 9's normal path passes `outcome=completed` instead). This covers every exit Step 9 does not. A halted run still cost tokens, and one that never reports vanishes from the log and skews every average drawn from it.
+- **Report the run usage before you stop.** However this run ends — normal completion, a halt, a refusal, a stop condition, or an error surfaced to the user — invoke `usage-report` with `report feature-storm, outcome=halted, cycle=true` — plus `tracker_file=<tracker_file>, feature_version=<version>` once Step 2's resolver has run — before you stop (Step 9's normal path passes `outcome=completed` instead). This covers every exit Step 9 does not. A halted run still cost tokens, and one that never reports vanishes from the log and skews every average drawn from it.
 - **Description is authoritative from `feature-resolve`.** When continuing into an existing folder, the folder's description wins — even if the user's `$ARGUMENTS` suggested a different title. Surface the resolver's `notes` to the user if it flagged a description conflict.
 - **No minor versions.** This plugin uses integer feature versions only. Pass `version=<N>` to the resolver, never `<N>.<M>`.
 - **Self-contained tracker edits.** Substitute only tokens that are still literal `{{...}}`; never overwrite content placed by another skill. The progress bar's `data-stage="storm"` entry is this skill's alone to touch.

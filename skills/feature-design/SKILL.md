@@ -544,7 +544,7 @@ Keep the chat output under ~30 lines. The file is the artifact; the chat is the 
 
 ## Step 11 — Offer to chain into /feature-plan
 
-**Report the run usage.** Invoke `usage-report` via the `Skill` tool with the argument `report feature-design, tracker_file=<tracker_file>, feature_version=<version>`, taking both values from this skill's `feature-resolve` block. It prints the run's usage table, appends one line to the usage log and fills this stage's tracker panel. Do this *before* the offer below: on the chain-in branch this skill hands over through the `Skill` tool and never returns to the step, so a report placed afterwards would silently never run. It runs inline — **do not end your turn**, carry straight on.
+**Report the run usage.** Invoke `usage-report` via the `Skill` tool with the argument `report feature-design, tracker_file=<tracker_file>, feature_version=<version>`, taking both values from this skill's `feature-resolve` block. It prints nothing: it appends one line to the usage log, fills this stage's tracker panel and rewrites the tracker's Usage tab. Do this *before* the offer below: on the chain-in branch this skill hands over through the `Skill` tool and never returns to the step, so a report placed afterwards would silently never run. It runs inline — **do not end your turn**, carry straight on.
 
 After presenting the highlights, give the user a one-click way to continue into the planning skill. Call `AskUserQuestion` exactly once:
 
@@ -556,7 +556,7 @@ After presenting the highlights, give the user a one-click way to continue into 
 
 If the user picks "Yes, run /feature-plan", invoke the `feature-plan` skill via the `Skill` tool with the single argument `v<version>` (the integer feature version resolved in Step 2). The plan skill's Step 1 parses the version token and delegates to `feature-resolve`, which continues into the same feature folder — no conversation-context lookup involved.
 
-If the user picks "Not now" or "Other", emit exactly one line before stopping:
+If the user picks "Not now" or "Other", the chain stops here: invoke `usage-report` via the `Skill` tool with `cycle feature_version=<version>, tracker_file=<tracker_file>`, which prints the feature's cycle report and runs inline, then emit exactly one line before stopping:
 
 ```
 **Next step:** when you're ready, run `/feature-plan v<version>`.
@@ -570,7 +570,7 @@ Do not skip this step or substitute the AskUserQuestion with prose. The offer is
 - **Integer versions only.** `v<N>` everywhere — no `v<N>.<M>` minor versions. No "next available version" math in this skill; the resolver decides.
 - **No open decisions.** §8 must be empty or "None — all decisions closed." before Step 8 begins.
 - **Clarify to exhaustion, not to a quota.** Step 4 is an interview that runs until the readiness test passes — a dry-drafted §5 with no guesses, no hedge language, an empty §8, every storm §7 item closed, the two-engineer test met, and a round that surfaced nothing new. Question count, elapsed rounds, and the user having already answered a few are not exit conditions. The one uncertainty allowed past it is appearance, which Step 5 closes with a rendered mockup.
-- **Report the run usage before you stop.** However this run ends — normal completion, a halt, a refusal, a stop condition, or an error surfaced to the user — invoke `usage-report` with `report feature-design, outcome=halted` before you stop (Step 11's normal path passes `outcome=completed` instead). This covers every exit Step 11 does not. A halted run still cost tokens, and one that never reports vanishes from the log and skews every average drawn from it.
+- **Report the run usage before you stop.** However this run ends — normal completion, a halt, a refusal, a stop condition, or an error surfaced to the user — invoke `usage-report` with `report feature-design, outcome=halted, cycle=true` — plus `tracker_file=<tracker_file>, feature_version=<version>` once Step 2's resolver has run — before you stop (Step 11's normal path passes `outcome=completed` instead). This covers every exit Step 11 does not. A halted run still cost tokens, and one that never reports vanishes from the log and skews every average drawn from it.
 - **Self-review is mandatory.** Step 7 must run even if the draft looks clean — security and efficiency gaps are usually invisible on the first pass.
 - **UI decisions come from the user, via the mockup.** When the feature has a user-visible surface, Step 5 runs and the design records the direction the user accepted — never a surface you invented and never one the user has not seen. `feature-mockup` owns the mockup files under `<feature_folder>/mockups/` and their published artifacts; this skill only reads them and cites them, by URL and relative path both.
 - **`DESIGN.md` has one writer.** `DESIGN.md` and `design/specimen.html` are written only by `design-language-update`, which Step 5 invokes; this skill never edits either file.

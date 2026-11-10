@@ -118,7 +118,7 @@ The subagent starts with a fresh context and cannot see this conversation, so it
 
 When the subagent returns, verify before relaying:
 
-1. If the message starts with `BLOCKED:`, invoke `usage-report` via the `Skill` tool with `report feature-plan, outcome=halted` (a halted run still cost tokens), then relay the message to the user verbatim and stop — Step 11 does not run, so this is the only place the report fires on a halted run. (For a design-level blocker, the recommendation to the user is a new design version via `/feature-design`.)
+1. If the message starts with `BLOCKED:`, invoke `usage-report` via the `Skill` tool with `report feature-plan, tracker_file=<tracker_file>, feature_version=<version>, outcome=halted, cycle=true` (a halted run still cost tokens, and the chain stops here, so it prints the cycle report), then relay the message to the user verbatim and stop — Step 11 does not run, so this is the only place the report fires on a halted run. (For a design-level blocker, the recommendation to the user is a new design version via `/feature-design`.)
 2. Otherwise run `test -f <stage_file>` — the plan file must exist. If it doesn't, or the final message isn't the Step 10 block, report the discrepancy to the user instead of relaying a success.
 3. If the summary's *Skill-improvement recommendations* line says lessons-capture was unavailable in the subagent, invoke `lessons-capture` via the `Skill` tool (argument `feature-plan`) from the main agent now, and substitute the returned entry into the summary before relaying.
 
@@ -457,7 +457,7 @@ Keep the block under ~35 lines — if the plan has more than 8 stages, group the
 
 First, output the subagent's Step 10 summary block to the user **verbatim** — do not compress, rewrite, or annotate it beyond fixing an obvious formatting break. This is the user's only view of the plan run.
 
-**Report the run usage.** Invoke `usage-report` via the `Skill` tool with the argument `report feature-plan, tracker_file=<tracker_file>, feature_version=<version>`, taking both values from this skill's `feature-resolve` block. It prints the run's usage table, appends one line to the usage log and fills this stage's tracker panel. Do this *before* the offer below: on the chain-in branch this skill hands over through the `Skill` tool and never returns to the step, so a report placed afterwards would silently never run. It runs inline — **do not end your turn**, carry straight on.
+**Report the run usage.** Invoke `usage-report` via the `Skill` tool with the argument `report feature-plan, tracker_file=<tracker_file>, feature_version=<version>`, taking both values from this skill's `feature-resolve` block. It prints nothing: it appends one line to the usage log, fills this stage's tracker panel and rewrites the tracker's Usage tab. Do this *before* the offer below: on the chain-in branch this skill hands over through the `Skill` tool and never returns to the step, so a report placed afterwards would silently never run. It runs inline — **do not end your turn**, carry straight on.
 
 Then give the user a one-click way to continue into implementation. Call `AskUserQuestion` exactly once:
 
@@ -473,7 +473,7 @@ Then give the user a one-click way to continue into implementation. Call `AskUse
 
 If the user picks "Yes, run /feature-implement", invoke the `feature-implement` skill via the `Skill` tool with the single argument `v<version>` (the integer feature version resolved in Step 1). The implement skill's Step 1 parses the version token and delegates to `feature-resolve`, which continues into the same feature folder — no conversation-context lookup involved.
 
-If the user picks "Not now" or "Other", emit exactly one line before stopping:
+If the user picks "Not now" or "Other", the chain stops here: invoke `usage-report` via the `Skill` tool with `cycle feature_version=<version>, tracker_file=<tracker_file>`, which prints the feature's cycle report and runs inline, then emit exactly one line before stopping:
 
 ```
 **Next step:** when you're ready, run `/feature-implement v<version>`.
@@ -487,7 +487,7 @@ Do not skip this step or substitute the AskUserQuestion with prose. The offer is
 - **Output path comes from `feature-resolve` only.** Never write to `docs/`, never construct `features/...` paths by hand. Step 1 is the single source of pathing.
 - **Integer versions only.** `v<N>` everywhere — no `v<N>.<M>`. The plan version matches the feature version; there is no separate plan minor-versioning.
 - **The design's open questions must be empty.** If design §8 has any open question, the run halts (`BLOCKED:`). The plan cannot resolve design ambiguity — only `/feature-design` can.
-- **Report the run usage before you stop.** However this run ends — normal completion, a `BLOCKED:` halt, a refusal, or an error surfaced to the user — invoke `usage-report` with `report feature-plan, outcome=halted` before you stop (Step 11's normal path passes `outcome=completed` instead). Step 2 covers the `BLOCKED:` relay; this covers every other exit. The window is the main agent's alone — the planning subagent never opens or closes it.
+- **Report the run usage before you stop.** However this run ends — normal completion, a `BLOCKED:` halt, a refusal, or an error surfaced to the user — invoke `usage-report` with `report feature-plan, outcome=halted, cycle=true` — plus `tracker_file=<tracker_file>, feature_version=<version>` once Step 1's resolver has run — before you stop (Step 11's normal path passes `outcome=completed` instead). Step 2 covers the `BLOCKED:` relay; this covers every other exit. The window is the main agent's alone — the planning subagent never opens or closes it.
 - **TDD is non-optional for behavior-changing, host-testable stages.** Stages in a sanctioned non-red-first category (Step 5) carry their category label and one-line justification; everything else follows write → fail → code → pass.
 - **The planning core never prompts the user.** Steps 3–10 run without `AskUserQuestion` — in the subagent it is impossible, and the policy holds even in the direct-execution fallback. Only Steps 0, 1, and 11 may prompt, and only from the main agent.
 - **No silent scope or decision changes.** Divergence from the design lives in *Deviations from the design*; autonomous planning-level choices live in *Planning decisions taken*; both are surfaced in the Step 10 summary. Design-level ambiguity is never decided unilaterally — it halts.

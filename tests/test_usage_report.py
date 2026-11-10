@@ -434,22 +434,6 @@ class TestAggregatePricing:
 
 # Golden strings, compared whole. A substring check would silently tolerate a
 # row-order drift away from the accepted grouped-columns mockup.
-EXPECTED_MARKDOWN = """### Run usage
-
-| metric | main | subagents | total | metric | main | subagents | total |
-|---|---:|---:|---:|---|---:|---:|---:|
-| **time** | | | | **tokens** | | | |
-| elapsed | — | — | 1m 00s | input_tokens | 16 | 6 | 22 |
-| run time | — | — | 20s | output_tokens | 350 | 90 | 440 |
-| **requests** | | | | ↳ thinking_tokens | 120 | 30 | 150 |
-| model | 3 | 3 | 6 | cache_write | 3,000 | 900 | 3,900 |
-| web_search | 1 | 0 | 1 | ↳ ephemeral_1h | 2,500 | 500 | 3,000 |
-| web_fetch | 2 | 0 | 2 | ↳ ephemeral_5m | 500 | 400 | 900 |
-| **throughput** | | | | cache_read | 12,000 | 2,500 | 14,500 |
-| output tok/s | — | — | 9.4 | | | | |
-
-standard tier · standard speed · 2 subagents · outcome completed"""
-
 EXPECTED_CHIP = '<span class="chip usage">1m 00s · 440 out · 9.4 tok/s · $0.06</span>'
 
 # The HTML halves indent their sub-rows with the template's `tr.sub` padding,
@@ -512,40 +496,6 @@ def empty_metrics():
     return ur.RunMetrics(ur.Usage(), ur.Usage(), ur.Usage(), ur.Timings())
 
 
-class TestRenderMarkdown:
-    def test_matches_the_accepted_mockup(self, metrics):
-        assert ur.render_markdown(metrics, context()) == EXPECTED_MARKDOWN
-
-    def test_a_zero_request_run_renders_an_em_dash_rather_than_dividing_by_zero(self):
-        table = ur.render_markdown(empty_metrics(), context())
-        assert "| output tok/s | — | — | — | | | | |" in table
-
-    def test_a_clamped_duration_renders_as_zero_seconds(self):
-        table = ur.render_markdown(empty_metrics(), context())
-        assert "| elapsed | — | — | 0s | input_tokens | 0 | 0 | 0 |" in table
-
-    def test_no_html_entity_reaches_chat(self, metrics):
-        """Chat renders the table's markdown but not HTML entities.
-
-        The `&nbsp;&nbsp;` indent this replaced showed up in the terminal
-        verbatim, which is invisible to a golden string that also carries it.
-        """
-        assert "&" not in ur.render_markdown(metrics, context())
-
-    def test_every_row_carries_the_same_eight_columns(self, metrics):
-        """A half rendered short would produce a ragged table, not an error."""
-        rows = [
-            line for line in ur.render_markdown(metrics, context()).splitlines()
-            if line.startswith("|")
-        ]
-        assert len(rows) == 11  # header, alignment rule, nine body rows
-        assert {len(row.split("|")) for row in rows} == {10}  # 8 cells + 2 ends
-
-    def test_the_outcome_comes_from_the_context(self, metrics):
-        table = ur.render_markdown(metrics, context(outcome="halted"))
-        assert table.endswith("· outcome halted")
-
-
 class TestRenderTrackerHtml:
     def test_chip_matches_the_accepted_mockup(self, metrics):
         chip, _ = ur.render_tracker_html(metrics)
@@ -573,27 +523,10 @@ class TestRenderTrackerHtml:
         _, table = ur.render_tracker_html(metrics)
         assert table == EXPECTED_TRACKER_TABLE
 
-    def test_both_surfaces_carry_the_same_row_order(self, metrics):
-        """Each markdown half must match the HTML table rendered from it."""
-        markdown = ur.render_markdown(metrics, context())
-        _, tables = ur.render_tracker_html(metrics)
-        body = [
-            line.split("|")[1:-1]
-            for line in markdown.splitlines()
-            if line.startswith("|")
-        ][2:]  # drop the header row and the alignment rule
-        halves = [
-            [
-                cells[0].strip().removeprefix(ur._SUB)
-                for cells in body
-                if cells[0].strip() and not cells[0].strip().startswith("**")
-            ]
-            for body in ([row[:4] for row in body], [row[4:] for row in body])
-        ]
-        for half, table in zip(halves, tables.split("</table>")):
-            # Digits are in the class deliberately: without them `ephemeral_1h`
-            # and `ephemeral_5m` drop out of the comparison on both sides.
-            assert half == re.findall(r"<tr[^>]*><td>([a-z0-9_ /]+)</td>", table)
+    def test_a_zero_request_run_renders_an_em_dash_and_zero_seconds(self):
+        chip, table = ur.render_tracker_html(empty_metrics())
+        assert chip == '<span class="chip usage">0s · 0 out · — tok/s</span>'
+        assert "<td>output tok/s</td><td>—</td><td>—</td><td>—</td>" in table
 
 
 class TestLogEntry:
@@ -660,12 +593,15 @@ class TestLogEntry:
 
 
 class TestNoConversationContentLeaks:
-    def test_the_secret_reaches_neither_renderer_nor_the_log_entry(self, metrics):
+    def test_the_secret_reaches_no_renderer_and_not_the_log_entry(self, metrics):
         chip, table = ur.render_tracker_html(metrics)
-        assert SECRET not in ur.render_markdown(metrics, context())
+        entry = ur.log_entry(metrics, context())
+        stages = ur.group_cycle([entry])
         assert SECRET not in chip
         assert SECRET not in table
-        assert SECRET not in json.dumps(ur.log_entry(metrics, context()))
+        assert SECRET not in json.dumps(entry)
+        assert SECRET not in ur.render_cycle_markdown(stages, 1)
+        assert SECRET not in ur.render_cycle_html(stages)
 
 
 # --- Stage 3: CLI, start marker, log append, tracker application -----------
@@ -871,14 +807,12 @@ class TestMainStart:
 
 
 class TestMainReport:
-    def test_prints_the_table_appends_one_line_and_clears_the_marker(self, cli, capsys):
+    def test_prints_nothing_appends_one_line_and_clears_the_marker(self, cli, capsys):
         config_dir, session_id = cli
         marker = seed_marker(config_dir, session_id)
         assert ur.main(["report", "--slug", "feature-plan", "--feature-version", "1"]) == 0
 
-        out = capsys.readouterr().out
-        assert out.startswith("### Run usage")
-        assert "outcome completed" in out
+        assert capsys.readouterr().out == ""
 
         lines = runs_log(config_dir)
         assert len(lines) == 1
@@ -942,16 +876,15 @@ class TestMainReport:
         assert '<p class="section-timestamp">4 of 4 stages · 6 runs</p>' in text
         assert text.count('<h2 class="section-label">Cycle usage</h2>') == 1
 
-    def test_the_cycle_flag_prints_the_cycle_after_the_run(self, cli, capsys, cycle_repo):
+    def test_the_cycle_flag_prints_only_the_cycle(self, cli, capsys, cycle_repo):
         config_dir, session_id = cli
         repo, tracker = cycle_repo
         seed_marker(config_dir, session_id, cwd=repo)
         assert ur.main(["report", "--slug", "feature-plan", "--tracker", str(tracker),
                         "--feature-version", "7", "--cycle"]) == 0
         out = capsys.readouterr().out
-        run, cycle = out.split("### Cycle usage: v7 add-reminders\n")
-        assert run.startswith("### Run usage")
-        runs = next(row for row in md_rows(cycle) if row[0] == "runs")
+        assert out.startswith("### Cycle usage: v7 add-reminders\n")
+        runs = next(row for row in md_rows(out) if row[0] == "runs")
         assert runs[3:6] == ["2", "1", "6"]  # plan, implement, total
 
     def test_the_cycle_flag_without_a_version_says_so_last(self, cli, capsys, cycle_repo):
@@ -1021,21 +954,19 @@ class TestMainNeverFailsTheCaller:
         assert ur.main(["cycle", "--feature-version", "7"]) == 0
         self.one_line(capsys)
 
-    def test_a_failed_log_write_still_prints_the_table(self, cli, capsys, monkeypatch):
+    def test_a_failed_log_write_prints_only_its_skip_line(self, cli, capsys, monkeypatch):
         config_dir, session_id = cli
         seed_marker(config_dir, session_id)
         monkeypatch.setattr(ur, "append_log", _boom)
         assert ur.main(["report", "--slug", "feature-plan"]) == 0
-        out = capsys.readouterr().out
-        assert out.startswith("### Run usage")
-        assert "log write failed: disk full" in out
+        assert capsys.readouterr().out == "usage report skipped — log write failed: disk full\n"
 
-    def test_an_unwritable_tracker_leaves_the_table_and_log_intact(self, cli, capsys, tmp_path):
+    def test_an_unwritable_tracker_leaves_the_log_intact(self, cli, capsys, tmp_path):
         config_dir, session_id = cli
         seed_marker(config_dir, session_id)
         assert ur.main(["report", "--slug", "feature-plan",
                         "--tracker", str(tmp_path / "absent.html")]) == 0
-        assert capsys.readouterr().out.startswith("### Run usage")
+        assert capsys.readouterr().out == ""
         assert len(runs_log(config_dir)) == 1
 
 
@@ -1055,7 +986,7 @@ class TestApplyTrackerAgainstTheShippedTemplate:
     """The real template, not the minimal fixture.
 
     `templates/feature-tracker.html` opens with an HTML doc comment that
-    legends every token by name — including the eight usage ones. A whole-file
+    legends every token by name — including the nine usage ones. A whole-file
     substitution therefore rewrites the legend as well as the panel, and the
     anchor comments it writes carry a `-->` that closes the doc comment early,
     spilling the rest of the legend onto the page as visible markup. Nothing in

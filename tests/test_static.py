@@ -1211,7 +1211,7 @@ class TestUsageReportLifecycle:
 
     Needed because the
     feature is spread across six files that nothing else forces to agree. The
-    tracker template carries eight tokens, `scripts/usage_report.py` is the
+    tracker template carries nine tokens, `scripts/usage_report.py` is the
     only thing that fills them, `skills/usage-report/SKILL.md` is the only
     skill that names them, and `bug-tracker-render` — the template's *second*
     consumer — has to blank them, or every regenerated bug tracker renders
@@ -1352,6 +1352,7 @@ class TestUsageReportLifecycle:
 
     def test_usage_report_owns_the_usage_tokens(self):
         tokens = {token for pair in USAGE_TOKENS.values() for token in pair}
+        tokens.add("{{CYCLE_USAGE}}")
         missing = sorted(t for t in tokens if t not in USAGE_SKILL.read_text())
         assert not missing, f"usage-report does not name its own tokens: {missing}"
         # Sole *filling* owner. bug-tracker-render is the one other skill
@@ -1362,6 +1363,24 @@ class TestUsageReportLifecycle:
                 continue
             also = sorted(t for t in tokens if t in skill_file.read_text())
             assert not also, f"{skill_file.parent.name} also names {also}"
+
+    def test_usage_report_documents_the_cycle_forms(self):
+        text = USAGE_SKILL.read_text()
+        inputs = next(
+            (b for b in fenced_blocks(text) if b.startswith("start <slug>\n")), None
+        )
+        assert inputs, "usage-report: no fenced input block"
+        for form in ("cycle feature_version=<N>[, tracker_file=<path>]", "cycle=<true|false>"):
+            assert form in inputs, f"usage-report's input block never names {form!r}"
+        start, end = step_span(text, 2)
+        for flag in ("--cycle", "cycle --feature-version"):
+            assert flag in text[start:end], f"usage-report Step 2 never runs {flag!r}"
+        skips = [line for line in text.splitlines() if line.startswith("| `")]
+        for skip in ("no feature version to report a cycle for",
+                     "no logged runs for v<N> in this repo"):
+            assert any(skip in line for line in skips), (
+                f"usage-report's skip table never names {skip!r}"
+            )
 
     def test_usage_chip_is_never_a_timestamp_chip(self):
         # feature-list derives a feature's last-activity date by matching
@@ -1508,17 +1527,56 @@ class TestUsageReportLifecycle:
             "feature-implement: the usage report precedes the eval relay"
         )
 
+    # --- Where the cycle report prints: wherever the chain stops ---------
+
+    CYCLE_CALL = "cycle feature_version=<version>, tracker_file=<tracker_file>"
+
+    def test_report_blocks_are_quiet(self):
+        # A stage that hands over prints nothing; the cycle prints once,
+        # where the chain stops.
+        for slug in FEATURE_SKILLS:
+            line = re.search(self.REPORT_RE, skill_text(slug), re.MULTILINE).group(0)
+            assert "prints the run's usage table" not in line, (
+                f"{slug}: the report block still promises a per-stage table"
+            )
+            if slug != "feature-implement":
+                assert "prints nothing" in line, f"{slug}: the report block is not quiet"
+
+    def test_implement_report_prints_the_cycle(self):
+        # Implement hands over to nothing, so its end is always a chain stop.
+        line = re.search(self.REPORT_RE, skill_text("feature-implement"), re.MULTILINE)
+        assert "cycle=true" in line.group(0), (
+            "feature-implement: the final report does not print the cycle"
+        )
+
+    def test_the_chaining_skills_print_the_cycle_when_declined(self):
+        for slug in ("feature-storm", "feature-design", "feature-plan"):
+            text = skill_text(slug)
+            start, end = self.final_step_span(text)
+            offer = text.index("AskUserQuestion", start)
+            call = text.find(self.CYCLE_CALL, offer, end)
+            assert call != -1, f"{slug}: the declined offer prints no cycle report"
+            assert call < text.index("**Next step:**", offer), (
+                f"{slug}: the cycle report follows the next-step line"
+            )
+
     def test_reporting_before_any_stop_is_a_constraint(self):
         # The enumerated early exits cannot cover every halt; without the
         # catch-all an unanticipated stop leaves a marker and no log entry.
         for slug in FEATURE_SKILLS:
-            assert re.search(
-                r"\*\*Report the run usage before you stop\.\*\*", skill_text(slug)
-            ), f"{slug}: no catch-all constraint reporting usage on early exits"
+            bullet = re.search(
+                r"^- \*\*Report the run usage before you stop\.\*\*.*$",
+                skill_text(slug), re.MULTILINE,
+            )
+            assert bullet, f"{slug}: no catch-all constraint reporting usage on early exits"
+            assert "outcome=halted, cycle=true" in bullet.group(0), (
+                f"{slug}: the catch-all report does not print the cycle"
+            )
 
     def test_early_exits_report_halted(self):
         # A halted run still cost tokens. Each enumerated early exit has to
-        # say so, or those runs vanish from the log and skew every average.
+        # say so, or those runs vanish from the log and skew every average —
+        # and the chain stops there, so it prints the cycle.
         exits = {
             # Step 2's relay, not the Execution-model paragraph that also
             # names the protocol — the relay is the code path that stops.
@@ -1530,10 +1588,10 @@ class TestUsageReportLifecycle:
             for anchor in anchors:
                 where = text.index(anchor)
                 window = text[where : where + 4000]
-                assert "outcome=halted" in window, (
-                    f"{slug}: the early exit at {anchor!r} does not report "
-                    f"outcome=halted"
-                )
+                for part in ("outcome=halted", "cycle=true", "tracker_file=<tracker_file>"):
+                    assert part in window, (
+                        f"{slug}: the early exit at {anchor!r} does not report {part}"
+                    )
 
 
 
