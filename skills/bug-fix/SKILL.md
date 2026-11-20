@@ -174,7 +174,7 @@ Keep the first commit line under 72 characters. Do **not** stage unrelated modif
 
 ## Step 10 — Capture lessons
 
-Invoke the `lessons-capture` skill in this plugin via the `Skill` tool with the single argument `bug-fix`. It runs the reflection protocol, appends a dated entry to `~/.claude/dev-skills/lessons/bug-fix.md`, and returns the entry body for the highlights below. Do not run the reflection inline — `lessons-capture` is the single source of that protocol.
+Invoke the `lessons-capture` skill in this plugin via the `Skill` tool with the single argument `bug-fix`. It runs the reflection protocol, appends a dated entry to `~/.claude/dev-skills/lessons/bug-fix.md`, and returns the entry body for the highlights below. When it also returns a log-size reminder block, paste that block unchanged directly below the entry. Do not run the reflection inline — `lessons-capture` is the single source of that protocol.
 
 Then output a short, scannable summary in chat (under ~20 lines):
 

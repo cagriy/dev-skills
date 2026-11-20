@@ -1,6 +1,6 @@
 ---
 name: lessons-capture
-description: Internal helper invoked only by other skills in this plugin (e.g. feature-storm, feature-design, feature-plan, feature-implement, bug-fix) as their final step. Captures one skill-improvement recommendation (or "none this run") and appends a dated entry to a per-skill log under ~/.claude/dev-skills/lessons/<skill-name>.md. Takes the calling skill's slug as its only argument. Never edits any SKILL.md — the log is reviewed and applied later, either by the user or by a dedicated improver skill. Not user-facing — users should not invoke this directly.
+description: Internal helper invoked only by other skills in this plugin (e.g. feature-storm, feature-design, feature-plan, feature-implement, bug-fix) as their final step. Captures one skill-improvement recommendation (or "none this run") and appends a dated entry to a per-skill log under ~/.claude/dev-skills/lessons/<skill-name>.md. Takes the calling skill's slug as its only argument. Once that log holds more than 50 lessons, it also returns a reminder block telling the user to run lessons-learn — a message only, never a question. Never edits any SKILL.md — the log is reviewed and applied later, either by the user or by a dedicated improver skill. Not user-facing — users should not invoke this directly.
 user-invocable: false
 ---
 
@@ -71,7 +71,11 @@ cat <<'EOF' >> ~/.claude/dev-skills/lessons/<slug>.md
 ---
 
 EOF
+# Count the lessons now in the log:
+grep -c '^\*\*Observation:\*\*' ~/.claude/dev-skills/lessons/<slug>.md || true
 ```
+
+The last line of output is the number of **lessons** now in the log: entries that carry a recommendation. A "no recommendation" entry is not a lesson and is not counted. Keep the number for Step 4.
 
 For a no-recommendation run, the body of the heredoc is just:
 
@@ -91,11 +95,23 @@ If the heredoc contains characters that need escaping (e.g. backticks), keep the
 
 Echo the entry body (the three bullets, or the "no recommendations" line — without the `## <timestamp>` heading and without the trailing `---`) back to the user in chat exactly once, so the calling skill can paste it under its *Skill-improvement recommendations* heading in its own chat summary. Do not paste the whole log file or any prior entries.
 
+**Remind when the log has grown.** When Step 3 counted **more than 50** lessons, the entry comes with a log-size reminder block — exactly this text, inside a fenced code block (unfenced, markdown reads a line of `=` as a heading underline and the block collapses into one heading):
+
+```
+===============================================
+You've got more than 50 lessons captured.
+Run lessons-learn skill to incorporate them.
+===============================================
+```
+
+Print it once per run, directly below the entry under the calling skill's *Skill-improvement recommendations* heading: that summary is what the user reads, and the only part of a caller running in a subagent that reaches them. A caller with no such summary prints it right after the entry. It is a message and nothing else — no question, no offer to run `lessons-learn`, no pause — and the calling skill carries on exactly as it would have. At 50 or fewer, say nothing about the log's size.
+
 ## Constraints (non-negotiable)
 
 - **Never edit any `SKILL.md`.** This skill only appends to the lessons log. Improvements are applied later by the user, deliberately, after reviewing patterns across runs.
 - **At most one recommendation per run.** Never invent one to fill space. "No recommendations" is the common and correct answer.
 - **One entry per invocation.** Even if the calling skill ran many stages, produce one entry covering the whole run.
+- **The reminder is a message, never a question.** Past 50 lessons it prints the Step 4 block and nothing more: no `AskUserQuestion`, no offer to run `lessons-learn`, no change to what the calling skill does next.
 - **Never write outside `~/.claude/dev-skills/lessons/`.** Other directories are off-limits, including the project's `docs/` and the plugin's own files.
 - **Always use UTC for the timestamp** so logs collected from different machines remain sortable.
 - **Trust the argument.** Do not try to "validate" the slug against the on-disk skill list — a typo there would silently misroute future entries. If the caller passed something obviously wrong (empty, contains slashes), stop and ask.

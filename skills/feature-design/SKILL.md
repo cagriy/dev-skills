@@ -512,7 +512,7 @@ Do **not** touch other skills' tokens (storm content, plan, implementation) beyo
 
 ## Step 9 — Capture lessons
 
-Invoke the `lessons-capture` skill in this plugin via the `Skill` tool with the single argument `feature-design`. It runs the reflection protocol, appends a dated entry to `~/.claude/dev-skills/lessons/feature-design.md`, and returns the entry body (a single recommendation in three lines, or the "No skill-improvement recommendations from this run." line) for you to paste under the *Skill-improvement recommendations* heading in Step 10.
+Invoke the `lessons-capture` skill in this plugin via the `Skill` tool with the single argument `feature-design`. It runs the reflection protocol, appends a dated entry to `~/.claude/dev-skills/lessons/feature-design.md`, and returns the entry body (a single recommendation in three lines, or the "No skill-improvement recommendations from this run." line) for you to paste under the *Skill-improvement recommendations* heading in Step 10. When it also returns a log-size reminder block, paste that block unchanged directly below the entry.
 
 Do not run the reflection inline — `lessons-capture` is the single source of the protocol for all skills in this plugin.
 

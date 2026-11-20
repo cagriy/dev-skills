@@ -2426,3 +2426,81 @@ class TestDesignLanguageContract:
 
     def test_readme_introduces_the_skill(self):
         assert "/dev:design-language-update" in (REPO / "README.md").read_text()
+
+
+class TestLessonsCaptureReminder:
+    """lessons-capture reminds the user once a skill's log passes 50 lessons.
+
+    The reminder lives in the writer, not in lessons-learn: capture runs at
+    the end of every skill run, while inside lessons-learn the user is already
+    doing what the reminder asks. Five things break silently under a casual
+    edit: the banner's wording, its fence (unfenced, markdown reads a line of
+    ``=`` as a heading underline and the banner collapses into one heading),
+    the counting rule (a "no recommendation" entry is not a lesson), its being
+    a message only (a question would stall every run at its last step), and
+    the callers' half — the block reaches the user only if each caller carries
+    it into its summary, which for feature-plan is all a subagent relays.
+    """
+
+    RULE = "=" * 47
+    BANNER = (
+        f"{RULE}\n"
+        "You've got more than 50 lessons captured.\n"
+        "Run lessons-learn skill to incorporate them.\n"
+        f"{RULE}\n"
+    )
+    CALLERS = FEATURE_SKILLS + ("bug-fix",)
+
+    def skill(self):
+        return skill_text("lessons-capture")
+
+    def step(self, n):
+        text = self.skill()
+        start, end = step_span(text, n)
+        return text[start:end]
+
+    def test_banner_is_verbatim_and_fenced(self):
+        assert self.BANNER in fenced_blocks(self.step(4)), (
+            "lessons-capture Step 4 must carry the reminder banner verbatim, "
+            "in its own fenced block"
+        )
+        assert re.search(r"fenced code block", self.step(4)), (
+            "lessons-capture must say the banner is printed fenced"
+        )
+
+    def test_counts_lessons_after_the_append(self):
+        step = self.step(3)
+        count = step.find("grep -c '^\\*\\*Observation:\\*\\*'")
+        assert count != -1, "Step 3 never counts the entries carrying a recommendation"
+        assert count > step.find("cat <<'EOF' >>"), (
+            "the count must run after the append, or it misses the new entry"
+        )
+        assert re.search(r"no recommendation[^\n]*not counted", step, re.IGNORECASE), (
+            "Step 3 must say a no-recommendation entry is not counted"
+        )
+
+    def test_fires_above_fifty_only(self):
+        step = self.step(4)
+        assert re.search(r"\*\*more than 50\*\*", step), (
+            "Step 4 must fire the reminder at more than 50 lessons"
+        )
+        assert re.search(r"50 or fewer", step), (
+            "Step 4 must say the reminder stays silent at 50 or fewer"
+        )
+
+    def test_reminder_is_a_message_only(self):
+        constraints = self.skill().split("## Constraints (non-negotiable)")[1]
+        bullet = re.search(r"^- \*\*The reminder is a message[^\n]*$", constraints, re.MULTILINE)
+        assert bullet, "lessons-capture: no constraint making the reminder message-only"
+        assert "AskUserQuestion" in bullet.group(0), (
+            "the constraint must rule out AskUserQuestion by name"
+        )
+
+    def test_every_caller_carries_the_block_into_its_summary(self):
+        for slug in self.CALLERS:
+            assert "log-size reminder block" in skill_text(slug), (
+                f"{slug} never says to paste lessons-capture's reminder block"
+            )
+        assert "log-size reminder block" in self.step(4), (
+            "lessons-capture must name the block the way its callers do"
+        )

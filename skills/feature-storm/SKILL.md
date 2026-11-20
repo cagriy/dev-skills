@@ -332,7 +332,7 @@ Do **not** touch other skills' tokens (`{{BRAINSTORMING_*}}` aside, the design /
 
 ## Step 7 — Capture lessons
 
-Invoke the `lessons-capture` skill in this plugin via the `Skill` tool with the single argument `feature-storm`. It runs the reflection protocol, appends a dated entry to `~/.claude/dev-skills/lessons/feature-storm.md`, and returns the entry body (a single recommendation in three lines, or the "No skill-improvement recommendations from this run." line) for you to paste under the *Skill-improvement recommendations* heading in Step 8's chat summary.
+Invoke the `lessons-capture` skill in this plugin via the `Skill` tool with the single argument `feature-storm`. It runs the reflection protocol, appends a dated entry to `~/.claude/dev-skills/lessons/feature-storm.md`, and returns the entry body (a single recommendation in three lines, or the "No skill-improvement recommendations from this run." line) for you to paste under the *Skill-improvement recommendations* heading in Step 8's chat summary. When it also returns a log-size reminder block, paste that block unchanged directly below the entry.
 
 Do not run the reflection inline — `lessons-capture` is the single source of the protocol for all skills in this plugin.
 

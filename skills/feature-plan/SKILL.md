@@ -425,7 +425,7 @@ Do **not** touch other skills' tokens beyond the empty-placeholder fallback abov
 
 ## Step 9 — Capture lessons *(subagent)*
 
-Invoke the `lessons-capture` skill in this plugin via the `Skill` tool with the single argument `feature-plan`. It runs the reflection protocol, appends a dated entry to `~/.claude/dev-skills/lessons/feature-plan.md`, and returns the entry body for you to paste under the *Skill-improvement recommendations* heading in Step 10.
+Invoke the `lessons-capture` skill in this plugin via the `Skill` tool with the single argument `feature-plan`. It runs the reflection protocol, appends a dated entry to `~/.claude/dev-skills/lessons/feature-plan.md`, and returns the entry body for you to paste under the *Skill-improvement recommendations* heading in Step 10. When it also returns a log-size reminder block, paste that block unchanged directly below the entry.
 
 Do not run the reflection inline — `lessons-capture` is the single source of the protocol for all skills in this plugin. If the `Skill` tool is unavailable in your context, do not inline the protocol either: put the single line `lessons-capture unavailable in subagent — run it from the main agent.` under the *Skill-improvement recommendations* heading in Step 10, and the main agent will invoke it before relaying.
 
