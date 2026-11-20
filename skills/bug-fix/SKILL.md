@@ -38,6 +38,8 @@ This step is read-only; do it before the confirmation so the confirmation can na
 
 Read the target bug's `bug-<N>-<slug>.md` fully into context (description, expected behaviour, repro steps, severity, screenshots, triage). Record `bug_number`, `slug`, `bug_folder` (`<repo_root>/bugs/bug-<N>-<slug>/`), and `report_file`.
 
+**Check for a fix already in history.** A bug can be open with its fix already committed — shipped, then left open pending a check that needed a deploy or a device. Run `git log --oneline -E --grep 'bug #<N>([^0-9]|$)'`. When it returns commits, read them before Step 2 and say so in one line. The run is then a verification, not a fresh diagnosis: Step 4 starts from those commits and confirms from the diff and its tests that they address the root cause; Steps 5–6 cover only what is still missing, which may be nothing; Step 7 verifies and Step 9 closes as usual.
+
 ## Step 1 — Confirm before proceeding (when invoked proactively)
 
 This skill modifies code and creates a commit — proactive invocation without a clear opt-in is high cost. This check is strictly enforced (as it is for `feature-implement`).
@@ -87,6 +89,7 @@ This is the gate the whole skill turns on. **Find the root cause, supported by e
 - Reproduce the bug if at all possible — run the failing command, write a throwaway probe or a (soon-to-be-permanent) failing test, add temporary instrumentation. Capture the exact observed-vs-expected behaviour.
 - If you cannot reach a confident root cause: run more tests/experiments, widen the trace, or **ask the user for help** (logs, exact repro, environment, a screen recording). Asking is correct; guessing is not.
 - Remove any temporary instrumentation you added once you have your answer.
+- **Security bugs: establish exposure.** When the defect is a security one (an authentication or authorisation bypass, injection, leaked data or secrets), also establish from evidence — deployment config, how the service is bound and fronted, or the user's answer — whether the vulnerable path was reachable in a deployed environment.
 
 Only proceed to Step 5 when you can state the root cause concretely — citing `path/to/file.ext:line` and the evidence. If after honest effort you still can't, tell the user what you found, what you ruled out, and what you'd need from them; do **not** proceed to a speculative fix.
 
@@ -97,7 +100,8 @@ Only proceed to Step 5 when you can state the root cause concretely — citing `
 Tell the user, at whatever length the fix needs to be judged:
 
 - **Root cause** — one or two sentences, with the evidence.
-- **Proposed fix** — what you'll change and in which file(s), and why it addresses the root cause (not just the symptom).
+- **Proposed fix** — what you'll change and in which file(s), and why it addresses the root cause (not just the symptom). When the fix replaces a component (a library, an algorithm) rather than patching a line, sketch the replacement in a few lines: inputs, output shape, edge cases.
+- **Trade-offs and limits** — what the user would otherwise discover after approving, each established from the code rather than assumed: behaviour the fix gives up (what a replaced component provided); for a fix that detects a fault rather than removing it, which occurrences it will and will not see, found by tracing every path that can produce the signal; and any standing project rule the change runs into — search the tests and project docs for guard tests that scan the source and for project-wide prohibitions before proposing. Write "none" when there are none.
 - **How you'll verify** — the regression test you'll add, and any manual check needed.
 
 Then ask for approval via `AskUserQuestion`: **Proceed** (recommended) / **Adjust approach** / **Cancel**. If they want adjustments, incorporate them and re-confirm. If they cancel, stop with no code changes. Keep the fix scoped to the root cause — do not bundle refactors, cleanups, or unrelated improvements (raise those separately if they matter).
@@ -109,7 +113,9 @@ Follow the standard TDD cycle without exception:
 1. **Red.** Write a test that encodes the correct behaviour the bug violates (a regression test). Run it and confirm it **fails** for the expected reason — this proves the test actually captures the bug. If the fix introduces a not-yet-existing symbol (a new type, function, or module the test references), a bare "symbol not found" compile/import error is **not** a meaningful Red — first add a minimal stub that compiles and returns a trivially-wrong value, so the failing test is a real assertion failure that proves the test captures the behaviour.
 2. **Green.** Make the **minimal** change at the root cause to make that test pass. No scope creep, no speculative hardening.
 3. **Refactor (only if needed).** Tidy strictly what you just touched, keeping tests green.
-4. **No regressions.** Run the full `TEST` suite plus `LINT` / `TYPE_CHECK` / `BUILD` where they exist. Compare against the Step 2 baseline — anything green before must still be green. Pre-existing unrelated failures stay as they were (don't fix-and-bundle them here).
+4. **No regressions.** Run the full `TEST` suite plus `LINT` / `TYPE_CHECK` / `BUILD` where they exist. Compare against the Step 2 baseline — anything green before must still be green. Pre-existing unrelated failures stay as they were (don't fix-and-bundle them here). When the fix changed behaviour that existing tests pinned, also read the tests of that behaviour that still pass: one whose assertions now run over an empty collection, or sit behind a branch no longer taken, passes without checking anything. Give it a guard that proves the assertion ran.
+
+When the defect is in a test itself (flaky, vacuous, asserting the wrong thing), there is no separate regression test to write, and Red becomes a mutation check: temporarily break the production behaviour the test guards, confirm the repaired test fails on a real assertion, then restore the production code. That proves the repair was not weakened into a test that always passes.
 
 When the obvious assertion for a bug is unreliable, ground the regression test in an observed, deterministic signal instead of a guessed or flaky one. For visual / layout / geometry bugs, first run a throwaway probe that dumps the framework's *measured* values and assert against those, rather than against guessed pixel thresholds (which are usually wrong and cause red-green-red churn). For performance / scaling bugs, assert on a proxy for the work done — items processed, regions invalidated, calls made — and that it stays bounded as input grows, rather than on wall-clock time.
 
@@ -140,6 +146,7 @@ Only reach this step once the resolution is **confirmed** (Step 7).
 - **Root cause:** <evidence-backed, one or two lines, cite path/to/file.ext:line>
 - **Fix:** <what changed, and the file(s) touched>
 - **Verification:** <the regression test(s) by name, and/or "user confirmed">
+- **Exposure:** <security bugs only — reachable in a deployed environment or not, with the evidence; omit the line otherwise>
 
 **Lessons learned:** <anything worth remembering — a fragile pattern, a missing test, a surprising interaction. One to three bullets, or "none.">
 ```
@@ -182,6 +189,8 @@ Commit: <short-sha>  (not pushed — run /push when ready)
 **Skill-improvement recommendations**
 - <single item from Step 10, or "No skill-improvement recommendations from this run.">
 ```
+
+For a security bug Step 4 found exposed, replace the parenthesis on the Commit line with `(not pushed — the exposed environment stays vulnerable until this is pushed and deployed)`.
 
 ## Constraints (non-negotiable)
 
