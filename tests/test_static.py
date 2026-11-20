@@ -2504,3 +2504,128 @@ class TestLessonsCaptureReminder:
         assert "log-size reminder block" in self.step(4), (
             "lessons-capture must name the block the way its callers do"
         )
+
+
+class TestReleaseTypeContract:
+    """release picks patch or minor itself when the user names no type.
+
+    Left alone, every untyped /release is a patch and the minor number never
+    moves. The skill therefore reads what the release contains and picks minor
+    for a new feature or a large change. Six things break silently under a
+    casual edit: the choice running before the version is read (the question
+    shows both candidate versions) or after a file has changed (a dismissed
+    question must leave nothing to undo); a typed type being second-guessed;
+    major being picked without the user; the two minor signals; the single
+    confirmation of a minor the skill picked, which is the one question a
+    release run may ask; and its absence on a patch.
+    """
+
+    def skill(self):
+        return skill_text("release")
+
+    def step(self, n):
+        text = self.skill()
+        start, end = step_span(text, n)
+        return text[start:end]
+
+    def frontmatter(self):
+        m = re.match(r"---\n(.*?)\n---\n", self.skill(), re.DOTALL)
+        assert m, "release: missing frontmatter"
+        return m.group(1)
+
+    def confirmation(self):
+        parts = self.step(3).split("**Confirm a minor.**")
+        assert len(parts) == 2, "release Step 3 has no `Confirm a minor.` paragraph"
+        return parts[1]
+
+    def test_steps_are_numbered_one_to_eleven(self):
+        numbers = [int(n) for n in re.findall(r"^## Step (\d+) —", self.skill(), re.MULTILINE)]
+        assert numbers == list(range(1, 12)), f"release steps out of sequence: {numbers}"
+
+    def test_type_is_chosen_after_the_version_and_before_any_change(self):
+        headings = re.findall(r"^## Step \d+ — (.+)$", self.skill(), re.MULTILINE)
+        assert "Choose the release type" in headings, "release has no step choosing the type"
+        choose = headings.index("Choose the release type")
+        assert headings.index("Read the current version") < choose, (
+            "the type is chosen after the version is read: the question shows both versions"
+        )
+        assert choose < headings.index("Update the version source(s)"), (
+            "the type is chosen before any file changes, so a dismissed question leaves nothing to undo"
+        )
+
+    def test_a_typed_type_is_neither_assessed_nor_questioned(self):
+        assert re.search(
+            r"Exactly `major`, `minor` or `patch`[^\n]*skip the rest of this step", self.step(3)
+        ), "release Step 3 must take a typed release type as given"
+
+    def test_never_chooses_major(self):
+        assert "Never choose `major`" in self.step(3), (
+            "release must leave a major release to the user"
+        )
+
+    def test_reads_everything_the_release_contains(self):
+        commands = "".join(fenced_blocks(self.step(3)))
+        assert "git describe --tags --abbrev=0" in commands, (
+            "release Step 3 must find the last release tag"
+        )
+        assert '"$BASE"..HEAD' in commands, "release Step 3 must read the commits since that tag"
+        assert "--cached" in commands, (
+            "release Step 3 must read what the release commit itself will carry"
+        )
+
+    def test_minor_needs_a_new_feature_or_a_large_change(self):
+        step = self.step(3)
+        for signal in ("**A new feature.**", "**A large change.**"):
+            assert signal in step, f"release Step 3 lost its minor signal {signal}"
+        assert "In doubt, `patch`" in step, "release Step 3 must resolve doubt to patch"
+
+    def test_a_chosen_minor_is_confirmed_with_minor_recommended(self):
+        confirm = self.confirmation()
+        assert "AskUserQuestion" in confirm, "a chosen minor must be confirmed via AskUserQuestion"
+        assert re.search(r"^- `Minor[^\n`]*\(Recommended\)`", confirm, re.MULTILINE), (
+            "the confirmation's first option must be the recommended minor"
+        )
+        assert re.search(r"^- `Patch", confirm, re.MULTILINE), (
+            "the confirmation must offer patch as the alternative"
+        )
+        assert re.search(r"^- `Minor.*?^- `Patch", confirm, re.MULTILINE | re.DOTALL), (
+            "the recommended option comes first"
+        )
+
+    def test_a_patch_asks_nothing(self):
+        assert "A `patch` choice asks nothing" in self.step(3), (
+            "release must not question a patch it chose"
+        )
+
+    def test_an_unanswered_question_stops_before_any_change(self):
+        assert re.search(
+            r"dismissed or cannot be asked[^\n]*stop before changing anything", self.confirmation()
+        ), "release must stop, not guess, when the confirmation goes unanswered"
+
+    def test_frontmatter_allows_the_question_and_describes_the_choice(self):
+        frontmatter = self.frontmatter()
+        assert re.search(r"^  - AskUserQuestion$", frontmatter, re.MULTILINE), (
+            "release: AskUserQuestion missing from allowed-tools"
+        )
+        description = re.search(r"^description:\s*(.+)$", frontmatter, re.MULTILINE).group(1)
+        assert "minor" in description and "confirm" in description, (
+            "release: the description must say it picks the type and confirms a minor"
+        )
+
+    def test_notes_name_the_one_question_a_release_may_ask(self):
+        notes = self.skill().split("## Notes")[1]
+        assert "Step 3" in notes and "never questioned" in notes, (
+            "release Notes must carve Step 3's confirmation out of the no-prompts rule"
+        )
+
+    def test_report_states_the_type_and_why(self):
+        report = fenced_blocks(self.step(11))[0]
+        assert re.search(r"^  - <Major\|Minor\|Patch> release — ", report, re.MULTILINE), (
+            "release's report must state the release type and the reason for it"
+        )
+
+    def test_language_table_reference_follows_the_renumbering(self):
+        adding = self.skill().split("## Adding a language")[1]
+        assert "Step 1 table" in adding, (
+            "`Adding a language` must point at the detection table's current step"
+        )

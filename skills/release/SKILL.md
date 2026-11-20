@@ -1,11 +1,12 @@
 ---
 name: release
-description: Release the current project — version bump, changelog update, commit, tag, push. Detects the project language (Python, Swift, or generic manifest) and applies the language-specific concerns inline; one shared procedure for everything else.
+description: Release the current project — version bump, changelog update, commit, tag, push. Detects the project language (Python, Swift, or generic manifest) and applies the language-specific concerns inline; one shared procedure for everything else. Given no release type, it picks one from what the release contains — minor for a new feature or a large change, patch otherwise — and asks the user to confirm a minor before releasing it.
 argument-hint: "[major|minor|patch]"
 allowed-tools:
   - Read
   - Edit
   - Bash
+  - AskUserQuestion
 user-invocable: true
 disable-model-invocation: true
 ---
@@ -14,11 +15,7 @@ disable-model-invocation: true
 
 One skill for releasing any project. The core procedure is shared; everything language-specific — where the version lives, extra pre-commit steps, changelog policy — is defined in the **Language sections** at the bottom. Detect the language first, then run the core procedure using that section's rules.
 
-## Step 1 — Parse the release type
-
-Read `$ARGUMENTS`. Accept exactly one of `major`, `minor`, `patch`. Default to `patch` if absent or unrecognised. The release type applies identically to every language.
-
-## Step 2 — Detect the language
+## Step 1 — Detect the language
 
 Inspect the repository root. First matching row top-down wins:
 
@@ -28,13 +25,48 @@ Inspect the repository root. First matching row top-down wins:
 | **Swift** | `Package.swift`, or a `*.xcodeproj` / `*.xcworkspace` directory |
 | **Generic** | none of the above — any manifest listed in the Generic section |
 
-## Step 3 — Read the current version
+## Step 2 — Read the current version
 
 Read the version from the language section's **version source**. Validate it matches `^\d+\.\d+\.\d+$` (language sections may define normalisations, e.g. Swift's `X.Y` → `X.Y.0`). If it doesn't validate (e.g. `0.1.0-rc.1`, `2024.05.26`, missing), stop, tell the user the actual value, and ask them to either normalise the source or release manually. Do **not** invent a base version.
 
+## Step 3 — Choose the release type
+
+Read `$ARGUMENTS`. The release type applies identically to every language.
+
+- **Exactly `major`, `minor` or `patch`**: that is the release type. The user chose it, so skip the rest of this step — no assessment, no question.
+- **Anything else** (empty or unrecognised): choose between `patch` and `minor` from what the release contains, as below. Never choose `major` — a breaking release is the user's call, made by typing `/release major`.
+
+**Read what the release contains**: every commit since the last release, plus everything the release commit itself will carry (Step 8).
+
+```bash
+BASE=$(git describe --tags --abbrev=0 --match 'v[0-9]*' 2>/dev/null)
+[ -n "$BASE" ] || { echo "no release tag"; exit 0; }
+git log --format='%h %s%n%b' "$BASE"..HEAD   # commits since the last release
+git diff --stat "$BASE" HEAD                  # their size, file by file
+git diff --stat --cached                      # staged changes the release commit will carry
+```
+
+With no release tag there is no earlier release to compare against: the type is `patch`. Otherwise also read the `[Unreleased]` section of `CHANGELOG.md` when there is one, and open the diff of any file whose commit subject and stat line do not show what changed for a user.
+
+**Choose `minor` when either holds:**
+
+1. **A new feature.** The release gives the project's users something they did not have at the last release: a new command, endpoint, public function, screen, integration, or a comparable whole capability.
+2. **A large change.** No single new feature, but the changes users can observe — fixes and refinements included — add up to more than about 500 changed lines in the files that carry the product's behaviour (source, templates, prompt or skill definitions).
+
+**Otherwise `patch`.** That covers fixes; small refinements inside an existing feature (one more accepted value, a reworded message, an extra line in existing output); and everything users cannot observe — refactors, tests, documentation, dependency bumps, build and CI configuration, lockfiles, generated or vendored files — however many lines it touches. In doubt, `patch`.
+
+**Confirm a minor.** When this step chose `minor`, ask the user once via `AskUserQuestion` before anything is changed: header `Release type`, question `<the reason, in one clause>. Release it as a minor, <current version> → <minor version>?`, and two options, versions computed as in Step 4:
+
+- `Minor — v<minor version> (Recommended)`: the reason — the feature by name, or the size of the change.
+- `Patch — v<patch version>`: release it as a patch instead.
+
+The answer is the release type; an *Other* answer naming `major`, `minor` or `patch` is taken as that type. If the question is dismissed or cannot be asked (a headless run), stop before changing anything and tell the user to re-run with the type spelled out, `/release minor` or `/release patch`.
+
+A `patch` choice asks nothing. Either way, keep the reason for the Step 11 report.
+
 ## Step 4 — Compute the new version
 
-Semantic versioning:
+Semantic versioning, applied to the release type from Step 3:
 
 - `major`: bump first segment, zero the rest. `1.4.2` → `2.0.0`.
 - `minor`: bump second segment, zero the third. `1.4.2` → `1.5.0`.
@@ -91,6 +123,7 @@ Do not ask for confirmation — the user has standing authorisation for `/releas
 
 ```
 ✓ Released <project> vX.Y.Z on <branch> (<short-sha>)
+  - <Major|Minor|Patch> release — <"requested", or Step 3's reason>
   - Updated <version source(s)>
   - Updated CHANGELOG.md            ← only if it was updated
   - Tag vX.Y.Z pushed               ← or "created locally (no remote)"
@@ -138,7 +171,7 @@ Applies when no language above matches — any repo with a recognised version ma
 
 Adding support for a new language means editing this file only — no new skill, no dispatch wiring:
 
-1. Add a detection row to the Step 2 table (above the Generic row).
+1. Add a detection row to the Step 1 table (above the Generic row).
 2. Add a language section defining its version source(s), extra pre-commit steps, and changelog policy.
 
 If a language's procedure ever outgrows a section (e.g. a full store-submission flow), move that section's body to `references/<lang>.md` inside this skill's folder and `Read` it when that language is detected — still one skill, loaded on demand.
@@ -146,3 +179,4 @@ If a language's procedure ever outgrows a section (e.g. a full store-submission 
 ## Notes
 
 - An explicit `/release` invocation is the user's authorisation for the skill to run end-to-end (no extra approval prompts mid-run) — but never release, tag, or push on the user's behalf without `/release` having been run.
+- The one question a release may ask is Step 3's confirmation of a minor the skill chose itself. A type the user typed is never questioned, and neither is a patch.
