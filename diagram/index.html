@@ -354,8 +354,8 @@
 <div id="page">
   <header class="top">
     <div class="chiprow">
-      <span class="vchip">dev-skills v0.3.48</span>
-      <span class="vchip">generated 2026-11-10 16:57 UTC</span>
+      <span class="vchip">dev-skills v0.3.52</span>
+      <span class="vchip">generated 2026-11-25 10:41 UTC</span>
       <span class="vchip">by /diagram-update</span>
       <a class="vchip" href="c4.html">architecture diagram &#8594;</a>
     </div>
@@ -555,7 +555,7 @@ const SKILLS = [
       {
         "k": "s1",
         "t": "Capture requirements",
-        "d": "Loads any recorded customisations, checks the session through session-control when its extras file exists (a relaunch ends the turn here, before anything is opened), then opens the usage window. Reads the leading solo, version and from= tokens, parses a short title and the requirements, asking once when they are too thin, and grounds brownfield requests, naming the one gating fact before the first question round."
+        "d": "Loads any recorded customisations, checks the session through session-control when its extras file exists (a relaunch ends the turn here, before anything is opened), then opens the usage window. Reads the leading solo, version and from= tokens, parses a short title and the requirements, taking requirements the conversation already settled (restated in one line) and asking once only when there are none, and grounds brownfield requests, naming the one gating fact before the first question round."
       },
       {
         "k": "s2",
@@ -565,7 +565,7 @@ const SKILLS = [
       {
         "k": "s3a",
         "t": "Generate ideas",
-        "d": "Puts ideas on the table the user did not bring, in two mandatory waves: grounded ones first (adjacent capabilities, other approaches, smaller cuts, unconsidered users), then a separate round of 4-5 deliberately bold ones that repeat nothing from the first. Ideas are offered, never assumed in, and a weighed-and-declined one is still recorded.",
+        "d": "Puts ideas on the table the user did not bring, in two mandatory waves: grounded ones first (adjacent capabilities, other approaches, smaller cuts, unconsidered users), then a separate round of 4-5 deliberately bold ones that repeat nothing from the first. Ideas are offered, never assumed in, and a weighed-and-declined one is still recorded. Each idea is its own Adopt / Defer question, so declining is one click.",
         "wrap": "loop"
       },
       {
@@ -578,7 +578,7 @@ const SKILLS = [
       {
         "k": "s4",
         "t": "Approve summary",
-        "d": "Re-reads the project's own stated principles, then presents a summary of ten bullets or fewer and asks Approve / Revise / Stop. Revise loops back into the brainstorm; Stop ends the run with no files written.",
+        "d": "Re-reads the project's own stated principles, then presents a summary of ten bullets or fewer and asks Approve / Revise / Stop. Revise loops back into the brainstorm; Stop ends the run with no storm document written and names the folder Step 2 created.",
         "gate": true
       },
       {
@@ -660,13 +660,13 @@ const SKILLS = [
       {
         "k": "s5b",
         "t": "Run mockup",
-        "d": "Loads the artifact design and capability skills when the session offers them, then invokes feature-mockup with the feature folder, version, a one-line surface statement and optional kind and references. The mockup may pause the run while the user answers on the published page.",
+        "d": "Loads the artifact design and capability skills when the session offers them, writes a scratchpad resume note for a wait that may outlast the context, then invokes feature-mockup with the feature folder, version, a one-line surface statement and optional kind and references. The mockup may pause the run while the user answers on the published page.",
         "wrap": "mock"
       },
       {
         "k": "s5c",
         "t": "Fold decisions",
-        "d": "Carries the accepted decisions into the design's interfaces and architecture, rejected alternatives into the alternatives section, and links the accepted mockup by artifact URL and relative path. Open UI questions loop back to Step 4; language deltas are written back through design-language-update's record mode.",
+        "d": "Carries the accepted decisions into the design's interfaces and architecture, rejected alternatives into the alternatives section, and links the accepted mockup by artifact URL and relative path. Open UI questions, and behaviour that arrived through the mockup, loop back to Step 4; language deltas are written back through design-language-update's record mode.",
         "wrap": "mock"
       },
       {
@@ -742,7 +742,7 @@ const SKILLS = [
       {
         "k": "s4",
         "t": "Ground plan",
-        "d": "Verifies the design's claims against the code, not just its citations: names it adds, shapes, mechanisms, anchors and symbols it removes. It settles test locations and runners, runs each command once for a baseline, and records each stage's files, symbols and test resources as evidence for the schedule.",
+        "d": "Verifies the design's claims against the code, not just its citations: names it adds, shapes, mechanisms, anchors and symbols it removes, executing any claim it can run. It settles test locations, checks each planned test's harness can make its assertion, records whether the runner can run twice at once, runs each command once for a baseline, and records each stage's files, symbols and test resources as evidence for the schedule.",
         "sub": true,
         "wrap": "sub"
       },
@@ -826,7 +826,7 @@ const SKILLS = [
       {
         "k": "s3",
         "t": "Repo readiness",
-        "d": "Commits the chain's own leftover docs and DESIGN.md as one docs commit, confirms a non-default branch with the user, and fast-forwards from the remote. Detects the project's test, lint, type, build, dead-code and provisioning commands and records a baseline; a red test baseline stops the run with Investigate / File a bug / Stop.",
+        "d": "Commits the chain's own leftover docs and DESIGN.md as one docs commit, confirms a non-default branch with the user, and fast-forwards from the remote. Detects the project's test, lint, type, build, dead-code and provisioning commands (provisioning covers every dependency root the suite reaches) and records a baseline; a red test baseline stops the run with Investigate / File a bug / Stop.",
         "gate": true,
         "commits": true
       },
@@ -914,12 +914,12 @@ const SKILLS = [
       {
         "k": "s7",
         "t": "Final sweep",
-        "d": "Checks every design requirement has a test and every component exists, runs the full suite, and runs the dead-code analyser against the baseline. Gaps or new orphans become one extra stage."
+        "d": "Checks every design requirement has a test and every component exists, runs the full suite, and runs the dead-code analyser against the baseline. Gaps or new orphans become one extra stage. A run that ends with gated or hands-on stages unbuilt still closes here as a partial run, scoped to what landed, with a Blocked list."
       },
       {
         "k": "s8",
         "t": "Update tracker",
-        "d": "Fills the Implementation panel (stages, tests, coverage table, deviations), flips the implement progress step to complete and commits it as a docs commit.",
+        "d": "Fills the Implementation panel (stages, tests, coverage table, deviations) and flips the implement progress step to complete; a partial run leaves it pending. A complete run then settles this version's pending DESIGN.md decisions through design-language-update, asking nothing, and commits tracker, docs and design files as one docs commit.",
         "commits": true
       },
       {
@@ -930,7 +930,7 @@ const SKILLS = [
       {
         "k": "s10",
         "t": "Present summary",
-        "d": "Prints one line per stage with its commit, plus tests, coverage, dead-code result, deviations, pending human checks and parallelism."
+        "d": "Prints one line per stage with its commit, plus tests, coverage, dead-code result, deviations, the design-language settle, pending human checks and parallelism."
       },
       {
         "k": "s11",
@@ -1162,12 +1162,12 @@ const SKILLS = [
       {
         "k": "s3",
         "t": "Append log",
-        "d": "Appends the entry with one atomic shell append to the per-skill lessons log under the user's config directory, never rewriting earlier entries. Timestamps are UTC."
+        "d": "Appends the entry with one atomic shell append to the per-skill lessons log under the user's config directory, never rewriting earlier entries. Timestamps are UTC. Then counts the lessons in the log: entries that carry a recommendation."
       },
       {
         "k": "s4",
         "t": "Return entry",
-        "d": "Echoes the entry body once so the calling skill can paste it into its own summary."
+        "d": "Echoes the entry body once so the calling skill can paste it into its own summary. Past 50 lessons it adds a fenced reminder to run lessons-learn: a message only, never a question."
       }
     ]
   },
@@ -1228,18 +1228,18 @@ const SKILLS = [
     "slug": "design-language-update",
     "g": "design",
     "inv": "both",
-    "purpose": "The only writer of DESIGN.md's managed region and the specimen page design/specimen.html, published as an artifact. Reconciles the project's design language from code with cited evidence, asks only from a closed catalogue, and makes every write through scripts/design_language.py. Runs in any repo.",
+    "purpose": "The only writer of DESIGN.md's managed region and the specimen page design/specimen.html, published as an artifact. Reconciles the project's design language from code with cited evidence, asks only from a closed catalogue, and makes every write through scripts/design_language.py. feature-implement calls it to mark a finished feature's pending decisions active. Runs in any repo.",
     "steps": [
       {
         "k": "s0",
         "t": "Confirm invocation",
-        "d": "Skipped when the user typed /design-language-update or feature-design called it. Otherwise asks once before reading or writing anything.",
+        "d": "Skipped when the user typed /design-language-update or feature-design or feature-implement called it. Otherwise asks once before reading or writing anything.",
         "gate": true
       },
       {
         "k": "s1",
         "t": "Resolve inputs",
-        "d": "Parses the mode (reconcile, fresh, render, or record from feature-design) and refuses any other argument in one line. Locates the script and its template from the same plugin copy, then loads its customisations after the gate; a caller run stays quiet."
+        "d": "Parses the mode (reconcile, fresh, render, record from feature-design, or settle from feature-implement) and refuses any other argument in one line. Locates the script and its template from the same plugin copy, then loads its customisations after the gate; a caller run stays quiet."
       },
       {
         "k": "s2",
@@ -1259,7 +1259,7 @@ const SKILLS = [
       {
         "k": "s5",
         "t": "Reconcile entries",
-        "d": "Merges by ownership: code-sourced entries re-derived, user decisions sticky, outside content outranking code, and a pending decision becoming active once code matches or drift once its feature is implemented. Record mode writes each delta as a pending decision that supersedes earlier ones on the same subject."
+        "d": "Merges by ownership: code-sourced entries re-derived, user decisions sticky, outside content outranking code, and a pending decision becoming active once code matches or drift once its feature is implemented. Record mode writes each delta as a pending decision that supersedes earlier ones on the same subject. Settle mode runs the script's settle command instead: the finished feature's pending decisions become active without a code check, because the next reconcile reports any contradiction as drift."
       },
       {
         "k": "s6",
@@ -1280,7 +1280,7 @@ const SKILLS = [
       {
         "k": "s9",
         "t": "Report result",
-        "d": "Emits the result block (status, mode, paths, classification, specimen URL, decisions, drift, pending). In a feature-design run it continues straight into that skill's next step; nothing is committed."
+        "d": "Emits the result block (status, mode, paths, classification, specimen URL, decisions, drift, pending). In a caller run it continues straight into the caller's next step; nothing is committed."
       }
     ]
   },
@@ -1355,7 +1355,7 @@ const SKILLS = [
       {
         "k": "s0",
         "t": "Select bug",
-        "d": "Read-only: takes the bug number given or the lowest-numbered open bug, and reads its report in full. With no open bugs it stops and points at /bug-submit."
+        "d": "Read-only: takes the bug number given or the lowest-numbered open bug, reads its report in full, and checks history for a fix already committed, which turns the run into a verification. With no open bugs it stops and points at /bug-submit."
       },
       {
         "k": "s1",
@@ -1377,19 +1377,19 @@ const SKILLS = [
       {
         "k": "s4",
         "t": "Find root cause",
-        "d": "A hard gate: no production change until the cause is stated with evidence and a file and line, reproduced where possible, without anchoring on the triage. A no-fix disposition (works as intended, duplicate, not worth it) is confirmed with the user and closes without a code change.",
+        "d": "A hard gate: no production change until the cause is stated with evidence and a file and line, reproduced where possible, without anchoring on the triage. A no-fix disposition (works as intended, duplicate, not worth it) is confirmed with the user and closes without a code change. For a security bug it also establishes, from evidence, whether the vulnerable path was reachable in a deployed environment.",
         "gate": true
       },
       {
         "k": "s5",
         "t": "Approve fix",
-        "d": "Explains the root cause, the proposed fix and how it will be verified, and asks Proceed / Adjust approach / Cancel.",
+        "d": "Explains the root cause, the proposed fix (sketching any replacement component), its trade-offs and limits as established from the code, and how it will be verified; asks Proceed / Adjust approach / Cancel.",
         "gate": true
       },
       {
         "k": "s6",
         "t": "Fix test-first",
-        "d": "Writes a regression test, confirms it fails for the right reason, makes the minimal fix at the root cause, then runs the full suite against the baseline."
+        "d": "Writes a regression test, confirms it fails for the right reason, makes the minimal fix at the root cause, then runs the full suite against the baseline. A defect in a test itself is proven by a mutation check instead: break the guarded behaviour, see the repaired test fail, restore it."
       },
       {
         "k": "s7",
@@ -1820,27 +1820,28 @@ const SKILLS = [
     "g": "utility",
     "inv": "user",
     "commits": true,
-    "purpose": "Cuts a release end to end: version bump, changelog, commit, tag and push, with language-specific version sources for Python, Swift or a generic manifest.",
+    "purpose": "Cuts a release end to end: version bump, changelog, commit, tag and push, with language-specific version sources for Python, Swift or a generic manifest. With no type given it picks patch or minor itself, confirming a minor first.",
     "steps": [
       {
         "k": "s1",
-        "t": "Parse type",
-        "d": "Takes major, minor or patch, defaulting to patch."
-      },
-      {
-        "k": "s2",
         "t": "Detect language",
         "d": "Python, Swift, or the generic fallback, from markers at the repo root."
       },
       {
-        "k": "s3",
+        "k": "s2",
         "t": "Read version",
         "d": "Reads and validates the current version from the language's source; never invents one."
       },
       {
+        "k": "s3",
+        "t": "Choose type",
+        "d": "A type the user typed is used as given. Otherwise it reads everything since the last release tag and picks minor for a new feature or more than about 500 changed user-observable lines, patch for anything else, never major. A minor it picked is confirmed once before any file changes; a dismissed question stops the release.",
+        "gate": true
+      },
+      {
         "k": "s4",
         "t": "Compute version",
-        "d": "Applies the semantic-version bump."
+        "d": "Applies the semantic-version bump for the chosen type."
       },
       {
         "k": "s5",
@@ -1876,7 +1877,7 @@ const SKILLS = [
       {
         "k": "s11",
         "t": "Report",
-        "d": "Prints the released version, branch, commit and what was updated."
+        "d": "Prints the released version, branch and commit, the release type with its reason, and what was updated."
       }
     ]
   },
@@ -2042,7 +2043,7 @@ const EDGES = [
     "f": "feature-design.s5c",
     "t": "feature-design.s4",
     "ty": "loop",
-    "l": "open UI questions"
+    "l": "open UI questions / new behaviour"
   },
   {
     "f": "feature-design.s9",
@@ -2346,6 +2347,18 @@ const EDGES = [
   },
   {
     "f": "feature-implement.s8",
+    "t": "design-language-update.s1",
+    "ty": "call",
+    "l": "settle pending vN (mode=settle)"
+  },
+  {
+    "f": "design-language-update.s9",
+    "t": "feature-implement.s8",
+    "ty": "data",
+    "l": "settle result → commit"
+  },
+  {
+    "f": "feature-implement.s8",
     "t": "design-language-update.s3",
     "ty": "data",
     "l": "implement complete → drift check"
@@ -2469,6 +2482,12 @@ const EDGES = [
     "t": "session-control.s0",
     "ty": "data",
     "l": "session-control.extras"
+  },
+  {
+    "f": "lessons-capture.s4",
+    "t": "lessons-learn.s1",
+    "ty": "data",
+    "l": "past 50 lessons → reminder"
   }
 ];
 
@@ -2952,6 +2971,12 @@ const OV_EDGES = [
     "t": "design-language-update",
     "ty": "call",
     "l": "reconcile + record"
+  },
+  {
+    "f": "feature-implement",
+    "t": "design-language-update",
+    "ty": "call",
+    "l": "settle"
   },
   {
     "f": "feature-storm",

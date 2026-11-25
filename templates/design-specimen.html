@@ -647,7 +647,7 @@
     return add(el("li"), el("span", "what", tagged ? entry.slice(0, cut) : entry), tagged ? tagChip(tag) : null);
   }).concat(data.decisions.filter((d) => /^pending v\d+$/.test(d.status)).map((d) =>
     add(el("li", "pending"), el("span", "what", cap(d.status) + ": " + d.decision),
-      el("span", "why", "Recorded by " + (d.by === "user" ? "you" : "the skill") + " on " + d.date + "; clears once the code matches it."))));
+      el("span", "why", "Recorded by " + (d.by === "user" ? "you" : "the skill") + " on " + d.date + "; clears once v" + d.status.slice("pending v".length) + " is implemented."))));
   if (attention.length) add(out, el("h3", "sub", "Needs attention"), add(el("ul", "drift"), ...attention));
   if (!data.decisions.length) {
     add(out, emptyState("Decisions"));

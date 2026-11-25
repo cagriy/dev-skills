@@ -1,6 +1,6 @@
 ---
 name: design-language-update
-description: Capture, reconcile and render the current project's design language — its colours, type, spacing, radii, elevation, canonical components, platforms, tone and the decisions behind them — into a managed region of DESIGN.md at the project root, and render that region as a specimen page, design/specimen.html, published as an artifact. Use when the user wants to capture or refresh a project's design language or design system, write or update DESIGN.md, or see a visual specimen of the project's UI conventions; feature-design also invokes it before every mockup of a user-visible surface, and again in record mode to write back design-language changes the user accepted. On a project with no UI yet it interviews the user from a closed catalogue of questions; on an established one it extracts the language from code with path:line evidence for every entry. It is the only writer of DESIGN.md and the specimen, changes nothing in DESIGN.md outside its marked region, and does every file write through the plugin's tested script. Runs in any repo. Accepts an optional mode: fresh re-derives everything code-sourced while keeping what the user said, render re-renders the specimen from the file on disk. Never commits or pushes, and never calls feature-resolve, lessons-capture or usage-report. Step 0 confirms with the user before doing any work when invoked proactively; the confirmation is skipped when the user explicitly typed /design-language-update or feature-design invoked it.
+description: Capture, reconcile and render the current project's design language — its colours, type, spacing, radii, elevation, canonical components, platforms, tone and the decisions behind them — into a managed region of DESIGN.md at the project root, and render that region as a specimen page, design/specimen.html, published as an artifact. Use when the user wants to capture or refresh a project's design language or design system, write or update DESIGN.md, or see a visual specimen of the project's UI conventions; feature-design also invokes it before every mockup of a user-visible surface, and again in record mode to write back design-language changes the user accepted; feature-implement invokes it in settle mode once a feature is built, to mark that feature's pending decisions active. On a project with no UI yet it interviews the user from a closed catalogue of questions; on an established one it extracts the language from code with path:line evidence for every entry. It is the only writer of DESIGN.md and the specimen, changes nothing in DESIGN.md outside its marked region, and does every file write through the plugin's tested script. Runs in any repo. Accepts an optional mode: fresh re-derives everything code-sourced while keeping what the user said, render re-renders the specimen from the file on disk. Never commits or pushes, and never calls feature-resolve, lessons-capture or usage-report. Step 0 confirms with the user before doing any work when invoked proactively; the confirmation is skipped when the user explicitly typed /design-language-update or feature-design or feature-implement invoked it.
 user-invocable: true
 disable-model-invocation: false
 argument-hint: "[fresh|render]"
@@ -14,7 +14,7 @@ You are running the `design-language-update` skill. Your job is to keep one **ma
 **The work is split three ways, and you own only the judgement.**
 
 - **This skill** decides what the region says: it grounds in the project, classifies it, reconciles with what is already recorded, asks the user what only they can answer, and composes the region text.
-- **`scripts/design_language.py`** does every deterministic file operation: reading the region and its hash (`region`), validating and splicing a new region atomically (`write`), and turning the region into the specimen page (`render`). Marker handling, byte-for-byte preservation of the user's own text, concurrency, escaping and path confinement are tested code, not prose.
+- **`scripts/design_language.py`** does every deterministic file operation: reading the region and its hash (`region`), validating and splicing a new region atomically (`write`), marking a built feature's pending decisions active (`settle`), and turning the region into the specimen page (`render`). Marker handling, byte-for-byte preservation of the user's own text, concurrency, escaping and path confinement are tested code, not prose.
 - **`templates/design-specimen.html`** owns everything about the specimen's appearance. Neither you nor the script authors HTML.
 
 You never open `DESIGN.md` with `Edit` or `Write`, and this skill holds no `Edit` tool. The region sits between `<!-- design-language:start -->` and `<!-- design-language:end -->`; every byte outside those markers belongs to the user, is never changed, and is read as their decisions.
@@ -32,6 +32,7 @@ This skill has ten steps (Steps 0–9). Execute them in order.
 | `render` | `render` | the user |
 | `caller=feature-design` | `reconcile` | `feature-design`, before its Step 5a |
 | `caller=feature-design, mode=record, version=<N>, deltas=<d1>; <d2>…` | `record` | `feature-design`, from its Step 5c |
+| `caller=feature-implement, mode=settle, version=<N>` | `settle` | `feature-implement`, from its Step 8 |
 
 Any other user argument stops the skill with exactly one line, before anything is read or written:
 
@@ -51,7 +52,7 @@ A delta whose section or value fails these forms is named in `notes` and not rec
 
 ## Step 0 — Confirm before proceeding (when invoked proactively)
 
-Skip this step when the most recent user message carries the literal tag `<command-name>/design-language-update</command-name>` (or a leading `/design-language-update` typed by the user), or when the argument string contains `caller=feature-design` — `feature-design` already decided this run belongs in its design.
+Skip this step when the most recent user message carries the literal tag `<command-name>/design-language-update</command-name>` (or a leading `/design-language-update` typed by the user), or when the argument string contains `caller=feature-design` or `caller=feature-implement` — the caller already decided this run belongs in its own.
 
 Otherwise ask once via `AskUserQuestion`:
 
@@ -62,9 +63,9 @@ On anything other than an explicit yes, stop without touching the filesystem.
 
 ## Step 1 — Resolve root, mode, script and template
 
-- **Arguments.** Parse them per *Arguments* above; an unknown one ends the run with the refusal line. In `record` mode, record `version` and split `deltas` on `; `, checking each against the delta grammar.
+- **Arguments.** Parse them per *Arguments* above; an unknown one ends the run with the refusal line. In `record` mode, record `version` and split `deltas` on `; `, checking each against the delta grammar. In `settle` mode, record `version`.
 - **Root.** `root` = `pwd`. Today's date = `date -u +%Y-%m-%d`.
-- **Quiet in caller runs.** When `caller=feature-design`, write no chat lines at all except questions and the Step 9 result block — you are a step inside someone else's run.
+- **Quiet in caller runs.** When `caller=` is present, write no chat lines at all except questions and the Step 9 result block — you are a step inside someone else's run.
 - **Locate the script.** This skill's base directory was announced when it was invoked (`…/dev-skills/<version>/skills/design-language-update`), so the plugin's own copy sits at `<base>/../../scripts/design_language.py`. If that file exists, use it: it matches the running plugin version and no search is needed. Otherwise search: `find ~ -path "*dev-skills*/scripts/design_language.py" 2>/dev/null`. Exactly one match → use it. Several → prefer one under a `plugins/cache/` path at the **highest** version over a working clone. None → end the run with `status: skipped`, `notes: script not found`.
 - **Locate the template** beside the script you chose: `<script dir>/../templates/design-specimen.html`. Script and template always come from the same plugin copy, so their contract agrees. The script itself refuses a missing or drifted template; you never check or patch it.
 - **`python3`.** Every script call below runs with the system `python3`. If the first call reports that `python3` cannot be found, end the run with `status: skipped`, `notes: python3 not available`.
@@ -118,10 +119,12 @@ From `prior_region`, note the recorded Decisions (and the highest `#`), every `p
 - `render` mode with `prior_hash` = `none` → `status: skipped`, `notes: no region to render`.
 - `record` mode with `prior_hash` = `none` → `status: skipped`, `notes: no region to record into`.
 - `record` mode with an empty delta list (or none that passed the grammar) → `status: unchanged`; go to Step 9.
+- `settle` mode with `prior_hash` = `none` → `status: skipped`, `notes: no region to settle`.
+- `settle` mode with no `pending v<N>` entry for its version → `status: unchanged`; go to Step 9.
 
 ## Step 3 — Ground: harvest the evidence
 
-Skipped in `render` and `record` modes.
+Skipped in `render`, `record` and `settle` modes.
 
 A bounded, read-only harvest, in priority order. Use `Glob`, `Grep` and `Read` only. Stop reading a tier once its sections are evidenced.
 
@@ -139,7 +142,7 @@ A bounded, read-only harvest, in priority order. Use `Glob`, `Grep` and `Read` o
 
 ## Step 4 — Classify
 
-Skipped in `render` and `record` modes.
+Skipped in `render`, `record` and `settle` modes.
 
 The **evidence-bearing sections** are *Color Palette & Roles*, *Typography Rules*, *Layout Principles*, *Depth & Elevation*, *Component Stylings*, *Responsive Behavior*, *Iconography & Motion* and *Copy Tone*. Mark each evidenced (at least one `code:` or `mockup:` entry) or not, then classify the project:
 
@@ -158,7 +161,7 @@ Merge the candidates into `prior_region` under these ownership rules:
 | Code-sourced row or bullet (`code:`, `mockup:`) | Re-derived. A changed value is updated in place. Lost evidence drops the entry and names it in `notes` as retired. |
 | User decision (`user:`) | Sticky. Never re-asked while its grounding is unchanged. Replaced only by a newer user decision (marked `superseded by <k>`) or by the drift question. |
 | Content outside the region | Re-read every run. Reflected in region rows tagged `user: DESIGN.md`; outranks code. When a newer user decision in the region contradicts it, the region keeps the newer decision and `notes` names the outdated outside line for the user to edit. |
-| `pending v<N>` | Becomes `active` once code evidence matches the value. Becomes `drift` when feature v<N>'s tracker shows `data-stage="implement" data-state="complete"` and code still differs. Otherwise unchanged and listed in `pending`. |
+| `pending v<N>` | Becomes `active` once code evidence matches the value. Becomes `drift` when feature v<N>'s tracker shows `data-stage="implement" data-state="complete"` and code still differs. Otherwise unchanged and listed in `pending`. `/feature-implement` settles its own version's entries when it completes, so a reconcile meets this case only for a feature built without it. |
 | Skill decision (`skill:`) | Kept while its grounding holds; re-derived when that grounding changed. |
 | `Updated` row | Changes only when other region content changes — the script stamps it. |
 | `Specimen` row | Written after a publish (Step 8); otherwise kept. |
@@ -168,10 +171,11 @@ A user decision that contradicts current code becomes a **Drift** bullet naming 
 - **`fresh` mode** re-derives code-sourced and skill-decided entries from scratch, keeping user decisions, pending entries and the specimen URL. `fresh` never discards what the user said.
 - **`record` mode** skips Steps 3, 4 and 6. For each valid delta: add a Decisions row (`By` = `user`, `Date` = today, `Status` = `pending v<N>`); set the matching row or bullet of the named section with source `user · pending v<N>`, adding it when absent (a new colour keeps an existing row's `Group`, else takes the one its role names, else `other`; `Iconography` and `Motion` both land in *Iconography & Motion*; `Platforms` sets the header row); and mark any earlier decision on the same subject `superseded by <k>`, where `<k>` is the new row's number. Then go to Step 7.
 - **`render` mode** skips Steps 3–7 and goes to Step 8 with `--force`.
+- **`settle` mode** skips Steps 3–7. Run `python3 <script> settle --file <root>/DESIGN.md --version <N>`: it marks every `pending v<N>` decision `active` and turns every `user · pending v<N>` source tag into `user: <that decision's date>`, touching no other version. It checks no code — the next reconcile reports any settled decision the code contradicts as drift. `settled <rows> <sha256>` → `new_hash` is that hash; go to Step 8. `unchanged <sha256>` → go to Step 9. A `skipped` line ends the run `status: skipped` with the reason.
 
 ## Step 6 — Clarify
 
-Skipped in `render` and `record` modes.
+Skipped in `render`, `record` and `settle` modes.
 
 Questions come **only** from this closed catalogue, each with the recommendation first:
 
@@ -243,8 +247,8 @@ Emit exactly this block:
 ```
 design-language-update result
 ---
-status: <created | appended | updated | unchanged | recorded | rendered | skipped>
-mode: <reconcile | fresh | render | record>
+status: <created | appended | updated | unchanged | recorded | settled | rendered | skipped>
+mode: <reconcile | fresh | render | record | settle>
 design_md: <absolute path, or "n/a">
 classification: <greenfield | partial | established | n/a>
 specimen: <absolute path, "unchanged", or "n/a">
@@ -255,9 +259,9 @@ pending: <semicolon list, or "none">
 notes: <one line, or "none">
 ```
 
-`status` maps the Step 7 outcome: `created`, `appended`, `written` → `updated` (`recorded` in record mode), `unchanged`; `render` mode reports `rendered`. A run that ended early reports `skipped` with its one-line reason in `notes` and `n/a` wherever nothing is known.
+`status` maps the Step 7 outcome: `created`, `appended`, `written` → `updated` (`recorded` in record mode), `unchanged`; `render` mode reports `rendered`; `settle` mode reports `settled` or `unchanged`. A run that ended early reports `skipped` with its one-line reason in `notes` and `n/a` wherever nothing is known.
 
-**When `caller=feature-design`, do not end your turn here.** You were loaded inline, so emitting the block is not a hand-off and nothing is waiting to pick it up. Continue immediately, in the same turn, with `feature-design`'s next step: Step 5a after a reconcile, Step 6 after record mode. A `skipped` result continues the same way — it never fails the caller.
+**When `caller=` is present, do not end your turn here.** You were loaded inline, so emitting the block is not a hand-off and nothing is waiting to pick it up. Continue immediately, in the same turn, with the caller's next step: `feature-design` Step 5a after a reconcile, Step 6 after record mode; `feature-implement` Step 8's commit after settle mode. A `skipped` result continues the same way — it never fails the caller.
 
 When the user invoked this skill, add one line pointing at the specimen (its link, or its path) and at `DESIGN.md`, then stop. Both files stay as working-tree changes.
 
@@ -295,5 +299,5 @@ The script validates every region against this schema and refuses one that break
 - **Runs in any repo.** No plugin-identity gate and no refusal by project type.
 - **Never commits or pushes.** The skill holds no git tool; both files stay as working-tree changes for the user or `/feature-implement` to commit.
 - This skill never calls `feature-resolve`, `lessons-capture` or `usage-report`.
-- **Clarification is closed.** Questions only from the Step 6 catalogue, within its round limits; a recorded decision is never re-asked; record and render modes never ask.
+- **Clarification is closed.** Questions only from the Step 6 catalogue, within its round limits; a recorded decision is never re-asked; record, render and settle modes never ask.
 - **Degrade, never fail the caller.** Every failure ends in the Step 9 block with `status: skipped` and a one-line reason.

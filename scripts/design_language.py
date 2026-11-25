@@ -18,6 +18,13 @@ code rather than prose:
                          into template T, writing O unless O already carries
                          the same data hash; prints
                          `design-language: <rendered|unchanged> <short hash>`
+    settle --file F --version N
+                         mark feature vN's `pending vN` decisions `active` and
+                         date its `user · pending vN` source tags, once
+                         /feature-implement has built them; prints
+                         `design-language: settled <rows> <sha256>`, or
+                         `design-language: unchanged <sha256>` when nothing
+                         is pending for vN
 
 Region contract (kept in lockstep with the skill):
 
@@ -658,6 +665,11 @@ def cmd_write(file, region, expect, now=None) -> str:
     digest = region_hash(body)
     if old is not None and normalise(old, ("Updated",)) == normalise(body, ("Updated",)):
         return f"{STATUS_PREFIX}unchanged {digest}"
+    return f"{STATUS_PREFIX}{_splice(path, text, span, body, now)} {digest}"
+
+
+def _splice(path: Path, text, span, body: str, now) -> str:
+    """Stamp `Updated`, put `body` into the file as its region, write atomically; the outcome word."""
     stamp = (now or datetime.now(timezone.utc)).strftime(STAMP)
     body = re.sub(r"(?m)^\|\s*Updated\s*\|.*$", f"| Updated | {stamp} |", body, count=1)
     if text is None:
@@ -671,7 +683,47 @@ def cmd_write(file, region, expect, now=None) -> str:
             before, after = text[:span[0] - len(START)], text[span[1] + len(END):]
             outcome, new = "written", before + _block(body, nl) + after
     atomic_write(path, new.encode("utf-8"))
-    return f"{STATUS_PREFIX}{outcome} {digest}"
+    return outcome
+
+
+def _last_cell(value: str):
+    """A table row whose last cell is exactly `value`."""
+    return re.compile(r"(\|\s*)" + re.escape(value) + r"(\s*\|\s*)$")
+
+
+def settle_region(body: str, version: int, date: str) -> tuple:
+    """(body with v<version>'s pending Decisions rows `active` and its pending tags `user: <date>`, rows settled)."""
+    tag = f"user · pending v{version}"
+    status_cell, tag_cell = _last_cell(f"pending v{version}"), _last_cell(tag)
+    tag_tail = re.compile(r"((?: — |^\s*Source: ))" + re.escape(tag) + r"\s*$")
+    lines, rows, section = [], 0, None
+    for line in body.split("\n"):
+        if line.startswith("### "):
+            section = line[len("### "):].strip()
+        elif section == "Decisions" and status_cell.search(line):
+            line, rows = status_cell.sub(r"\1active\2", line), rows + 1
+        else:
+            line = tag_tail.sub(rf"\1user: {date}", tag_cell.sub(rf"\1user: {date}\2", line))
+        lines.append(line)
+    return "\n".join(lines), rows
+
+
+@degrades
+def cmd_settle(file, version, now=None) -> str:
+    """Settle feature v<version>'s pending decisions; `settled <rows> <sha256>` or `unchanged <sha256>`."""
+    path = confined(file)
+    text, span = load(path)
+    if span is None:
+        raise ValueError("no region to settle")
+    body = normalise(region_text(text, span), volatile=())
+    dates = [d["date"] for d in parse_region(body)["decisions"] if d["status"] == f"pending v{version}"]
+    date = max(dates) if dates else (now or datetime.now(timezone.utc)).strftime("%Y-%m-%d")
+    settled, rows = settle_region(body, version, date)
+    if settled == body:
+        return f"{STATUS_PREFIX}unchanged {region_hash(body)}"
+    parse_region(settled)
+    _splice(path, text, span, settled, now)
+    return f"{STATUS_PREFIX}settled {rows} {region_hash(settled)}"
 
 
 # --- Specimen -----------------------------------------------------------------
@@ -757,6 +809,9 @@ def _parse_args(argv):
     render.add_argument("--template")
     render.add_argument("--out", required=True)
     render.add_argument("--force", action="store_true")
+    settle = commands.add_parser("settle", add_help=False)
+    settle.add_argument("--file", required=True)
+    settle.add_argument("--version", required=True, type=int)
     return parser.parse_args(argv)
 
 
@@ -764,6 +819,7 @@ COMMANDS = {
     "region": lambda args: cmd_region(args.file),
     "write": lambda args: cmd_write(args.file, args.region, args.expect),
     "render": lambda args: cmd_render(args.file, args.template, args.out, args.force),
+    "settle": lambda args: cmd_settle(args.file, args.version),
 }
 
 

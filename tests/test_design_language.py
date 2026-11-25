@@ -581,6 +581,121 @@ class TestWrite:
         assert os.stat("DESIGN.md").st_mode & 0o777 == 0o640
 
 
+# FULL_REGION records decision 2 as `pending v7` (dated 2026-11-01) and tags
+# two rows `user · pending v7`; NOW is 2026-11-04.
+SETTLE_FILE = doc(dl.MANAGED_COMMENT + "\n" + FULL_REGION)
+
+
+def settled(line):
+    """`design-language: settled <n> <sha256>` → (n, digest)."""
+    word, count, digest = line.removeprefix(dl.STATUS_PREFIX).split(" ")
+    assert word == "settled" and HEX64.fullmatch(digest), line
+    return int(count), digest
+
+
+class TestSettle:
+    def test_settles_the_versions_decisions_and_tags(self):
+        put("DESIGN.md", SETTLE_FILE)
+        count, digest = settled(dl.cmd_settle("DESIGN.md", 7, now=NOW))
+        header, region = dl.cmd_region("DESIGN.md").split("\n", 1)
+        assert header == f"design-language: region {digest}"
+        assert count == 1
+        assert "pending v7" not in region
+        assert "| 2 | Danger colour is red | user | 2026-11-01 | active |" in region
+        assert "| errors | feedback | user: 2026-11-01 |" in region, "the tag takes the decision's date"
+        assert "| border=color.danger | user: 2026-11-01 |" in region
+        assert STAMPED_ROW in region
+        dl.parse_region(region)
+
+    def test_tags_on_bullets_and_the_theme_line_are_settled(self):
+        region = with_section("Visual Theme & Atmosphere", "Calm screens.\nSource: user · pending v7")
+        region = with_section("Copy Tone", "- Plain, direct, sentence case — user · pending v7", region)
+        put("DESIGN.md", doc(region))
+        settled(dl.cmd_settle("DESIGN.md", 7, now=NOW))
+        text = Path("DESIGN.md").read_text()
+        assert "Source: user: 2026-11-01" in text
+        assert "- Plain, direct, sentence case — user: 2026-11-01" in text
+        assert "pending v7" not in text
+
+    def test_other_versions_stay_pending(self):
+        region = FULL_REGION.replace(
+            "| 4 | Plain, direct copy | skill | 2026-10-30 | drift |",
+            "| 4 | Plain, direct copy | skill | 2026-10-30 | drift |\n"
+            "| 5 | Card radius is 14px | user | 2026-11-02 | pending v70 |",
+        ).replace("| radius.card | 14px | code: src/theme.css:50 |", "| radius.card | 14px | user · pending v70 |")
+        put("DESIGN.md", doc(region))
+        assert settled(dl.cmd_settle("DESIGN.md", 7, now=NOW))[0] == 1
+        text = Path("DESIGN.md").read_text()
+        assert "| 5 | Card radius is 14px | user | 2026-11-02 | pending v70 |" in text
+        assert "| radius.card | 14px | user · pending v70 |" in text
+
+    def test_tag_date_is_the_latest_decision_date_for_the_version(self):
+        region = FULL_REGION.replace(
+            "| 3 | Accent is blue | skill | 2026-10-01 | superseded by 1 |",
+            "| 3 | Danger border on alerts | user | 2026-11-03 | pending v7 |",
+        )
+        put("DESIGN.md", doc(region))
+        assert settled(dl.cmd_settle("DESIGN.md", 7, now=NOW))[0] == 2
+        assert "| border=color.danger | user: 2026-11-03 |" in Path("DESIGN.md").read_text()
+
+    def test_tag_date_falls_back_to_today_without_a_decision_row(self):
+        put("DESIGN.md", doc(FULL_REGION.replace("| 2 | Danger colour is red | user | 2026-11-01 | pending v7 |\n", "")))
+        assert settled(dl.cmd_settle("DESIGN.md", 7, now=NOW))[0] == 0
+        assert "| errors | feedback | user: 2026-11-04 |" in Path("DESIGN.md").read_text()
+
+    def test_unchanged_when_nothing_is_pending_for_the_version(self):
+        put("DESIGN.md", SETTLE_FILE)
+        before, stat = Path("DESIGN.md").read_bytes(), os.stat("DESIGN.md")
+        assert dl.cmd_settle("DESIGN.md", 3, now=NOW) == f"design-language: unchanged {dl.region_hash(FULL_REGION)}"
+        assert Path("DESIGN.md").read_bytes() == before
+        assert os.stat("DESIGN.md").st_mtime_ns == stat.st_mtime_ns
+
+    @pytest.mark.parametrize("nl", ["\n", "\r\n"], ids=["LF", "CRLF"])
+    def test_preserves_outside_bytes_and_newline_style(self, nl):
+        put("DESIGN.md", doc(dl.MANAGED_COMMENT + "\n" + FULL_REGION, after="\nTail\tnotes.  ", nl=nl))
+        old = Path("DESIGN.md").read_bytes()
+        settled(dl.cmd_settle("DESIGN.md", 7, now=NOW))
+        new = Path("DESIGN.md").read_bytes()
+        start, end = dl.START.encode(), dl.END.encode()
+        assert new[:new.index(start)] == old[:old.index(start)]
+        assert new[new.index(end):] == old[old.index(end):]
+        region = new[new.index(start):new.index(end)].decode()
+        assert region.count(nl) == region.count("\n"), "the region keeps the file's newline style"
+
+    @pytest.mark.parametrize(
+        "text, reason",
+        [
+            (None, "no region to settle"),
+            ("# DESIGN.md\n\nNotes.\n", "no region to settle"),
+            (f"{dl.START}\n", "start marker without an end marker"),
+        ],
+        ids=["missing-file", "no-region", "malformed-markers"],
+    )
+    def test_nothing_to_settle_is_skipped(self, text, reason):
+        if text is not None:
+            put("DESIGN.md", text)
+        assert dl.cmd_settle("DESIGN.md", 7, now=NOW) == f"design-language: skipped — {reason}"
+        assert text is not None or not Path("DESIGN.md").exists()
+
+    def test_invalid_region_is_skipped_untouched(self):
+        put("DESIGN.md", doc(FULL_REGION.replace("| brand |", "| accent |")))
+        before = Path("DESIGN.md").read_bytes()
+        assert dl.cmd_settle("DESIGN.md", 7, now=NOW).startswith("design-language: skipped — schema: ")
+        assert Path("DESIGN.md").read_bytes() == before
+
+    def test_file_outside_cwd_is_refused(self, tmp_path_factory):
+        outside = put(tmp_path_factory.mktemp("elsewhere") / "DESIGN.md", SETTLE_FILE)
+        assert dl.cmd_settle(outside, 7, now=NOW) == "design-language: skipped — path outside the project"
+        assert outside.read_text() == SETTLE_FILE
+
+    def test_cli(self, capsys):
+        put("DESIGN.md", SETTLE_FILE)
+        assert dl.main(["settle", "--file", "DESIGN.md", "--version", "7"]) == 0
+        assert re.fullmatch(r"design-language: settled 1 [0-9a-f]{64}\n", capsys.readouterr().out)
+        assert dl.main(["settle", "--file", "DESIGN.md", "--version", "v7"]) == 0
+        assert capsys.readouterr().out.startswith("design-language: skipped — bad arguments")
+
+
 SHORT = re.compile(r"[0-9a-f]{7}")
 SPECIMEN_TEMPLATE = """<title>{{PROJECT_NAME}} — design language</title>
 <!-- design-language-specimen-hash: {{DATA_HASH}} -->

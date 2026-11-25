@@ -2269,9 +2269,24 @@ class TestDesignLanguageContract:
 
     def test_arguments_are_closed(self):
         text = self.skill_text()
-        for form in ("`fresh`", "`render`", "caller=feature-design", "mode=record"):
+        for form in ("`fresh`", "`render`", "caller=feature-design", "mode=record", "caller=feature-implement", "mode=settle"):
             assert form in text, f"design-language-update never documents {form}"
         assert "design-language-update: refused — unknown argument" in text
+
+    def test_settle_runs_through_the_script_and_never_asks(self):
+        # feature-implement settles its own version's pending decisions at the
+        # end of a complete run. It must not prompt: the user already decided
+        # them in feature-design, and the next reconcile reports any drift.
+        from scripts import design_language as dl
+
+        text = self.skill_text()
+        assert "settle" in dl.COMMANDS, "the script has no settle subcommand"
+        assert "python3 <script> settle --file" in text
+        start, end = step_span(text, 0)
+        assert "caller=feature-implement" in text[start:end], "Step 0 must not gate feature-implement's settle"
+        constraints = text.split("## Constraints (non-negotiable)")[1]
+        closed = next(line for line in constraints.splitlines() if "Clarification is closed" in line)
+        assert "settle" in closed, "settle mode must be listed among the modes that never ask"
 
     def test_caller_runs_continue_the_turn(self):
         assert "do not end your turn" in self.skill_text().lower()
@@ -2382,6 +2397,26 @@ class TestDesignLanguageContract:
             "stage subagents must be briefed with the DESIGN.md path"
         )
         assert "Design-language conformance" in self.span(text, "### 5g.", "### 5h.")
+
+    def test_feature_implement_settles_its_pending_decisions(self):
+        # Nothing else moves `pending v<N>` to `active`. Without this call the
+        # run ends by telling the user to run /design-language-update.
+        text = skill_text("feature-implement")
+        start, end = step_span(text, 8)
+        paragraphs = text[start:end].split("\n\n")
+        settle = next((p for p in paragraphs if "mode=settle" in p), None)
+        assert settle, "feature-implement Step 8 never settles the version's pending decisions"
+        assert "caller=feature-implement, mode=settle, version=<version>" in settle
+        assert "partial" in settle.lower(), "a partial run must leave the decisions pending"
+        assert "do not end your turn" in settle.lower(), "the settle runs inline: Step 8 must carry on"
+        commit = next((p for p in paragraphs if p.startswith("Finish by committing")), None)
+        assert commit, "feature-implement Step 8: commit paragraph not found"
+        for output in ("DESIGN.md", "design/specimen.html"):
+            assert output in commit, f"Step 8's commit must include {output} after a settle"
+        constraints = text.split("## Constraints (non-negotiable)")[1]
+        assert any(
+            "mode=settle" in line and "never" in line.lower() for line in constraints.splitlines()
+        ), "feature-implement's constraints must forbid handing the settle to the user"
 
     # --- evals-e2e-run: design_quality judges §5 Design language (R13) ---
 
