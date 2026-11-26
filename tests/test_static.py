@@ -1097,7 +1097,7 @@ class TestSessionControlContract:
     HANDOVER_NEXT = ("end-turn", "offer", "inline", "stop")
     # The cc plugin's tool and acknowledgement prefix live in the user's
     # extras file and the brief, never in skill text.
-    PLUGIN_STRINGS = ("mcp__cc__", "cc:cc-", "cc: queued")
+    PLUGIN_STRINGS = ("mcp__cc__", "cc:cc-", "cc:switch-model", "cc:set-effort", "cc:clear-and-run", "cc: queued")
 
     def text(self):
         return self.SKILL.read_text()
