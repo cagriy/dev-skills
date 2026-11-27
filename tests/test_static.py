@@ -2664,3 +2664,99 @@ class TestReleaseTypeContract:
         assert "Step 1 table" in adding, (
             "`Adding a language` must point at the detection table's current step"
         )
+
+
+class TestImplementProgressContract:
+    """feature-implement keeps a live progress file through
+    scripts/implement_progress.py. The skill names the calls and when they
+    fire; the script owns the file. Nothing else forces the two to agree on
+    subcommand, flag and status names, or forces every exit to close the file.
+    """
+
+    SCRIPT = REPO / "scripts" / "implement_progress.py"
+    CALL_RE = r"PROGRESS (init|stage|update|finish|job)\b([^`\n]*)"
+    FINISH_HALTED = "PROGRESS finish --file <progress_file> --outcome halted"
+
+    def text(self):
+        return skill_text("feature-implement")
+
+    def module(self):
+        from scripts import implement_progress
+
+        return implement_progress
+
+    def calls(self):
+        return re.findall(self.CALL_RE, self.text())
+
+    def test_the_skill_runs_the_script(self):
+        assert self.SCRIPT.exists()
+        assert "scripts/implement_progress.py" in self.text()
+
+    def test_every_subcommand_is_used_and_none_is_invented(self):
+        used = {command for command, _ in self.calls()}
+        assert used == {"init", "stage", "update", "finish", "job"}, used
+
+    def test_every_flag_the_skill_passes_exists_in_the_script(self):
+        source = self.SCRIPT.read_text()
+        known = set(re.findall(r'"(--[a-z][a-z-]*)"', source))
+        known |= {f"--{name.replace('_', '-')}" for name in self.module().COUNTS}
+        for command, rest in self.calls():
+            rest = re.sub(r"\$\([^)]*\)", "", rest)  # a `$(git …)` value is not a flag
+            for flag in re.findall(r"(?<![\w-])--[a-z][a-z-]*", rest):
+                assert flag in known, f"`PROGRESS {command}` passes {flag}, which the script lacks"
+
+    def test_status_phase_and_outcome_words_match_the_script(self):
+        ip = self.module()
+        text = self.text()
+        for word in re.findall(r"--status ([a-z]+)", text):
+            assert word in ip.STAGE_STATUSES, word
+        for word in re.findall(r"--phase ([a-z]+)", text):
+            assert word in ip.PHASES, word
+        for word in re.findall(r"--outcome ([a-z]+)", text):
+            assert word in ip.OUTCOMES, word
+
+    def test_the_file_opens_in_step_2_outside_the_project(self):
+        text = self.text()
+        start, end = step_span(text, 2)
+        assert "PROGRESS init" in text[start:end]
+        assert "<config-dir>/dev-skills/progress/" in text[start:end]
+
+    def test_early_exits_close_the_file_halted(self):
+        text = self.text()
+        for anchor in ("Tests already failing", "## Step 6 —"):
+            where = text.index(anchor)
+            assert self.FINISH_HALTED in text[where : where + 4000], (
+                f"feature-implement: the early exit at {anchor!r} leaves the progress file running"
+            )
+
+    def test_the_final_step_closes_the_file_before_the_usage_report(self):
+        text = self.text()
+        last = max(int(n) for n in re.findall(r"^## Step (\d+) —", text, re.MULTILINE))
+        start, end = step_span(text, last)
+        finish = text.find("PROGRESS finish --file <progress_file> --outcome", start, end)
+        report = re.search(r"^\*\*Report the run usage\.\*\*", text[start:end], re.MULTILINE)
+        assert finish != -1, "the final step never closes the progress file"
+        assert finish < start + report.start(), (
+            "close the progress file before the usage report, so the cycle report stays last"
+        )
+
+    def test_subagents_record_their_own_stages(self):
+        text = self.text()
+        contract = text[text.index("#### Subagent contract"):text.index("#### Parallel addendum")]
+        assert re.search(r"^- \*\*Progress\*\* — ", contract, re.MULTILINE), (
+            "the subagent contract has no Progress bullet, so delegated stages go unrecorded"
+        )
+        invariant = re.search(r"run-invariant ones — (.*?) — once", contract)
+        assert invariant and "Progress" in invariant.group(1)
+        addendum = text[text.index("#### Parallel addendum"):text.index("### 5a.")]
+        workspace = re.search(r"^- \*\*Workspace\*\* — .*$", addendum, re.MULTILINE).group(0)
+        assert "<progress_file>" in workspace, (
+            "a parallel subagent may not touch paths outside its worktree unless named"
+        )
+
+    def test_the_constraint_keeps_tracking_out_of_the_way(self):
+        bullet = re.search(r"^- \*\*Progress is tracked.*$", self.text(), re.MULTILINE)
+        assert bullet, "feature-implement: no progress constraint"
+        for part in ("scripts/implement_progress.py", "never by hand", "exit status",
+                     "PROGRESS finish"):
+            assert part in bullet.group(0), part

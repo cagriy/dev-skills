@@ -354,8 +354,8 @@
 <div id="page">
   <header class="top">
     <div class="chiprow">
-      <span class="vchip">dev-skills v0.3.52</span>
-      <span class="vchip">generated 2026-11-25 10:41 UTC</span>
+      <span class="vchip">dev-skills v0.3.53</span>
+      <span class="vchip">generated 2026-11-27 10:40 UTC</span>
       <span class="vchip">by /diagram-update</span>
       <a class="vchip" href="c4.html">architecture diagram &#8594;</a>
     </div>
@@ -801,7 +801,7 @@ const SKILLS = [
     "g": "chain",
     "inv": "both",
     "commits": true,
-    "purpose": "Builds the plan stage by stage on the current branch, test-first, one commit per green stage. Never creates branches or pushes; serial batches run in subagent units, parallel batches in throwaway worktrees landed by cherry-pick in stage order.",
+    "purpose": "Builds the plan stage by stage on the current branch, test-first, one commit per green stage. Never creates branches or pushes; serial batches run in subagent units, parallel batches in throwaway worktrees landed by cherry-pick in stage order, and a live progress file outside the project shows stages done, elapsed time and time left throughout.",
     "wraps": {
       "tdd": "per-stage TDD cycle: run here (Direct), in serial subagent units, or in worktree subagents for a parallel batch"
     },
@@ -820,30 +820,30 @@ const SKILLS = [
       {
         "k": "s2",
         "t": "Read artefacts",
-        "d": "Reads the plan, its execution schedule and the design in full, plus DESIGN.md when the design cites it. Unresolved deviations from the design are put to the user: proceed as-is or refresh the design first.",
+        "d": "Reads the plan, its execution schedule and the design in full, plus DESIGN.md when the design cites it. Unresolved deviations from the design are put to the user: proceed as-is or refresh the design first. Then opens a live progress file outside the project through scripts/implement_progress.py, which later steps update and which never blocks the run. Commands expected to run longer than about two minutes go through its job wrapper, so the file shows their own percent and time left.",
         "gate": true
       },
       {
         "k": "s3",
         "t": "Repo readiness",
-        "d": "Commits the chain's own leftover docs and DESIGN.md as one docs commit, confirms a non-default branch with the user, and fast-forwards from the remote. Detects the project's test, lint, type, build, dead-code and provisioning commands (provisioning covers every dependency root the suite reaches) and records a baseline; a red test baseline stops the run with Investigate / File a bug / Stop.",
+        "d": "Commits the chain's own leftover docs and DESIGN.md as one docs commit, confirms a non-default branch with the user, and fast-forwards from the remote. Detects the project's test, lint, type, build, dead-code and provisioning commands (provisioning covers every dependency root the suite reaches) and records a baseline. A red test baseline stops the run with Investigate / File a bug / Stop, closing the progress file as halted on any branch that stops.",
         "gate": true,
         "commits": true
       },
       {
         "k": "s4",
         "t": "Find resume point",
-        "d": "Greps prior stage commits for this version and resumes at the lowest uncommitted stage, which a partly landed parallel batch can leave below the highest. Externally gated stages are probed now and excluded from the run if their gate is closed."
+        "d": "Greps prior stage commits for this version and resumes at the lowest uncommitted stage, which a partly landed parallel batch can leave below the highest. Externally gated stages are probed now and excluded from the run if their gate is closed. Both findings go into the progress file: earlier commits as done before this run, gated stages as blocked."
       },
       {
         "k": "s5",
         "t": "Resolve strategy",
-        "d": "Picks the executor by rule, never by asking: Chunked units of up to three stages by default, Direct on request, at two or fewer stages, or when almost nothing is delegatable. It announces the batch shape in one line, the run's only checkpoint before code lands; the main agent verifies every unit's commits and re-runs the tests itself."
+        "d": "Picks the executor by rule, never by asking: Chunked units of up to three stages by default, Direct on request, at two or fewer stages, or when almost nothing is delegatable. It announces the batch shape and the progress file's path in one line, the run's only checkpoint before code lands, and records that line in the file. The main agent verifies every unit's commits, re-runs the tests itself and brings the progress file level with git."
       },
       {
         "k": "s5p",
         "t": "Land parallel batch",
-        "d": "For a batch the plan marks parallel, re-checks the seven independence tests and a worktree probe, then builds each stage in its own detached worktree, up to four subagents at once. Each stage's single commit is cherry-picked onto the branch in stage order with tests after each; a conflict re-runs that stage serially, and worktrees are reconciled and removed on every path.",
+        "d": "For a batch the plan marks parallel, re-checks the seven independence tests and a worktree probe, then builds each stage in its own detached worktree, up to four subagents at once. Each stage's single commit is cherry-picked onto the branch in stage order with tests after each, and its landed commit is re-recorded in the progress file. A conflict re-runs that stage serially, and worktrees are reconciled and removed on every path.",
         "commits": true,
         "par": [
           "one detached-worktree subagent per stage",
@@ -853,7 +853,7 @@ const SKILLS = [
       {
         "k": "5a",
         "t": "Re-read stage",
-        "d": "Re-reads the stage block from the plan file, never from memory, and DESIGN.md for a UI stage. Runs the pre-flight scans: injection seams, type identity, signature changes, time dependencies, external claims, live-run safety and reuse.",
+        "d": "Marks the stage running in the progress file, then re-reads the stage block from the plan file, never from memory, and DESIGN.md for a UI stage. Runs the pre-flight scans: injection seams, type identity, signature changes, time dependencies, external claims, live-run safety and reuse.",
         "wrap": "tdd"
       },
       {
@@ -895,7 +895,7 @@ const SKILLS = [
       {
         "k": "5h",
         "t": "Commit stage",
-        "d": "Runs the tests once more, then commits only the stage's files as one commit titled type(plan vN): Stage M, the format the resume step relies on. Deviation notes go in a separate docs commit.",
+        "d": "Runs the tests once more, then commits only the stage's files as one commit titled type(plan vN): Stage M, the format the resume step relies on. The same command records the stage done with its commit in the progress file, which moves the stage count and the time-left estimate. Deviation notes go in a separate docs commit.",
         "commits": true,
         "wrap": "tdd"
       },
@@ -908,13 +908,13 @@ const SKILLS = [
       {
         "k": "s6",
         "t": "Stop conditions",
-        "d": "Stops on an undiagnosable failure, a decision the plan does not cover, a tree dirtied by someone else, an unplanned security issue, a design-level flaw, or a parallel conflict no small reconciliation fixes. It asks the user even under autonomous instructions, reports the run as halted with the cycle report, and removes any worktree first.",
+        "d": "Stops on an undiagnosable failure, a decision the plan does not cover, a tree dirtied by someone else, an unplanned security issue, a design-level flaw, or a parallel conflict no small reconciliation fixes. It asks the user even under autonomous instructions, removes any worktree first, marks the stage failed and closes the progress file as halted. The run is reported as halted with the cycle report.",
         "gate": true
       },
       {
         "k": "s7",
         "t": "Final sweep",
-        "d": "Checks every design requirement has a test and every component exists, runs the full suite, and runs the dead-code analyser against the baseline. Gaps or new orphans become one extra stage. A run that ends with gated or hands-on stages unbuilt still closes here as a partial run, scoped to what landed, with a Blocked list."
+        "d": "Marks the closing phase in the progress file, then checks every design requirement has a test and every component exists, runs the full suite, and runs the dead-code analyser against the baseline. Gaps or new orphans become one extra stage. A run that ends with gated or hands-on stages unbuilt still closes here as a partial run, scoped to what landed, with a Blocked list."
       },
       {
         "k": "s8",
@@ -930,12 +930,12 @@ const SKILLS = [
       {
         "k": "s10",
         "t": "Present summary",
-        "d": "Prints one line per stage with its commit, plus tests, coverage, dead-code result, deviations, the design-language settle, pending human checks and parallelism."
+        "d": "Prints one line per stage with its commit, plus the progress file's path, tests, coverage, dead-code result, deviations, the design-language settle, pending human checks and parallelism."
       },
       {
         "k": "s11",
         "t": "Offer evals",
-        "d": "Asks whether to run both eval skills; on yes it launches them in two parallel read-only subagents and relays their scores, and a failed eval never fails the run. Then it reports usage with the cycle report, last rather than before its offer like the other three, so the eval subagents fall inside the measured window.",
+        "d": "Asks whether to run both eval skills; on yes it launches them in two parallel read-only subagents and relays their scores, and a failed eval never fails the run. Then it closes the progress file and reports usage with the cycle report, last rather than before its offer like the other three, so the eval subagents fall inside the measured window.",
         "gate": true,
         "par": [
           "evals-code-run",
