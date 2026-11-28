@@ -354,8 +354,8 @@
 <div id="page">
   <header class="top">
     <div class="chiprow">
-      <span class="vchip">dev-skills v0.3.53</span>
-      <span class="vchip">generated 2026-11-27 10:40 UTC</span>
+      <span class="vchip">dev-skills v0.4.0</span>
+      <span class="vchip">generated 2026-11-28 08:35 UTC</span>
       <span class="vchip">by /diagram-update</span>
       <a class="vchip" href="c4.html">architecture diagram &#8594;</a>
     </div>
@@ -444,2051 +444,2051 @@
 /* ======================= DATA (derived from skills/, hooks/) ======================= */
 
 const GROUPS = [
-  {
-    "id": "router",
-    "name": "Router",
-    "accent": "#8b5cf6",
-    "desc": "Model-only watcher that spots feature-shaped prompts and routes them into the chain before any code is written."
-  },
-  {
-    "id": "chain",
-    "name": "Feature chain",
-    "accent": "#2f6fed",
-    "desc": "The four staged skills: storm to design to plan to implement. Each one chains into the next by offer, or, when session control is declared, by a queued handover in a cleared conversation."
-  },
-  {
-    "id": "internal",
-    "name": "Shared helpers",
-    "accent": "#0ea5a4",
-    "desc": "Internal skills the others load inline so one rule lives in one place: pathing, mockups, session control, run usage, reflection, bug-tracker rendering. The herdr pane labeller sits here too; nothing in the plugin calls it, the model invokes it ad hoc, and /skill-customize extras can wire it into chain runs."
-  },
-  {
-    "id": "design",
-    "name": "Design language",
-    "accent": "#e11d48",
-    "desc": "Keeps the project's design language in a managed region of DESIGN.md and renders it as a published specimen page. Runs standalone or inside /feature-design, which reconciles it before every mockup and records the changes a mockup introduced; the mockup, plan and implement stages read DESIGN.md."
-  },
-  {
-    "id": "bugs",
-    "name": "Bug workflow",
-    "accent": "#f97316",
-    "desc": "File a triaged bug under bugs/, then diagnose and close it test-first. Outside the feature chain."
-  },
-  {
-    "id": "evals",
-    "name": "Evals",
-    "accent": "#d946ef",
-    "desc": "Read-only scorers over unpushed work. One grades the code, the other grades the chain's artefacts and their consistency."
-  },
-  {
-    "id": "diagrams",
-    "name": "Diagrams",
-    "accent": "#14b8a6",
-    "desc": "Two standalone renderers, each pairing one skill with one template and writing one self-contained interactive page."
-  },
-  {
-    "id": "improve",
-    "name": "Improvement",
-    "accent": "#eab308",
-    "desc": "Two ways to durably change a skill: consolidate its captured lessons and apply approved edits to its text (lessons-learn), or record per-skill house rules, session-control's declarations among them, in an extras file the skill reads at the start of every run (skill-customize). The first edits skill text; the second never does."
-  },
-  {
-    "id": "utility",
-    "name": "Utilities",
-    "accent": "#64748b",
-    "desc": "Reporting and git plumbing: list what is in flight, commit and push, cut a version."
-  },
-  {
-    "id": "hooks",
-    "name": "Hooks",
-    "accent": "#94a3b8",
-    "desc": "Shell code fired by the harness rather than invoked by any skill: a remote-readiness warning wired to session start and prompt submit."
-  }
+ {
+  "id": "router",
+  "name": "Router",
+  "accent": "#8b5cf6",
+  "desc": "Model-only watcher that spots feature-shaped prompts and routes them into the chain before any code is written."
+ },
+ {
+  "id": "chain",
+  "name": "Feature chain",
+  "accent": "#2f6fed",
+  "desc": "The four staged skills: storm to design to plan to implement. Each one chains into the next by offer, or, when session control is declared, by a queued handover in a cleared conversation. Each run keeps its own record, named by a run id, in the plugin's one live progress file outside every project, written through scripts/run_progress.py and shared by every run of every skill in every repo and session; the record names its skill, subject, repo and session, with the step or stage it is on and the time left."
+ },
+ {
+  "id": "internal",
+  "name": "Shared helpers",
+  "accent": "#0ea5a4",
+  "desc": "Internal skills the others load inline so one rule lives in one place: pathing, mockups, session control, run usage, reflection, bug-tracker rendering. The herdr pane labeller sits here too; nothing in the plugin calls it, the model invokes it ad hoc, and /skill-customize extras can wire it into chain runs."
+ },
+ {
+  "id": "design",
+  "name": "Design language",
+  "accent": "#e11d48",
+  "desc": "Keeps the project's design language in a managed region of DESIGN.md and renders it as a published specimen page. Runs standalone or inside /feature-design, which reconciles it before every mockup and records the changes a mockup introduced; the mockup, plan and implement stages read DESIGN.md."
+ },
+ {
+  "id": "bugs",
+  "name": "Bug workflow",
+  "accent": "#f97316",
+  "desc": "File a triaged bug under bugs/, then diagnose and close it test-first. Outside the feature chain."
+ },
+ {
+  "id": "evals",
+  "name": "Evals",
+  "accent": "#d946ef",
+  "desc": "Read-only scorers over unpushed work. One grades the code, the other grades the chain's artefacts and their consistency."
+ },
+ {
+  "id": "diagrams",
+  "name": "Diagrams",
+  "accent": "#14b8a6",
+  "desc": "Two standalone renderers, each pairing one skill with one template and writing one self-contained interactive page."
+ },
+ {
+  "id": "improve",
+  "name": "Improvement",
+  "accent": "#eab308",
+  "desc": "Two ways to durably change a skill: consolidate its captured lessons and apply approved edits to its text (lessons-learn), or record per-skill house rules, session-control's declarations among them, in an extras file the skill reads at the start of every run (skill-customize). The first edits skill text; the second never does."
+ },
+ {
+  "id": "utility",
+  "name": "Utilities",
+  "accent": "#64748b",
+  "desc": "Reporting and git plumbing: list what is in flight, commit and push, cut a version."
+ },
+ {
+  "id": "hooks",
+  "name": "Hooks",
+  "accent": "#94a3b8",
+  "desc": "Shell code fired by the harness rather than invoked by any skill: a remote-readiness warning wired to session start and prompt submit."
+ }
 ];
 
 const SKILLS = [
-  {
-    "slug": "feature-dispatch",
-    "g": "router",
-    "inv": "agent",
-    "internal": true,
-    "purpose": "Model-only router. Watches the latest prompt for feature work over roughly 75 lines of code and offers the right entry into the chain: /feature-storm when the request is vague, /feature-design when it is clear but undesigned.",
-    "steps": [
-      {
-        "k": "s1",
-        "t": "Check scope",
-        "d": "Re-reads the user's latest message and stops silently when it is out of scope: an explicit chain or bug slash command, work already in flight, a bug report, a plainly small change, or work framed as quick or throwaway. Nothing is shown when it stops."
-      },
-      {
-        "k": "s2",
-        "t": "Estimate size",
-        "d": "Silently estimates the lines of code a first-cut implementation would need and stops below roughly 75. Above it, picks /feature-storm for vague, product-level requests and /feature-design for clear requests that still need a technical design."
-      },
-      {
-        "k": "s3",
-        "t": "Offer route",
-        "d": "Asks once via AskUserQuestion (header \"Route this feature?\") with three options: the recommended skill first, the alternative second, and \"Continue without dispatch\". It never asks a second time.",
-        "gate": true
-      },
-      {
-        "k": "s4",
-        "t": "Hand over",
-        "d": "Invokes the chosen entry skill through the Skill tool with the user's original request as its argument; that skill's Step 0 recognises the routing answer as the opt-in and skips its own confirmation. \"Continue without dispatch\" or Other returns silently to the conversation."
-      }
-    ]
+ {
+  "slug": "feature-dispatch",
+  "g": "router",
+  "inv": "agent",
+  "internal": true,
+  "purpose": "Model-only router. Watches the latest prompt for feature work over roughly 75 lines of code and offers the right entry into the chain: /feature-storm when the request is vague, /feature-design when it is clear but undesigned.",
+  "steps": [
+   {
+    "k": "s1",
+    "t": "Check scope",
+    "d": "Re-reads the user's latest message and stops silently when it is out of scope: an explicit chain or bug slash command, work already in flight, a bug report, a plainly small change, or work framed as quick or throwaway. Nothing is shown when it stops."
+   },
+   {
+    "k": "s2",
+    "t": "Estimate size",
+    "d": "Silently estimates the lines of code a first-cut implementation would need and stops below roughly 75. Above it, picks /feature-storm for vague, product-level requests and /feature-design for clear requests that still need a technical design."
+   },
+   {
+    "k": "s3",
+    "t": "Offer route",
+    "d": "Asks once via AskUserQuestion (header \"Route this feature?\") with three options: the recommended skill first, the alternative second, and \"Continue without dispatch\". It never asks a second time.",
+    "gate": true
+   },
+   {
+    "k": "s4",
+    "t": "Hand over",
+    "d": "Invokes the chosen entry skill through the Skill tool with the user's original request as its argument; that skill's Step 0 recognises the routing answer as the opt-in and skips its own confirmation. \"Continue without dispatch\" or Other returns silently to the conversation."
+   }
+  ]
+ },
+ {
+  "slug": "feature-storm",
+  "g": "chain",
+  "inv": "both",
+  "purpose": "Optional first stage. Brainstorms the product layer (goals, users, scope, constraints), generating ideas the brief did not contain in two waves and converging only when scope is fully settled, then writes the seven-section storm document.",
+  "wraps": {
+   "loop": "brainstorm loop, run until scope is fully settled"
   },
-  {
-    "slug": "feature-storm",
-    "g": "chain",
-    "inv": "both",
-    "purpose": "Optional first stage. Brainstorms the product layer (goals, users, scope, constraints), generating ideas the brief did not contain in two waves and converging only when scope is fully settled, then writes the seven-section storm document.",
-    "wraps": {
-      "loop": "brainstorm loop, run until scope is fully settled"
-    },
-    "steps": [
-      {
-        "k": "s0",
-        "t": "Confirm invocation",
-        "d": "Skipped when the user typed /feature-storm or just chose it in /feature-dispatch's routing question. Otherwise asks once whether to brainstorm the restated scope; anything but yes stops with nothing written.",
-        "gate": true
-      },
-      {
-        "k": "s1",
-        "t": "Capture requirements",
-        "d": "Loads any recorded customisations, checks the session through session-control when its extras file exists (a relaunch ends the turn here, before anything is opened), then opens the usage window. Reads the leading solo, version and from= tokens, parses a short title and the requirements, taking requirements the conversation already settled (restated in one line) and asking once only when there are none, and grounds brownfield requests, naming the one gating fact before the first question round."
-      },
-      {
-        "k": "s2",
-        "t": "Resolve paths",
-        "d": "Settles the folder title (a derived one is confirmed, ideally folded into the first question round) and calls feature-resolve with stage=storm. It records the returned folder, stage file and tracker paths and carries on without ending the turn."
-      },
-      {
-        "k": "s3a",
-        "t": "Generate ideas",
-        "d": "Puts ideas on the table the user did not bring, in two mandatory waves: grounded ones first (adjacent capabilities, other approaches, smaller cuts, unconsidered users), then a separate round of 4-5 deliberately bold ones that repeat nothing from the first. Ideas are offered, never assumed in, and a weighed-and-declined one is still recorded. Each idea is its own Adopt / Defer question, so declining is one click.",
-        "wrap": "loop"
-      },
-      {
-        "k": "s3b",
-        "t": "Converge scope",
-        "d": "Runs AskUserQuestion rounds with recommended options to close goals, non-goals, users, scope, constraints, alternatives, risks and open design questions. It does not exit until every capability is either in this version or explicitly deferred; an item unsettled after three rounds is forced to an in/out decision. Runs even under autonomous instructions.",
-        "gate": true,
-        "wrap": "loop"
-      },
-      {
-        "k": "s4",
-        "t": "Approve summary",
-        "d": "Re-reads the project's own stated principles, then presents a summary of ten bullets or fewer and asks Approve / Revise / Stop. Revise loops back into the brainstorm; Stop ends the run with no storm document written and names the folder Step 2 created.",
-        "gate": true
-      },
-      {
-        "k": "s5",
-        "t": "Write storm",
-        "d": "Writes the storm document to the resolver's stage file in seven fixed sections: summary, goals, scope in and out, technical direction, alternatives, risks and open questions for design. A section with nothing to say gets an explicit Not applicable line."
-      },
-      {
-        "k": "s6",
-        "t": "Update tracker",
-        "d": "Fills the tracker's header and Brainstorming panel tokens only where they are still literal, writes placeholders for later stages and flips its own storm progress step to complete. It never touches another stage's panel or step."
-      },
-      {
-        "k": "s7",
-        "t": "Capture lessons",
-        "d": "Calls lessons-capture with the slug feature-storm, which appends one dated improvement recommendation, or none, to the lessons log and hands the entry back for the summary."
-      },
-      {
-        "k": "s8",
-        "t": "Present highlights",
-        "d": "Prints a short chat summary: the saved paths, the approved bullets, the top open questions for design and the lessons entry. The files are the artefact; the chat is the pointer."
-      },
-      {
-        "k": "s9",
-        "t": "Offer design",
-        "d": "Reports the run's usage quietly first, because accepting the offer hands over and never returns to this step. A solo run prints the cycle report and stops; with session control declared, session-control's handover may queue /feature-design in a cleared conversation. Otherwise it asks once whether to run /feature-design with the version; Not now prints the cycle report and a next-step line.",
-        "gate": true
-      }
-    ]
+  "steps": [
+   {
+    "k": "s0",
+    "t": "Confirm invocation",
+    "d": "Skipped when the user typed /feature-storm or just chose it in /feature-dispatch's routing question. Otherwise asks once whether to brainstorm the restated scope; anything but yes stops with nothing written.",
+    "gate": true
+   },
+   {
+    "k": "s1",
+    "t": "Capture requirements",
+    "d": "Loads any recorded customisations, checks the session through session-control when its extras file exists (a relaunch ends the turn here, before anything is opened), then opens the usage window. Reads the leading solo, version and from= tokens, parses a short title and the requirements, taking requirements the conversation already settled (restated in one line) and asking once only when there are none, and grounds brownfield requests, naming the one gating fact before the first question round."
+   },
+   {
+    "k": "s2",
+    "t": "Resolve paths",
+    "d": "Settles the folder title (a derived one is confirmed, ideally folded into the first question round) and calls feature-resolve with stage=storm. It records the returned folder, stage file and tracker paths and carries on without ending the turn. Then opens its run in progress.json outside the project through scripts/run_progress.py, one file for every run of every skill in every repo and session, starting at Step 3a: init prints a run id that every later call names, every later step enters itself as it starts, and tracking never blocks the run."
+   },
+   {
+    "k": "s3a",
+    "t": "Generate ideas",
+    "d": "Puts ideas on the table the user did not bring, in two mandatory waves: grounded ones first (adjacent capabilities, other approaches, smaller cuts, unconsidered users), then a separate round of 4-5 deliberately bold ones that repeat nothing from the first. Ideas are offered, never assumed in, and a weighed-and-declined one is still recorded. Each idea is its own Adopt / Defer question, so declining is one click.",
+    "wrap": "loop"
+   },
+   {
+    "k": "s3b",
+    "t": "Converge scope",
+    "d": "Runs AskUserQuestion rounds with recommended options to close goals, non-goals, users, scope, constraints, alternatives, risks and open design questions. It does not exit until every capability is either in this version or explicitly deferred; an item unsettled after three rounds is forced to an in/out decision. Runs even under autonomous instructions.",
+    "gate": true,
+    "wrap": "loop"
+   },
+   {
+    "k": "s4",
+    "t": "Approve summary",
+    "d": "Re-reads the project's own stated principles, then presents a summary of ten bullets or fewer and asks Approve / Revise / Stop. Revise loops back into the brainstorm, recorded as a loop in the progress file; Stop closes the file as halted and ends the run with no storm document written and names the folder Step 2 created.",
+    "gate": true
+   },
+   {
+    "k": "s5",
+    "t": "Write storm",
+    "d": "Writes the storm document to the resolver's stage file in seven fixed sections: summary, goals, scope in and out, technical direction, alternatives, risks and open questions for design. A section with nothing to say gets an explicit Not applicable line."
+   },
+   {
+    "k": "s6",
+    "t": "Update tracker",
+    "d": "Fills the tracker's header and Brainstorming panel tokens only where they are still literal, writes placeholders for later stages and flips its own storm progress step to complete. It never touches another stage's panel or step."
+   },
+   {
+    "k": "s7",
+    "t": "Capture lessons",
+    "d": "Calls lessons-capture with the slug feature-storm, which appends one dated improvement recommendation, or none, to the lessons log and hands the entry back for the summary."
+   },
+   {
+    "k": "s8",
+    "t": "Present highlights",
+    "d": "Prints a short chat summary: the saved paths, the approved bullets, the top open questions for design and the lessons entry. The files are the artefact; the chat is the pointer."
+   },
+   {
+    "k": "s9",
+    "t": "Offer design",
+    "d": "Closes the progress file, then reports the run's usage quietly, because accepting the offer hands over and never returns to this step. A solo run prints the cycle report and stops; with session control declared, session-control's handover may queue /feature-design in a cleared conversation. Otherwise it asks once whether to run /feature-design with the version; Not now prints the cycle report and a next-step line.",
+    "gate": true
+   }
+  ]
+ },
+ {
+  "slug": "feature-design",
+  "g": "chain",
+  "inv": "both",
+  "purpose": "Produces the decision-closed technical design: grounds in the code, interviews the user until the design is fully determined, mocks up any unsettled user-visible surface, writes briefs for other projects the feature spans, and self-reviews before saving.",
+  "wraps": {
+   "mock": "Step 5: reconcile DESIGN.md, then mock up by rule, skipped only by a named exit"
   },
-  {
-    "slug": "feature-design",
-    "g": "chain",
-    "inv": "both",
-    "purpose": "Produces the decision-closed technical design: grounds in the code, interviews the user until the design is fully determined, mocks up any unsettled user-visible surface, writes briefs for other projects the feature spans, and self-reviews before saving.",
-    "wraps": {
-      "mock": "Step 5: reconcile DESIGN.md, then mock up by rule, skipped only by a named exit"
-    },
-    "steps": [
-      {
-        "k": "s0",
-        "t": "Confirm invocation",
-        "d": "Skipped when the user typed /feature-design, accepted /feature-storm's offer, chose it in /feature-dispatch's routing question, or just affirmed a proposal naming it. Otherwise asks once; anything but yes stops with nothing written.",
-        "gate": true
-      },
-      {
-        "k": "s1",
-        "t": "Capture requirements",
-        "d": "Loads customisations, checks the session through session-control when declared, opens the usage window and reads the solo, version and from= tokens. Takes the requirements from the arguments, a just-completed storm, or the recent conversation; with none of those it lets the resolver pick up the storm awaiting design by version, and only then asks once."
-      },
-      {
-        "k": "s2",
-        "t": "Resolve paths",
-        "d": "Settles the folder title, asking once only when it was inferred, and calls feature-resolve with stage=design (with no description on the storm-pickup path). It records the returned paths and carries on without ending the turn."
-      },
-      {
-        "k": "s3",
-        "t": "Ground design",
-        "d": "Reads the storm first, whose open questions seed Step 4, then the code the feature touches, prior designs and cited specs. Inherited claims are re-verified rather than trusted, and any other project the feature crosses into is named."
-      },
-      {
-        "k": "s4",
-        "t": "Clarify decisions",
-        "d": "An interview of as many AskUserQuestion rounds as it takes: scope, acceptance, per-requirement behaviour, data, interfaces, cross-project split, failure, scale, trust and operability are each answered or decided with a recorded rationale, never guessed. It ends only on the six-part readiness test, never on a question count; appearance is routed to Step 5.",
-        "gate": true
-      },
-      {
-        "k": "s5r",
-        "t": "Reconcile language",
-        "d": "For any feature with a user-visible surface, invokes design-language-update with caller=feature-design, whatever 5a then decides. It records the specimen, drift and pending items for the design, and drift touching this surface becomes a risk.",
-        "wrap": "mock"
-      },
-      {
-        "k": "s5a",
-        "t": "Decide mockup",
-        "d": "Fires the mockup unless one of four named exits applies: no user-visible surface, appearance already settled by the user's own artefact, a mechanical delta, or the user declined. A one-way trip-wire checked first forces a fire when Step 4 touched appearance, and the applied exit is recorded in chat and in the design.",
-        "wrap": "mock"
-      },
-      {
-        "k": "s5b",
-        "t": "Run mockup",
-        "d": "Loads the artifact design and capability skills when the session offers them, writes a scratchpad resume note for a wait that may outlast the context, then invokes feature-mockup with the feature folder, version, a one-line surface statement and optional kind and references. The mockup may pause the run while the user answers on the published page.",
-        "wrap": "mock"
-      },
-      {
-        "k": "s5c",
-        "t": "Fold decisions",
-        "d": "Carries the accepted decisions into the design's interfaces and architecture, rejected alternatives into the alternatives section, and links the accepted mockup by artifact URL and relative path. Open UI questions, and behaviour that arrived through the mockup, loop back to Step 4; language deltas are written back through design-language-update's record mode.",
-        "wrap": "mock"
-      },
-      {
-        "k": "s6a",
-        "t": "Write design",
-        "d": "Writes the nine-section design to the resolver's stage file, preferring a modular, separately testable decomposition with a per-component test plan. The open-questions section must read None."
-      },
-      {
-        "k": "s6b",
-        "t": "Write briefs",
-        "d": "When the feature spans more than one project, writes one self-contained brief per other project under briefs/ in this feature's folder: context, requirements, the full contract, failure behaviour, acceptance and sequencing. Lockstep delivery is stated as needing one joint plan; nothing is ever written into the other repo."
-      },
-      {
-        "k": "s7",
-        "t": "Self-review",
-        "d": "Re-reads the draft through lenses for requirement coverage, decision closure, security, efficiency, modularity, reference and behaviour integrity, extension completeness, mockup fidelity, design-language conformance, brief completeness and cross-section consistency, fixing in place. Loops until the open-questions section is empty and no hand-wave remains."
-      },
-      {
-        "k": "s8",
-        "t": "Update tracker",
-        "d": "Fills the header and Design panel, links the accepted mockup, DESIGN.md, the specimen and any briefs, placeholders later stages, and flips the design progress step to complete."
-      },
-      {
-        "k": "s9",
-        "t": "Capture lessons",
-        "d": "Calls lessons-capture with the slug feature-design and carries the returned entry into the summary."
-      },
-      {
-        "k": "s10",
-        "t": "Present highlights",
-        "d": "Prints the saved paths, the mockup link, any briefs with their target projects, the highlights, top risks, how to verify acceptance and the lessons entry, in about thirty lines."
-      },
-      {
-        "k": "s11",
-        "t": "Offer plan",
-        "d": "Reports usage quietly first, then hands over or offers. A solo run prints the cycle report and stops; with session control declared, session-control's handover queues /feature-plan unless briefs hold it, in which case the offer is asked. Otherwise it asks once; Not now prints the cycle report and a next-step line.",
-        "gate": true
-      }
-    ]
+  "steps": [
+   {
+    "k": "s0",
+    "t": "Confirm invocation",
+    "d": "Skipped when the user typed /feature-design, accepted /feature-storm's offer, chose it in /feature-dispatch's routing question, or just affirmed a proposal naming it. Otherwise asks once; anything but yes stops with nothing written.",
+    "gate": true
+   },
+   {
+    "k": "s1",
+    "t": "Capture requirements",
+    "d": "Loads customisations, checks the session through session-control when declared, opens the usage window and reads the solo, version and from= tokens. Takes the requirements from the arguments, a just-completed storm, or the recent conversation; with none of those it lets the resolver pick up the storm awaiting design by version, and only then asks once."
+   },
+   {
+    "k": "s2",
+    "t": "Resolve paths",
+    "d": "Settles the folder title, asking once only when it was inferred, and calls feature-resolve with stage=design (with no description on the storm-pickup path). It records the returned paths and carries on without ending the turn. Then opens its run in progress.json outside the project through scripts/run_progress.py, one file for every run of every skill in every repo and session, starting at Step 3: init prints a run id that every later call names, every later step enters itself as it starts, and tracking never blocks the run."
+   },
+   {
+    "k": "s3",
+    "t": "Ground design",
+    "d": "Reads the storm first, whose open questions seed Step 4, then the code the feature touches, prior designs and cited specs. Inherited claims are re-verified rather than trusted, and any other project the feature crosses into is named."
+   },
+   {
+    "k": "s4",
+    "t": "Clarify decisions",
+    "d": "An interview of as many AskUserQuestion rounds as it takes: scope, acceptance, per-requirement behaviour, data, interfaces, cross-project split, failure, scale, trust and operability are each answered or decided with a recorded rationale, never guessed. It ends only on the six-part readiness test, never on a question count; appearance is routed to Step 5.",
+    "gate": true
+   },
+   {
+    "k": "s5r",
+    "t": "Reconcile language",
+    "d": "For any feature with a user-visible surface, invokes design-language-update with caller=feature-design, whatever 5a then decides. It records the specimen, drift and pending items for the design, and drift touching this surface becomes a risk.",
+    "wrap": "mock"
+   },
+   {
+    "k": "s5a",
+    "t": "Decide mockup",
+    "d": "Fires the mockup unless one of four named exits applies: no user-visible surface, appearance already settled by the user's own artefact, a mechanical delta, or the user declined. A one-way trip-wire checked first forces a fire when Step 4 touched appearance, and the applied exit is recorded in chat and in the design.",
+    "wrap": "mock"
+   },
+   {
+    "k": "s5b",
+    "t": "Run mockup",
+    "d": "Loads the artifact design and capability skills when the session offers them, writes a scratchpad resume note for a wait that may outlast the context, then invokes feature-mockup with the feature folder, version, a one-line surface statement and optional kind and references. The mockup may pause the run while the user answers on the published page.",
+    "wrap": "mock"
+   },
+   {
+    "k": "s5c",
+    "t": "Fold decisions",
+    "d": "Carries the accepted decisions into the design's interfaces and architecture, rejected alternatives into the alternatives section, and links the accepted mockup by artifact URL and relative path. Open UI questions, and behaviour that arrived through the mockup, loop back to Step 4; language deltas are written back through design-language-update's record mode.",
+    "wrap": "mock"
+   },
+   {
+    "k": "s6a",
+    "t": "Write design",
+    "d": "Writes the nine-section design to the resolver's stage file, preferring a modular, separately testable decomposition with a per-component test plan. The open-questions section must read None."
+   },
+   {
+    "k": "s6b",
+    "t": "Write briefs",
+    "d": "When the feature spans more than one project, writes one self-contained brief per other project under briefs/ in this feature's folder: context, requirements, the full contract, failure behaviour, acceptance and sequencing. Lockstep delivery is stated as needing one joint plan; nothing is ever written into the other repo."
+   },
+   {
+    "k": "s7",
+    "t": "Self-review",
+    "d": "Re-reads the draft through lenses for requirement coverage, decision closure, security, efficiency, modularity, reference and behaviour integrity, extension completeness, mockup fidelity, design-language conformance, brief completeness and cross-section consistency, fixing in place. Loops until the open-questions section is empty and no hand-wave remains."
+   },
+   {
+    "k": "s8",
+    "t": "Update tracker",
+    "d": "Fills the header and Design panel, links the accepted mockup, DESIGN.md, the specimen and any briefs, placeholders later stages, and flips the design progress step to complete."
+   },
+   {
+    "k": "s9",
+    "t": "Capture lessons",
+    "d": "Calls lessons-capture with the slug feature-design and carries the returned entry into the summary."
+   },
+   {
+    "k": "s10",
+    "t": "Present highlights",
+    "d": "Prints the saved paths, the mockup link, any briefs with their target projects, the highlights, top risks, how to verify acceptance and the lessons entry, in about thirty lines."
+   },
+   {
+    "k": "s11",
+    "t": "Offer plan",
+    "d": "Closes the progress file, then reports usage quietly, then hands over or offers. A solo run prints the cycle report and stops; with session control declared, session-control's handover queues /feature-plan unless briefs hold it, in which case the offer is asked. Otherwise it asks once; Not now prints the cycle report and a next-step line.",
+    "gate": true
+   }
+  ]
+ },
+ {
+  "slug": "feature-plan",
+  "g": "chain",
+  "inv": "both",
+  "purpose": "Turns a closed design into a staged, test-first implementation plan with an execution schedule. Its planning core runs in one subagent that never asks the user anything: planning gaps are decided and recorded, design gaps halt as BLOCKED.",
+  "wraps": {
+   "sub": "single planning subagent, no user channel"
   },
-  {
-    "slug": "feature-plan",
-    "g": "chain",
-    "inv": "both",
-    "purpose": "Turns a closed design into a staged, test-first implementation plan with an execution schedule. Its planning core runs in one subagent that never asks the user anything: planning gaps are decided and recorded, design gaps halt as BLOCKED.",
-    "wraps": {
-      "sub": "single planning subagent, no user channel"
-    },
-    "steps": [
-      {
-        "k": "s0",
-        "t": "Confirm invocation",
-        "d": "Skipped when the user typed /feature-plan or accepted /feature-design's offer. Otherwise asks once, naming the design version it would plan against.",
-        "gate": true
-      },
-      {
-        "k": "s1",
-        "t": "Resolve paths",
-        "d": "Loads customisations, checks the session through session-control when declared, opens the usage window and reads the solo, version and from= tokens. Calls feature-resolve with stage=plan in the main agent, because the resolver may need to ask about overwriting, and keeps the block to brief the subagent."
-      },
-      {
-        "k": "s2",
-        "t": "Launch subagent",
-        "d": "Launches exactly one general-purpose subagent with a self-contained brief: the resolver block, the customisations and Steps 3-10 copied verbatim. A BLOCKED return is reported as a halted run with the cycle report and relayed verbatim; otherwise the plan file is verified to exist before the summary is relayed. Without an Agent tool, or on a rejected launch, it runs Steps 3-10 itself under the same rules."
-      },
-      {
-        "k": "s3",
-        "t": "Read design",
-        "d": "Reads the design end to end and maps its requirements, components, risks and rollout. A non-empty open-questions section halts the run as BLOCKED; a storm, cited prerequisite documents and DESIGN.md are read too.",
-        "sub": true,
-        "wrap": "sub"
-      },
-      {
-        "k": "s4",
-        "t": "Ground plan",
-        "d": "Verifies the design's claims against the code, not just its citations: names it adds, shapes, mechanisms, anchors and symbols it removes, executing any claim it can run. It settles test locations, checks each planned test's harness can make its assertion, records whether the runner can run twice at once, runs each command once for a baseline, and records each stage's files, symbols and test resources as evidence for the schedule.",
-        "sub": true,
-        "wrap": "sub"
-      },
-      {
-        "k": "s5",
-        "t": "Draft stages",
-        "d": "Writes the plan with a requirements coverage map and stages that each follow write test, confirm fail, implement, confirm pass, or carry a sanctioned category label. It closes with an execution schedule: batches in order, a batch parallel only when all seven independence tests hold for every pair, and any doubt serial.",
-        "sub": true,
-        "wrap": "sub"
-      },
-      {
-        "k": "s6",
-        "t": "Decide autonomously",
-        "d": "Planning-level gaps (stage order, flags, harness, paths, parallel cuts) are decided from the code's conventions and recorded with a rationale under Planning decisions taken. Design-level gaps are never decided here; they halt as BLOCKED.",
-        "sub": true,
-        "wrap": "sub"
-      },
-      {
-        "k": "s7",
-        "t": "Review plan",
-        "d": "Checks design coverage, TDD discipline, accuracy, conflicts, intermediate states, deviations, the decision log, security ordering, stage size and schedule soundness, fixing in place. Loops until every final check passes.",
-        "sub": true,
-        "wrap": "sub"
-      },
-      {
-        "k": "s8",
-        "t": "Update tracker",
-        "d": "Fills the Plan panel with stage highlights, the coverage table and the execution schedule, and flips the plan progress step to complete. Never on a BLOCKED run.",
-        "sub": true,
-        "wrap": "sub"
-      },
-      {
-        "k": "s9",
-        "t": "Capture lessons",
-        "d": "Calls lessons-capture with the slug feature-plan from inside the subagent; when the Skill tool is unavailable there it leaves a marker for the main agent to run it instead.",
-        "sub": true,
-        "wrap": "sub"
-      },
-      {
-        "k": "s10",
-        "t": "Compose summary",
-        "d": "Returns exactly the staged summary block as its final message: stages, coverage, schedule shape, planning decisions, deviations, top risks and the next step.",
-        "sub": true,
-        "wrap": "sub"
-      },
-      {
-        "k": "s11",
-        "t": "Offer implement",
-        "d": "Relays the subagent's summary verbatim, reports usage quietly, then hands over or offers. A solo run prints the cycle report and stops; with session control declared, session-control's handover queues /feature-implement unless deviations hold it. Otherwise it asks once, recommending Not now when the plan deviates from the design; Not now prints the cycle report and a next-step line.",
-        "gate": true
-      }
-    ]
+  "steps": [
+   {
+    "k": "s0",
+    "t": "Confirm invocation",
+    "d": "Skipped when the user typed /feature-plan or accepted /feature-design's offer. Otherwise asks once, naming the design version it would plan against.",
+    "gate": true
+   },
+   {
+    "k": "s1",
+    "t": "Resolve paths",
+    "d": "Loads customisations, checks the session through session-control when declared, opens the usage window and reads the solo, version and from= tokens. Calls feature-resolve with stage=plan in the main agent, because the resolver may need to ask about overwriting, and keeps the block to brief the subagent. Then opens its run in progress.json outside the project through scripts/run_progress.py, one file for every run of every skill in every repo and session, starting at Step 2; the run id init prints goes to the subagent, which enters Steps 3-10, and tracking never blocks the run."
+   },
+   {
+    "k": "s2",
+    "t": "Launch subagent",
+    "d": "Launches exactly one general-purpose subagent with a self-contained brief: the resolver block, the customisations, the progress run id and Steps 3-10 copied verbatim. A BLOCKED return closes the run's progress record as halted, is reported as a halted run with the cycle report and relayed verbatim; otherwise the plan file is verified to exist before the summary is relayed. Without an Agent tool, or on a rejected launch, it runs Steps 3-10 itself under the same rules."
+   },
+   {
+    "k": "s3",
+    "t": "Read design",
+    "d": "Like each subagent step, first enters itself in the progress file. Reads the design end to end and maps its requirements, components, risks and rollout. A non-empty open-questions section halts the run as BLOCKED; a storm, cited prerequisite documents and DESIGN.md are read too.",
+    "sub": true,
+    "wrap": "sub"
+   },
+   {
+    "k": "s4",
+    "t": "Ground plan",
+    "d": "Verifies the design's claims against the code, not just its citations: names it adds, shapes, mechanisms, anchors and symbols it removes, executing any claim it can run. It settles test locations, checks each planned test's harness can make its assertion, records whether the runner can run twice at once, runs each command once for a baseline, and records each stage's files, symbols and test resources as evidence for the schedule.",
+    "sub": true,
+    "wrap": "sub"
+   },
+   {
+    "k": "s5",
+    "t": "Draft stages",
+    "d": "Writes the plan with a requirements coverage map and stages that each follow write test, confirm fail, implement, confirm pass, or carry a sanctioned category label. It closes with an execution schedule: batches in order, a batch parallel only when all seven independence tests hold for every pair, and any doubt serial.",
+    "sub": true,
+    "wrap": "sub"
+   },
+   {
+    "k": "s6",
+    "t": "Decide autonomously",
+    "d": "Planning-level gaps (stage order, flags, harness, paths, parallel cuts) are decided from the code's conventions and recorded with a rationale under Planning decisions taken. Design-level gaps are never decided here; they halt as BLOCKED.",
+    "sub": true,
+    "wrap": "sub"
+   },
+   {
+    "k": "s7",
+    "t": "Review plan",
+    "d": "Checks design coverage, TDD discipline, accuracy, conflicts, intermediate states, deviations, the decision log, security ordering, stage size and schedule soundness, fixing in place. Loops until every final check passes.",
+    "sub": true,
+    "wrap": "sub"
+   },
+   {
+    "k": "s8",
+    "t": "Update tracker",
+    "d": "Fills the Plan panel with stage highlights, the coverage table and the execution schedule, and flips the plan progress step to complete. Never on a BLOCKED run.",
+    "sub": true,
+    "wrap": "sub"
+   },
+   {
+    "k": "s9",
+    "t": "Capture lessons",
+    "d": "Calls lessons-capture with the slug feature-plan from inside the subagent; when the Skill tool is unavailable there it leaves a marker for the main agent to run it instead.",
+    "sub": true,
+    "wrap": "sub"
+   },
+   {
+    "k": "s10",
+    "t": "Compose summary",
+    "d": "Returns exactly the staged summary block as its final message: stages, coverage, schedule shape, planning decisions, deviations, top risks and the next step.",
+    "sub": true,
+    "wrap": "sub"
+   },
+   {
+    "k": "s11",
+    "t": "Offer implement",
+    "d": "Relays the subagent's summary verbatim, closes the progress file, reports usage quietly, then hands over or offers. A solo run prints the cycle report and stops; with session control declared, session-control's handover queues /feature-implement unless deviations hold it. Otherwise it asks once, recommending Not now when the plan deviates from the design; Not now prints the cycle report and a next-step line.",
+    "gate": true
+   }
+  ]
+ },
+ {
+  "slug": "feature-implement",
+  "g": "chain",
+  "inv": "both",
+  "commits": true,
+  "purpose": "Builds the plan stage by stage on the current branch, test-first, one commit per green stage. Never creates branches or pushes; serial batches run in subagent units, parallel batches in throwaway worktrees landed by cherry-pick in stage order, and the run's record in the plugin's one progress file outside the project shows stages done, elapsed time and time left throughout.",
+  "wraps": {
+   "tdd": "per-stage TDD cycle: run here (Direct), in serial subagent units, or in worktree subagents for a parallel batch"
   },
-  {
-    "slug": "feature-implement",
-    "g": "chain",
-    "inv": "both",
+  "steps": [
+   {
+    "k": "s0",
+    "t": "Confirm invocation",
+    "d": "Strictly enforced because this skill writes code and commits. Skipped only when the user typed /feature-implement or accepted /feature-plan's offer; otherwise asks once.",
+    "gate": true
+   },
+   {
+    "k": "s1",
+    "t": "Resolve paths",
+    "d": "Loads customisations, which stay with the main agent and are passed verbatim to every unit, checks the session through session-control when declared, opens the usage window and reads the solo, version and from= tokens. Calls feature-resolve with stage=implement, which refuses without a plan."
+   },
+   {
+    "k": "s2",
+    "t": "Read artefacts",
+    "d": "Reads the plan, its execution schedule and the design in full, plus DESIGN.md when the design cites it. Unresolved deviations from the design are put to the user: proceed as-is or refresh the design first. Then opens its run in progress.json outside the project through scripts/run_progress.py, one file for every run of every skill in every repo and session, retiring the feature's previous run (this version's plan run, or an earlier implementation run) to the file's history; every later call names the run id init printed, and tracking never blocks the run. Commands expected to run longer than about two minutes go through its job wrapper, so the record shows their own percent and time left.",
+    "gate": true
+   },
+   {
+    "k": "s3",
+    "t": "Repo readiness",
+    "d": "Commits the chain's own leftover docs and DESIGN.md as one docs commit, confirms a non-default branch with the user, and fast-forwards from the remote. Detects the project's test, lint, type, build, dead-code and provisioning commands (provisioning covers every dependency root the suite reaches) and records a baseline. A red test baseline stops the run with Investigate / File a bug / Stop, closing the progress file as halted on any branch that stops.",
+    "gate": true,
+    "commits": true
+   },
+   {
+    "k": "s4",
+    "t": "Find resume point",
+    "d": "Greps prior stage commits for this version and resumes at the lowest uncommitted stage, which a partly landed parallel batch can leave below the highest. Externally gated stages are probed now and excluded from the run if their gate is closed. Both findings go into the progress file: earlier commits as done before this run, gated stages as blocked."
+   },
+   {
+    "k": "s5",
+    "t": "Resolve strategy",
+    "d": "Picks the executor by rule, never by asking: Chunked units of up to three stages by default, Direct on request, at two or fewer stages, or when almost nothing is delegatable. It announces the batch shape and the progress file's path in one line, the run's only checkpoint before code lands, and records that line in the file. The main agent verifies every unit's commits, re-runs the tests itself and brings the progress file level with git."
+   },
+   {
+    "k": "s5p",
+    "t": "Land parallel batch",
+    "d": "For a batch the plan marks parallel, re-checks the seven independence tests and a worktree probe, then builds each stage in its own detached worktree, up to four subagents at once. Each stage's single commit is cherry-picked onto the branch in stage order with tests after each, and its landed commit is re-recorded in the progress file. A conflict re-runs that stage serially, and worktrees are reconciled and removed on every path.",
     "commits": true,
-    "purpose": "Builds the plan stage by stage on the current branch, test-first, one commit per green stage. Never creates branches or pushes; serial batches run in subagent units, parallel batches in throwaway worktrees landed by cherry-pick in stage order, and a live progress file outside the project shows stages done, elapsed time and time left throughout.",
-    "wraps": {
-      "tdd": "per-stage TDD cycle: run here (Direct), in serial subagent units, or in worktree subagents for a parallel batch"
-    },
-    "steps": [
-      {
-        "k": "s0",
-        "t": "Confirm invocation",
-        "d": "Strictly enforced because this skill writes code and commits. Skipped only when the user typed /feature-implement or accepted /feature-plan's offer; otherwise asks once.",
-        "gate": true
-      },
-      {
-        "k": "s1",
-        "t": "Resolve paths",
-        "d": "Loads customisations, which stay with the main agent and are passed verbatim to every unit, checks the session through session-control when declared, opens the usage window and reads the solo, version and from= tokens. Calls feature-resolve with stage=implement, which refuses without a plan."
-      },
-      {
-        "k": "s2",
-        "t": "Read artefacts",
-        "d": "Reads the plan, its execution schedule and the design in full, plus DESIGN.md when the design cites it. Unresolved deviations from the design are put to the user: proceed as-is or refresh the design first. Then opens a live progress file outside the project through scripts/implement_progress.py, which later steps update and which never blocks the run. Commands expected to run longer than about two minutes go through its job wrapper, so the file shows their own percent and time left.",
-        "gate": true
-      },
-      {
-        "k": "s3",
-        "t": "Repo readiness",
-        "d": "Commits the chain's own leftover docs and DESIGN.md as one docs commit, confirms a non-default branch with the user, and fast-forwards from the remote. Detects the project's test, lint, type, build, dead-code and provisioning commands (provisioning covers every dependency root the suite reaches) and records a baseline. A red test baseline stops the run with Investigate / File a bug / Stop, closing the progress file as halted on any branch that stops.",
-        "gate": true,
-        "commits": true
-      },
-      {
-        "k": "s4",
-        "t": "Find resume point",
-        "d": "Greps prior stage commits for this version and resumes at the lowest uncommitted stage, which a partly landed parallel batch can leave below the highest. Externally gated stages are probed now and excluded from the run if their gate is closed. Both findings go into the progress file: earlier commits as done before this run, gated stages as blocked."
-      },
-      {
-        "k": "s5",
-        "t": "Resolve strategy",
-        "d": "Picks the executor by rule, never by asking: Chunked units of up to three stages by default, Direct on request, at two or fewer stages, or when almost nothing is delegatable. It announces the batch shape and the progress file's path in one line, the run's only checkpoint before code lands, and records that line in the file. The main agent verifies every unit's commits, re-runs the tests itself and brings the progress file level with git."
-      },
-      {
-        "k": "s5p",
-        "t": "Land parallel batch",
-        "d": "For a batch the plan marks parallel, re-checks the seven independence tests and a worktree probe, then builds each stage in its own detached worktree, up to four subagents at once. Each stage's single commit is cherry-picked onto the branch in stage order with tests after each, and its landed commit is re-recorded in the progress file. A conflict re-runs that stage serially, and worktrees are reconciled and removed on every path.",
-        "commits": true,
-        "par": [
-          "one detached-worktree subagent per stage",
-          "up to four at once"
-        ]
-      },
-      {
-        "k": "5a",
-        "t": "Re-read stage",
-        "d": "Marks the stage running in the progress file, then re-reads the stage block from the plan file, never from memory, and DESIGN.md for a UI stage. Runs the pre-flight scans: injection seams, type identity, signature changes, time dependencies, external claims, live-run safety and reuse.",
-        "wrap": "tdd"
-      },
-      {
-        "k": "5b",
-        "t": "Write test",
-        "d": "Writes the stage's test cases first, with no production code yet.",
-        "wrap": "tdd"
-      },
-      {
-        "k": "5c",
-        "t": "Confirm red",
-        "d": "Runs the targeted test and checks it fails the way the plan predicted. A test that passes already means it is not exercising the new behaviour; stop and resolve.",
-        "wrap": "tdd"
-      },
-      {
-        "k": "5d",
-        "t": "Implement code",
-        "d": "Makes the minimum change to satisfy the test, touching only the stage's files. If the planned files turn out wrong, the plan is updated and the change recorded under deviations.",
-        "wrap": "tdd"
-      },
-      {
-        "k": "5e",
-        "t": "Confirm green",
-        "d": "Re-runs the targeted test, then the wider suite, comparing failures against the baseline so only new failures count as regressions.",
-        "wrap": "tdd"
-      },
-      {
-        "k": "5f",
-        "t": "Check coverage",
-        "d": "Checks point by point that every promised file, behaviour and definition-of-done item is delivered and that the stage's design requirements are now tested. Gaps go back to writing tests.",
-        "wrap": "tdd"
-      },
-      {
-        "k": "5g",
-        "t": "Self-review",
-        "d": "Reviews the stage for bloat, duplication against the whole repo, superseded or orphaned code, functional issues, inefficiency, security, design-language conformance on UI stages, and style. Fixes land in the same stage.",
-        "wrap": "tdd"
-      },
-      {
-        "k": "5h",
-        "t": "Commit stage",
-        "d": "Runs the tests once more, then commits only the stage's files as one commit titled type(plan vN): Stage M, the format the resume step relies on. The same command records the stage done with its commit in the progress file, which moves the stage count and the time-left estimate. Deviation notes go in a separate docs commit.",
-        "commits": true,
-        "wrap": "tdd"
-      },
-      {
-        "k": "5i",
-        "t": "Next stage",
-        "d": "Moves to the next stage without pushing or switching branches.",
-        "wrap": "tdd"
-      },
-      {
-        "k": "s6",
-        "t": "Stop conditions",
-        "d": "Stops on an undiagnosable failure, a decision the plan does not cover, a tree dirtied by someone else, an unplanned security issue, a design-level flaw, or a parallel conflict no small reconciliation fixes. It asks the user even under autonomous instructions, removes any worktree first, marks the stage failed and closes the progress file as halted. The run is reported as halted with the cycle report.",
-        "gate": true
-      },
-      {
-        "k": "s7",
-        "t": "Final sweep",
-        "d": "Marks the closing phase in the progress file, then checks every design requirement has a test and every component exists, runs the full suite, and runs the dead-code analyser against the baseline. Gaps or new orphans become one extra stage. A run that ends with gated or hands-on stages unbuilt still closes here as a partial run, scoped to what landed, with a Blocked list."
-      },
-      {
-        "k": "s8",
-        "t": "Update tracker",
-        "d": "Fills the Implementation panel (stages, tests, coverage table, deviations) and flips the implement progress step to complete; a partial run leaves it pending. A complete run then settles this version's pending DESIGN.md decisions through design-language-update, asking nothing, and commits tracker, docs and design files as one docs commit.",
-        "commits": true
-      },
-      {
-        "k": "s9",
-        "t": "Capture lessons",
-        "d": "Calls lessons-capture with the slug feature-implement from the main agent."
-      },
-      {
-        "k": "s10",
-        "t": "Present summary",
-        "d": "Prints one line per stage with its commit, plus the progress file's path, tests, coverage, dead-code result, deviations, the design-language settle, pending human checks and parallelism."
-      },
-      {
-        "k": "s11",
-        "t": "Offer evals",
-        "d": "Asks whether to run both eval skills; on yes it launches them in two parallel read-only subagents and relays their scores, and a failed eval never fails the run. Then it closes the progress file and reports usage with the cycle report, last rather than before its offer like the other three, so the eval subagents fall inside the measured window.",
-        "gate": true,
-        "par": [
-          "evals-code-run",
-          "evals-e2e-run"
-        ]
-      }
+    "par": [
+     "one detached-worktree subagent per stage",
+     "up to four at once"
     ]
-  },
-  {
-    "slug": "feature-resolve",
-    "g": "internal",
-    "inv": "agent",
-    "internal": true,
-    "purpose": "The single source of pathing for the chain. Picks the features/feature-vN-description folder, version and stage file, creates the folder, seeds the tracker, and returns a parseable block. Runs inline and never ends the turn on success.",
-    "steps": [
-      {
-        "k": "s1",
-        "t": "Ensure features/",
-        "d": "Creates features/ at the project root when it is missing. It never writes into docs/, which is legacy reference material."
-      },
-      {
-        "k": "s2",
-        "t": "Scan folders",
-        "d": "Lists existing feature-vN folders, parses each integer version and description, and records which stage files each holds."
-      },
-      {
-        "k": "s3",
-        "t": "Resolve mode",
-        "d": "Applies four rules in order: an explicit version, a first-ever feature, a latest folder still missing this stage, or one that already has it. A latest folder holding a later stage means the earlier stage was skipped, so storm and design create a new version without asking; real ambiguity, such as an overwrite, is asked.",
-        "gate": true
-      },
-      {
-        "k": "s4",
-        "t": "Validate description",
-        "d": "For a new feature, requires ten words or fewer, makes it filename-safe with hyphens and preserves case. Nothing is silently truncated."
-      },
-      {
-        "k": "s5",
-        "t": "Create folder",
-        "d": "Creates features/feature-vN-description/ for a new feature; an existing one is left as it is."
-      },
-      {
-        "k": "s6",
-        "t": "Seed tracker",
-        "d": "Copies the plugin's tracker template into the folder when it is missing, preferring the running plugin's own copy. It never substitutes tokens; that is each stage's job."
-      },
-      {
-        "k": "s7",
-        "t": "Return block",
-        "d": "Emits the result block (mode, version, description, folder, stage file, tracker, prerequisite, notes) and continues straight into the caller's next step in the same turn."
-      }
-    ]
-  },
-  {
-    "slug": "feature-mockup",
-    "g": "internal",
-    "inv": "agent",
-    "internal": true,
-    "purpose": "Mocks up the user-visible surface for feature-design: self-contained pages under the feature's mockups/ folder, published as artifacts with a feedback bar, iterated until the user accepts one. Reads DESIGN.md, never writes it, and returns decisions plus language deltas.",
-    "wraps": {
-      "round": "answer round on the page or in chat, repeated until one option is accepted or all are declined"
-    },
-    "steps": [
-      {
-        "k": "s0",
-        "t": "Load customisations",
-        "d": "Reads feature-mockup.extras before anything else; this is its Step 0 because it has no gate of its own. A missing file is silent, and a customisation never overrides its constraints."
-      },
-      {
-        "k": "s1",
-        "t": "Confirm surface",
-        "d": "Checks the feature has a user-visible surface. With none it returns not-applicable without inventing a UI; when genuinely unclear it asks once."
-      },
-      {
-        "k": "s2",
-        "t": "Ground language",
-        "d": "Reads the user's references first, then DESIGN.md's managed region as the digest, with content outside the region and references outranking it. Also reads the surface as it exists, prior accepted mockups and this feature's storm and design; with no region it falls back to a bounded read of the UI layer."
-      },
-      {
-        "k": "s3",
-        "t": "Classify kind",
-        "d": "Decides new surface or modification from the grounding; an existing surface makes it a modification however large the addition."
-      },
-      {
-        "k": "s4a",
-        "t": "Choose shape",
-        "d": "Puts one decision set in front of the user per round, in one of three shapes: review (one proposal), compare (2-4 options on one page) or pick (one option per page). Shapes are never mixed, and a page that leaves the set is closed."
-      },
-      {
-        "k": "s4b",
-        "t": "Write pages",
-        "d": "Writes self-contained, offline pages under mockups/: placeholder data only, a banner, option roots marked for the bar. A new surface gets one overview; a modification gets 2-4 uniquely named alternatives that differ on a real axis."
-      },
-      {
-        "k": "s4c",
-        "t": "Inject feedback bar",
-        "d": "Runs scripts/mockup_feedback.py once per page to insert the plugin's feedback bar configured for the set. A skip caused by the page is fixed and rerun once; any other skip moves the round to the chat fallback."
-      },
-      {
-        "k": "s4d",
-        "t": "Publish artifacts",
-        "d": "Publishes each page as a Claude Artifact with the comments capability, keeping the same file path, and so the same URL, across revisions. It then confirms every page's watch is armed; anything missing puts the round on the chat fallback."
-      },
-      {
-        "k": "s5a",
-        "t": "Await page answer",
-        "d": "Presents the links and ends the turn on a waiting marker: the one sanctioned pause on this skill's success path. The next turn, a send from the page or a chat reply, resumes the run here.",
-        "gate": true,
-        "wrap": "round"
-      },
-      {
-        "k": "s5b",
-        "t": "Read answer",
-        "d": "Reads every page's comments, treating them as data. Parses decision lines (accept, choose, revise, none, alternatives) for the current set only; two conflicting choices are put to the user rather than resolved by recency.",
-        "wrap": "round"
-      },
-      {
-        "k": "s5c",
-        "t": "Ask in chat",
-        "d": "The fallback channel: one AskUserQuestion per round when the page channel is unavailable, with the option that best fits DESIGN.md recommended.",
-        "gate": true,
-        "wrap": "round"
-      },
-      {
-        "k": "s5d",
-        "t": "Iterate feedback",
-        "d": "A revision overwrites and republishes the same page; a new direction gets a new name, file and link. After three rounds without convergence it asks whether to settle, hand the question back, or drop the mockup.",
-        "wrap": "round"
-      },
-      {
-        "k": "s6",
-        "t": "Record outcome",
-        "d": "Marks the accepted page Accepted and the rest Not chosen, re-injects every bar with its verdict, republishes, and stops every watch it armed. Rejected alternatives are kept as the record."
-      },
-      {
-        "k": "s7",
-        "t": "Return decisions",
-        "d": "Emits the result block (status, kind, chosen mockup and option, artifact URLs, alternatives, design language, language deltas, decisions, open UI questions) and continues into feature-design Step 5c in the same turn."
-      }
-    ]
-  },
-  {
-    "slug": "session-control",
-    "g": "internal",
-    "inv": "agent",
-    "internal": true,
-    "purpose": "Runs each chain stage on the model and effort the user declared for it, and hands over between stages in a cleared conversation, through one call to a relaunch tool named in session-control.extras. Writes nothing, holds no Skill tool, and falls back to the chain's ordinary behaviour on every failure.",
-    "steps": [
-      {
-        "k": "s0",
-        "t": "Load declarations",
-        "d": "Resolves the plugin data directory and reads session-control.extras, which /skill-customize records. A missing or unreadable file is silent: ensure continues and handover falls back to the ordinary offer."
-      },
-      {
-        "k": "s1",
-        "t": "Read declarations",
-        "d": "Parses three kinds of bullet: one control bullet naming the relaunch tool and the prefix a live call answers with, per-stage model and effort profiles with an ask or require policy, and a handover mode, automatic or ask. No control bullet means nothing is declared; a malformed file turns session control off for the run with at most one line."
-      },
-      {
-        "k": "s2",
-        "t": "Ensure session",
-        "d": "Called as ensure from each chain skill's Step 1, before the usage window opens. Compares the session's model and effort with the stage's profile, counting an unknown part as matching, and continues on no profile, a match, or a run that already carries from=. A require policy queues a relaunch without asking; an ask policy asks once, Switch or Keep.",
-        "gate": true
-      },
-      {
-        "k": "s3",
-        "t": "Hand over",
-        "d": "Called as handover from the final step of storm, design and plan, after the usage report. Automatic mode with no hold queues the next stage without asking; ask mode, or any hold (deviations, briefs), puts the caller's own chain offer with the hold stated first. A hold is never skipped.",
-        "gate": true
-      },
-      {
-        "k": "s4",
-        "t": "Queue relaunch",
-        "d": "Makes exactly one call to the declared tool with the target skill's command: the original arguments plus from= for a relaunch, the version plus from= for a handover, and model and effort only when a switch is wanted. Acknowledged only when the result starts with the declared prefix; then the caller ends its turn and the harness clears the conversation and runs the command, the second sanctioned turn end beside the mockup wait."
-      },
-      {
-        "k": "s5",
-        "t": "Emit result",
-        "d": "Emits the result block (mode, next, observed session, notes). Every result except end-turn carries straight on with the caller's next step in the same turn; every failure ends in continue, offer or inline with at most one printed line."
-      }
-    ]
-  },
-  {
-    "slug": "usage-report",
-    "g": "internal",
-    "inv": "agent",
-    "internal": true,
-    "purpose": "Opens and closes each chain run's usage window. A report is quiet: one log line, the stage's tracker panel and the tracker's Usage tab. The cycle report, tokens and list-price cost per stage, prints only where the chain stops. All logic lives in scripts/usage_report.py.",
-    "steps": [
-      {
-        "k": "s1",
-        "t": "Locate script",
-        "d": "Finds scripts/usage_report.py, the running plugin's own copy first, else a search preferring the highest cached version. With no script it prints one skip line and never reimplements any measurement."
-      },
-      {
-        "k": "s2",
-        "t": "Run script",
-        "d": "Runs one of three forms with the system python3: start records the run's start marker; report measures the window, prices it, appends one log line, fills the stage's tracker panel and rewrites the Usage tab; cycle prints the whole feature cycle's table. It never asks the user anything."
-      },
-      {
-        "k": "s3",
-        "t": "Relay output",
-        "d": "Relays the script's output verbatim: nothing for a plain report, the cycle table when the caller passed cycle=true or used the cycle form, which happens wherever the chain stops. Any problem is one usage report skipped line, and the caller always carries on in the same turn."
-      }
-    ]
-  },
-  {
-    "slug": "lessons-capture",
-    "g": "internal",
-    "inv": "agent",
-    "internal": true,
-    "purpose": "The single reflection protocol. Called as the last step of the four chain skills and bug-fix; appends one dated recommendation, or none, to that skill's lessons log. Never edits a SKILL.md.",
-    "steps": [
-      {
-        "k": "s1",
-        "t": "Reflect on run",
-        "d": "Reflects on the run that just finished: friction observed and ways the skill could be faster or smarter. At most one recommendation, and most runs should produce none."
-      },
-      {
-        "k": "s2",
-        "t": "Format entry",
-        "d": "Formats a recommendation as three lines (observation, proposed change, expected benefit) or writes the single no-recommendation line."
-      },
-      {
-        "k": "s3",
-        "t": "Append log",
-        "d": "Appends the entry with one atomic shell append to the per-skill lessons log under the user's config directory, never rewriting earlier entries. Timestamps are UTC. Then counts the lessons in the log: entries that carry a recommendation."
-      },
-      {
-        "k": "s4",
-        "t": "Return entry",
-        "d": "Echoes the entry body once so the calling skill can paste it into its own summary. Past 50 lessons it adds a fenced reminder to run lessons-learn: a message only, never a question."
-      }
-    ]
-  },
-  {
-    "slug": "bug-tracker-render",
-    "g": "internal",
-    "inv": "agent",
-    "internal": true,
-    "purpose": "Regenerates bugs/bugs-tracker.html wholesale from the shared tracker template and the bug folders on disk, by running scripts/render_bug_tracker.py. Holds no state; open and closed come from folder location.",
-    "steps": [
-      {
-        "k": "s1",
-        "t": "Locate script",
-        "d": "Finds scripts/render_bug_tracker.py, the running plugin's own copy first, else the highest cached version. With none it prints one skip line and never hand-renders the tracker."
-      },
-      {
-        "k": "s2",
-        "t": "Run script",
-        "d": "Runs the script with the system python3; it walks up to the repo root, renders one expandable card per bug and writes only bugs/bugs-tracker.html."
-      },
-      {
-        "k": "s3",
-        "t": "Relay status",
-        "d": "Relays the one status line (open and closed counts, or a skip reason). A skip is a note, never an error for the caller."
-      }
-    ]
-  },
-  {
-    "slug": "set-herdr-label",
-    "g": "internal",
-    "inv": "agent",
-    "internal": true,
-    "purpose": "Labels the herdr agent pane this session runs in so parallel agents are easy to tell apart. Silent everywhere: outside a herdr terminal it does nothing at all. Nothing in the plugin calls it; extras bullets can wire it into chain runs.",
-    "steps": [
-      {
-        "k": "s1",
-        "t": "Gate on herdr",
-        "d": "Reads HERDR_ENV and HERDR_PANE_ID and skips silently unless HERDR_ENV is exactly 1. The target is always this session's own pane, never one discovered by listing agents."
-      },
-      {
-        "k": "s2",
-        "t": "Recognise clear",
-        "d": "An empty or whitespace-only argument means clear the label, which skips normalising."
-      },
-      {
-        "k": "s3",
-        "t": "Normalise label",
-        "d": "Lowercases, collapses disallowed characters to hyphens, strips to a leading letter, truncates to 32 characters and strips trailing separators, matching herdr's name rule. A label that normalises to nothing becomes a clear."
-      },
-      {
-        "k": "s4",
-        "t": "Rename pane",
-        "d": "Runs herdr agent rename on the pane, or with --clear, the only way to unset a name. An invalid name is retried once; any other error is dropped silently, and success prints nothing."
-      }
-    ]
-  },
-  {
-    "slug": "design-language-update",
-    "g": "design",
-    "inv": "both",
-    "purpose": "The only writer of DESIGN.md's managed region and the specimen page design/specimen.html, published as an artifact. Reconciles the project's design language from code with cited evidence, asks only from a closed catalogue, and makes every write through scripts/design_language.py. feature-implement calls it to mark a finished feature's pending decisions active. Runs in any repo.",
-    "steps": [
-      {
-        "k": "s0",
-        "t": "Confirm invocation",
-        "d": "Skipped when the user typed /design-language-update or feature-design or feature-implement called it. Otherwise asks once before reading or writing anything.",
-        "gate": true
-      },
-      {
-        "k": "s1",
-        "t": "Resolve inputs",
-        "d": "Parses the mode (reconcile, fresh, render, record from feature-design, or settle from feature-implement) and refuses any other argument in one line. Locates the script and its template from the same plugin copy, then loads its customisations after the gate; a caller run stays quiet."
-      },
-      {
-        "k": "s2",
-        "t": "Read region",
-        "d": "Runs the script's region command to get the current region and its hash, and reads content outside the markers as the user's own direction. Malformed markers end the run as skipped; they are never repaired."
-      },
-      {
-        "k": "s3",
-        "t": "Harvest evidence",
-        "d": "A bounded, read-only harvest in priority order: token and theme files, global styles, one canonical file per component category, at most eight views, terminal renderers, email templates, accepted mockups. Every entry cites its source and records a resolved literal value; pending decisions are checked against code and the feature's tracker."
-      },
-      {
-        "k": "s4",
-        "t": "Classify project",
-        "d": "Marks each evidence-bearing section evidenced or not and classifies the project greenfield, partial or established; platforms come from evidence."
-      },
-      {
-        "k": "s5",
-        "t": "Reconcile entries",
-        "d": "Merges by ownership: code-sourced entries re-derived, user decisions sticky, outside content outranking code, and a pending decision becoming active once code matches or drift once its feature is implemented. Record mode writes each delta as a pending decision that supersedes earlier ones on the same subject. Settle mode runs the script's settle command instead: the finished feature's pending decisions become active without a code check, because the next reconcile reports any contradiction as drift."
-      },
-      {
-        "k": "s6",
-        "t": "Clarify catalogue",
-        "d": "Asks only from a closed ten-item catalogue: up to two rounds of four when a greenfield item fires, one otherwise, never re-asking a recorded decision. An unanswered item takes its fallback as a skill decision; the round runs even under an instruction to skip questions.",
-        "gate": true
-      },
-      {
-        "k": "s7",
-        "t": "Write region",
-        "d": "Composes the full region into a temporary file outside the project and runs the script's write command, which validates the schema and splices atomically against the hash it read. A changed hash re-reads once; a schema defect is fixed and retried once."
-      },
-      {
-        "k": "s8",
-        "t": "Render specimen",
-        "d": "Runs the script's render command, which rewrites design/specimen.html only when the data changed, then publishes it as an artifact, reusing the recorded URL. A new URL goes back into the region by one more write."
-      },
-      {
-        "k": "s9",
-        "t": "Report result",
-        "d": "Emits the result block (status, mode, paths, classification, specimen URL, decisions, drift, pending). In a caller run it continues straight into the caller's next step; nothing is committed."
-      }
-    ]
-  },
-  {
-    "slug": "bug-submit",
-    "g": "bugs",
-    "inv": "both",
-    "purpose": "Files a triaged bug as a bugs/bug-N-slug/ folder with a markdown report and copied screenshots, then regenerates the bug tracker. Purely local: no issues, commits or pushes.",
-    "steps": [
-      {
-        "k": "s0",
-        "t": "Confirm invocation",
-        "d": "When invoked proactively it posts one plain-chat confirmation and waits; only an unambiguous yes proceeds. It deliberately never uses AskUserQuestion, because images attached there lose their paths.",
-        "gate": true
-      },
-      {
-        "k": "s1",
-        "t": "Parse arguments",
-        "d": "Splits the arguments into description text and image paths, and collects screenshots pasted into the conversation, validating each path."
-      },
-      {
-        "k": "s2",
-        "t": "Locate bugs root",
-        "d": "Anchors bugs/ at the git repo root and stops outside a git work tree, so numbering stays consistent."
-      },
-      {
-        "k": "s3",
-        "t": "Clarify bug",
-        "d": "When the description is thin or a visual bug has no screenshot, asks once in plain chat for a description and pasted images. Runs even under autonomous instructions; an empty answer stops with nothing created.",
-        "gate": true
-      },
-      {
-        "k": "s4",
-        "t": "Allocate number",
-        "d": "Takes the highest bug number across bugs/ and bugs/archive/ plus one, so numbers are never reused, builds a symptom-first slug and creates the folder."
-      },
-      {
-        "k": "s5",
-        "t": "Save images",
-        "d": "Copies screenshots into the bug folder, never symlinking. Attachments that look sensitive need an explicit proceed first.",
-        "gate": true
-      },
-      {
-        "k": "s6",
-        "t": "Triage bug",
-        "d": "A capped investigation, about three searches and at most two files, to form a summary, probable area, rough severity and hypothesis. Nothing is invented."
-      },
-      {
-        "k": "s7",
-        "t": "Write report",
-        "d": "Writes the report from a fixed template: description, expected behaviour, repro steps, screenshots by relative path, and triage."
-      },
-      {
-        "k": "s8",
-        "t": "Render tracker",
-        "d": "Calls bug-tracker-render to regenerate bugs/bugs-tracker.html with the new bug under Open; a skip is noted and the run continues."
-      },
-      {
-        "k": "s9",
-        "t": "Present highlights",
-        "d": "Prints the report and tracker paths, the title, the triage summary and the attachment count."
-      }
-    ]
-  },
-  {
-    "slug": "bug-fix",
-    "g": "bugs",
-    "inv": "both",
+   },
+   {
+    "k": "5a",
+    "t": "Re-read stage",
+    "d": "Marks the stage running in the progress file, then re-reads the stage block from the plan file, never from memory, and DESIGN.md for a UI stage. Runs the pre-flight scans: injection seams, type identity, signature changes, time dependencies, external claims, live-run safety and reuse.",
+    "wrap": "tdd"
+   },
+   {
+    "k": "5b",
+    "t": "Write test",
+    "d": "Writes the stage's test cases first, with no production code yet.",
+    "wrap": "tdd"
+   },
+   {
+    "k": "5c",
+    "t": "Confirm red",
+    "d": "Runs the targeted test and checks it fails the way the plan predicted. A test that passes already means it is not exercising the new behaviour; stop and resolve.",
+    "wrap": "tdd"
+   },
+   {
+    "k": "5d",
+    "t": "Implement code",
+    "d": "Makes the minimum change to satisfy the test, touching only the stage's files. If the planned files turn out wrong, the plan is updated and the change recorded under deviations.",
+    "wrap": "tdd"
+   },
+   {
+    "k": "5e",
+    "t": "Confirm green",
+    "d": "Re-runs the targeted test, then the wider suite, comparing failures against the baseline so only new failures count as regressions.",
+    "wrap": "tdd"
+   },
+   {
+    "k": "5f",
+    "t": "Check coverage",
+    "d": "Checks point by point that every promised file, behaviour and definition-of-done item is delivered and that the stage's design requirements are now tested. Gaps go back to writing tests.",
+    "wrap": "tdd"
+   },
+   {
+    "k": "5g",
+    "t": "Self-review",
+    "d": "Reviews the stage for bloat, duplication against the whole repo, superseded or orphaned code, functional issues, inefficiency, security, design-language conformance on UI stages, and style. Fixes land in the same stage.",
+    "wrap": "tdd"
+   },
+   {
+    "k": "5h",
+    "t": "Commit stage",
+    "d": "Runs the tests once more, then commits only the stage's files as one commit titled type(plan vN): Stage M, the format the resume step relies on. The same command records the stage done with its commit in the progress file, which moves the stage count and the time-left estimate. Deviation notes go in a separate docs commit.",
     "commits": true,
-    "purpose": "Diagnoses one open bug with evidence, fixes it test-first, gets the fix confirmed, then archives the bug, regenerates the tracker and makes one commit. Never pushes.",
-    "steps": [
-      {
-        "k": "s0",
-        "t": "Select bug",
-        "d": "Read-only: takes the bug number given or the lowest-numbered open bug, reads its report in full, and checks history for a fix already committed, which turns the run into a verification. With no open bugs it stops and points at /bug-submit."
-      },
-      {
-        "k": "s1",
-        "t": "Confirm invocation",
-        "d": "Strict, because this skill changes code and commits. Skipped when the user typed /bug-fix or already approved fixing this bug; otherwise asks Proceed / Pick a different bug / Cancel.",
-        "gate": true
-      },
-      {
-        "k": "s2",
-        "t": "Ground codebase",
-        "d": "Reads the triaged code paths end to end, the latest feature's docs, the intent document when the report questions whether this is a defect, and recent history. Starts the test baseline in the background first."
-      },
-      {
-        "k": "s3",
-        "t": "Clarify report",
-        "d": "Asks about material ambiguity, preferring AskUserQuestion with a recommended option. Runs even under autonomous instructions.",
-        "gate": true
-      },
-      {
-        "k": "s4",
-        "t": "Find root cause",
-        "d": "A hard gate: no production change until the cause is stated with evidence and a file and line, reproduced where possible, without anchoring on the triage. A no-fix disposition (works as intended, duplicate, not worth it) is confirmed with the user and closes without a code change. For a security bug it also establishes, from evidence, whether the vulnerable path was reachable in a deployed environment.",
-        "gate": true
-      },
-      {
-        "k": "s5",
-        "t": "Approve fix",
-        "d": "Explains the root cause, the proposed fix (sketching any replacement component), its trade-offs and limits as established from the code, and how it will be verified; asks Proceed / Adjust approach / Cancel.",
-        "gate": true
-      },
-      {
-        "k": "s6",
-        "t": "Fix test-first",
-        "d": "Writes a regression test, confirms it fails for the right reason, makes the minimal fix at the root cause, then runs the full suite against the baseline. A defect in a test itself is proven by a mutation check instead: break the guarded behaviour, see the repaired test fail, restore it."
-      },
-      {
-        "k": "s7",
-        "t": "Verify resolution",
-        "d": "Accepts passing automated tests as verification; otherwise gives the user exact steps and asks Confirmed fixed / Still broken / Partially fixed.",
-        "gate": true
-      },
-      {
-        "k": "s8",
-        "t": "Loop if unresolved",
-        "d": "A still-failing test or an unconfirmed fix sends the run back to diagnosis with the new evidence. Repeated non-convergence stops and reports what was ruled out."
-      },
-      {
-        "k": "s9",
-        "t": "Close and commit",
-        "d": "Appends a resolution section with lessons learned to the report, moves the folder into bugs/archive/, calls bug-tracker-render, and makes one commit on the current branch. Never pushes.",
-        "commits": true
-      },
-      {
-        "k": "s10",
-        "t": "Capture lessons",
-        "d": "Calls lessons-capture with the slug bug-fix and prints a short summary with the commit."
-      }
+    "wrap": "tdd"
+   },
+   {
+    "k": "5i",
+    "t": "Next stage",
+    "d": "Moves to the next stage without pushing or switching branches.",
+    "wrap": "tdd"
+   },
+   {
+    "k": "s6",
+    "t": "Stop conditions",
+    "d": "Stops on an undiagnosable failure, a decision the plan does not cover, a tree dirtied by someone else, an unplanned security issue, a design-level flaw, or a parallel conflict no small reconciliation fixes. It asks the user even under autonomous instructions, removes any worktree first, marks the stage failed and closes the progress file as halted. The run is reported as halted with the cycle report.",
+    "gate": true
+   },
+   {
+    "k": "s7",
+    "t": "Final sweep",
+    "d": "Marks the closing phase in the progress file, then checks every design requirement has a test and every component exists, runs the full suite, and runs the dead-code analyser against the baseline. Gaps or new orphans become one extra stage. A run that ends with gated or hands-on stages unbuilt still closes here as a partial run, scoped to what landed, with a Blocked list."
+   },
+   {
+    "k": "s8",
+    "t": "Update tracker",
+    "d": "Fills the Implementation panel (stages, tests, coverage table, deviations) and flips the implement progress step to complete; a partial run leaves it pending. A complete run then settles this version's pending DESIGN.md decisions through design-language-update, asking nothing, and commits tracker, docs and design files as one docs commit.",
+    "commits": true
+   },
+   {
+    "k": "s9",
+    "t": "Capture lessons",
+    "d": "Calls lessons-capture with the slug feature-implement from the main agent."
+   },
+   {
+    "k": "s10",
+    "t": "Present summary",
+    "d": "Prints one line per stage with its commit, plus the progress file's path, tests, coverage, dead-code result, deviations, the design-language settle, pending human checks and parallelism."
+   },
+   {
+    "k": "s11",
+    "t": "Offer evals",
+    "d": "Asks whether to run both eval skills; on yes it launches them in two parallel read-only subagents and relays their scores, and a failed eval never fails the run. Then it closes the progress file and reports usage with the cycle report, last rather than before its offer like the other three, so the eval subagents fall inside the measured window.",
+    "gate": true,
+    "par": [
+     "evals-code-run",
+     "evals-e2e-run"
     ]
+   }
+  ]
+ },
+ {
+  "slug": "feature-resolve",
+  "g": "internal",
+  "inv": "agent",
+  "internal": true,
+  "purpose": "The single source of pathing for the chain. Picks the features/feature-vN-description folder, version and stage file, creates the folder, seeds the tracker, and returns a parseable block. Runs inline and never ends the turn on success.",
+  "steps": [
+   {
+    "k": "s1",
+    "t": "Ensure features/",
+    "d": "Creates features/ at the project root when it is missing. It never writes into docs/, which is legacy reference material."
+   },
+   {
+    "k": "s2",
+    "t": "Scan folders",
+    "d": "Lists existing feature-vN folders, parses each integer version and description, and records which stage files each holds."
+   },
+   {
+    "k": "s3",
+    "t": "Resolve mode",
+    "d": "Applies four rules in order: an explicit version, a first-ever feature, a latest folder still missing this stage, or one that already has it. A latest folder holding a later stage means the earlier stage was skipped, so storm and design create a new version without asking; real ambiguity, such as an overwrite, is asked.",
+    "gate": true
+   },
+   {
+    "k": "s4",
+    "t": "Validate description",
+    "d": "For a new feature, requires ten words or fewer, makes it filename-safe with hyphens and preserves case. Nothing is silently truncated."
+   },
+   {
+    "k": "s5",
+    "t": "Create folder",
+    "d": "Creates features/feature-vN-description/ for a new feature; an existing one is left as it is."
+   },
+   {
+    "k": "s6",
+    "t": "Seed tracker",
+    "d": "Copies the plugin's tracker template into the folder when it is missing, preferring the running plugin's own copy. It never substitutes tokens; that is each stage's job."
+   },
+   {
+    "k": "s7",
+    "t": "Return block",
+    "d": "Emits the result block (mode, version, description, folder, stage file, tracker, prerequisite, notes) and continues straight into the caller's next step in the same turn."
+   }
+  ]
+ },
+ {
+  "slug": "feature-mockup",
+  "g": "internal",
+  "inv": "agent",
+  "internal": true,
+  "purpose": "Mocks up the user-visible surface for feature-design: self-contained pages under the feature's mockups/ folder, published as artifacts with a feedback bar, iterated until the user accepts one. Reads DESIGN.md, never writes it, and returns decisions plus language deltas.",
+  "wraps": {
+   "round": "answer round on the page or in chat, repeated until one option is accepted or all are declined"
   },
-  {
-    "slug": "evals-code-run",
-    "g": "evals",
-    "inv": "both",
-    "purpose": "Scores the branch's unpushed commits on duplication, bloat, inefficiency and security, each as the share of added lines affected (higher is worse), and appends four entries to the code eval log. Read-only towards the repo.",
-    "steps": [
-      {
-        "k": "s0",
-        "t": "Confirm invocation",
-        "d": "Asks once when invoked proactively. Inside a subagent it proceeds only when the brief says the user already agreed.",
-        "gate": true
-      },
-      {
-        "k": "s1",
-        "t": "Resolve changes",
-        "d": "Finds the base (an explicit ref, the upstream, or origin/HEAD) and the unpushed commits; none means stop without writing. Counts added lines, excluding lockfiles and generated files."
-      },
-      {
-        "k": "s2",
-        "t": "Run four evals",
-        "d": "Launches four read-only subagents at once, one per dimension, each with a self-contained brief and a fixed output block. Every finding must cite file and line.",
-        "par": [
-          "duplication",
-          "bloat",
-          "inefficiency",
-          "security"
-        ]
-      },
-      {
-        "k": "s3",
-        "t": "Validate results",
-        "d": "Recomputes each score, re-runs once any result whose score and findings disagree, and forces an empty recommendation on a zero score."
-      },
-      {
-        "k": "s4",
-        "t": "Append log",
-        "d": "Appends exactly four entries with one shared timestamp to the code eval log, atomically; a corrupt log is moved aside, never discarded."
-      },
-      {
-        "k": "s5",
-        "t": "Present scores",
-        "d": "Prints what was evaluated, the score table, top findings with recommendations, and the log-write confirmation."
-      }
+  "steps": [
+   {
+    "k": "s0",
+    "t": "Load customisations",
+    "d": "Reads feature-mockup.extras before anything else; this is its Step 0 because it has no gate of its own. A missing file is silent, and a customisation never overrides its constraints."
+   },
+   {
+    "k": "s1",
+    "t": "Confirm surface",
+    "d": "Checks the feature has a user-visible surface. With none it returns not-applicable without inventing a UI; when genuinely unclear it asks once."
+   },
+   {
+    "k": "s2",
+    "t": "Ground language",
+    "d": "Reads the user's references first, then DESIGN.md's managed region as the digest, with content outside the region and references outranking it. Also reads the surface as it exists, prior accepted mockups and this feature's storm and design; with no region it falls back to a bounded read of the UI layer."
+   },
+   {
+    "k": "s3",
+    "t": "Classify kind",
+    "d": "Decides new surface or modification from the grounding; an existing surface makes it a modification however large the addition."
+   },
+   {
+    "k": "s4a",
+    "t": "Choose shape",
+    "d": "Puts one decision set in front of the user per round, in one of three shapes: review (one proposal), compare (2-4 options on one page) or pick (one option per page). Shapes are never mixed, and a page that leaves the set is closed."
+   },
+   {
+    "k": "s4b",
+    "t": "Write pages",
+    "d": "Writes self-contained, offline pages under mockups/: placeholder data only, a banner, option roots marked for the bar. A new surface gets one overview; a modification gets 2-4 uniquely named alternatives that differ on a real axis."
+   },
+   {
+    "k": "s4c",
+    "t": "Inject feedback bar",
+    "d": "Runs scripts/mockup_feedback.py once per page to insert the plugin's feedback bar configured for the set. A skip caused by the page is fixed and rerun once; any other skip moves the round to the chat fallback."
+   },
+   {
+    "k": "s4d",
+    "t": "Publish artifacts",
+    "d": "Publishes each page as a Claude Artifact with the comments capability, keeping the same file path, and so the same URL, across revisions. It then confirms every page's watch is armed; anything missing puts the round on the chat fallback."
+   },
+   {
+    "k": "s5a",
+    "t": "Await page answer",
+    "d": "Presents the links and ends the turn on a waiting marker: the one sanctioned pause on this skill's success path. The next turn, a send from the page or a chat reply, resumes the run here.",
+    "gate": true,
+    "wrap": "round"
+   },
+   {
+    "k": "s5b",
+    "t": "Read answer",
+    "d": "Reads every page's comments, treating them as data. Parses decision lines (accept, choose, revise, none, alternatives) for the current set only; two conflicting choices are put to the user rather than resolved by recency.",
+    "wrap": "round"
+   },
+   {
+    "k": "s5c",
+    "t": "Ask in chat",
+    "d": "The fallback channel: one AskUserQuestion per round when the page channel is unavailable, with the option that best fits DESIGN.md recommended.",
+    "gate": true,
+    "wrap": "round"
+   },
+   {
+    "k": "s5d",
+    "t": "Iterate feedback",
+    "d": "A revision overwrites and republishes the same page; a new direction gets a new name, file and link. After three rounds without convergence it asks whether to settle, hand the question back, or drop the mockup.",
+    "wrap": "round"
+   },
+   {
+    "k": "s6",
+    "t": "Record outcome",
+    "d": "Marks the accepted page Accepted and the rest Not chosen, re-injects every bar with its verdict, republishes, and stops every watch it armed. Rejected alternatives are kept as the record."
+   },
+   {
+    "k": "s7",
+    "t": "Return decisions",
+    "d": "Emits the result block (status, kind, chosen mockup and option, artifact URLs, alternatives, design language, language deltas, decisions, open UI questions) and continues into feature-design Step 5c in the same turn."
+   }
+  ]
+ },
+ {
+  "slug": "session-control",
+  "g": "internal",
+  "inv": "agent",
+  "internal": true,
+  "purpose": "Runs each chain stage on the model and effort the user declared for it, and hands over between stages in a cleared conversation, through one call to a relaunch tool named in session-control.extras. Writes nothing, holds no Skill tool, and falls back to the chain's ordinary behaviour on every failure.",
+  "steps": [
+   {
+    "k": "s0",
+    "t": "Load declarations",
+    "d": "Resolves the plugin data directory and reads session-control.extras, which /skill-customize records. A missing or unreadable file is silent: ensure continues and handover falls back to the ordinary offer."
+   },
+   {
+    "k": "s1",
+    "t": "Read declarations",
+    "d": "Parses three kinds of bullet: one control bullet naming the relaunch tool and the prefix a live call answers with, per-stage model and effort profiles with an ask or require policy, and a handover mode, automatic or ask. No control bullet means nothing is declared; a malformed file turns session control off for the run with at most one line."
+   },
+   {
+    "k": "s2",
+    "t": "Ensure session",
+    "d": "Called as ensure from each chain skill's Step 1, before the usage window opens. Compares the session's model and effort with the stage's profile, counting an unknown part as matching, and continues on no profile, a match, or a run that already carries from=. A require policy queues a relaunch without asking; an ask policy asks once, Switch or Keep.",
+    "gate": true
+   },
+   {
+    "k": "s3",
+    "t": "Hand over",
+    "d": "Called as handover from the final step of storm, design and plan, after the usage report. Automatic mode with no hold queues the next stage without asking; ask mode, or any hold (deviations, briefs), puts the caller's own chain offer with the hold stated first. A hold is never skipped.",
+    "gate": true
+   },
+   {
+    "k": "s4",
+    "t": "Queue relaunch",
+    "d": "Makes exactly one call to the declared tool with the target skill's command: the original arguments plus from= for a relaunch, the version plus from= for a handover, and model and effort only when a switch is wanted. Acknowledged only when the result starts with the declared prefix; then the caller ends its turn and the harness clears the conversation and runs the command, the second sanctioned turn end beside the mockup wait."
+   },
+   {
+    "k": "s5",
+    "t": "Emit result",
+    "d": "Emits the result block (mode, next, observed session, notes). Every result except end-turn carries straight on with the caller's next step in the same turn; every failure ends in continue, offer or inline with at most one printed line."
+   }
+  ]
+ },
+ {
+  "slug": "usage-report",
+  "g": "internal",
+  "inv": "agent",
+  "internal": true,
+  "purpose": "Opens and closes each chain run's usage window. A report is quiet: one log line, the stage's tracker panel and the tracker's Usage tab. The cycle report, tokens and list-price cost per stage, prints only where the chain stops. All logic lives in scripts/usage_report.py.",
+  "steps": [
+   {
+    "k": "s1",
+    "t": "Locate script",
+    "d": "Finds scripts/usage_report.py, the running plugin's own copy first, else a search preferring the highest cached version. With no script it prints one skip line and never reimplements any measurement."
+   },
+   {
+    "k": "s2",
+    "t": "Run script",
+    "d": "Runs one of three forms with the system python3: start records the run's start marker; report measures the window, prices it, appends one log line, fills the stage's tracker panel and rewrites the Usage tab; cycle prints the whole feature cycle's table. It never asks the user anything."
+   },
+   {
+    "k": "s3",
+    "t": "Relay output",
+    "d": "Relays the script's output verbatim: nothing for a plain report, the cycle table when the caller passed cycle=true or used the cycle form, which happens wherever the chain stops. Any problem is one usage report skipped line, and the caller always carries on in the same turn."
+   }
+  ]
+ },
+ {
+  "slug": "lessons-capture",
+  "g": "internal",
+  "inv": "agent",
+  "internal": true,
+  "purpose": "The single reflection protocol. Called as the last step of the four chain skills and bug-fix; appends one dated recommendation, or none, to that skill's lessons log. Never edits a SKILL.md.",
+  "steps": [
+   {
+    "k": "s1",
+    "t": "Reflect on run",
+    "d": "Reflects on the run that just finished: friction observed and ways the skill could be faster or smarter. At most one recommendation, and most runs should produce none."
+   },
+   {
+    "k": "s2",
+    "t": "Format entry",
+    "d": "Formats a recommendation as three lines (observation, proposed change, expected benefit) or writes the single no-recommendation line."
+   },
+   {
+    "k": "s3",
+    "t": "Append log",
+    "d": "Appends the entry with one atomic shell append to the per-skill lessons log under the user's config directory, never rewriting earlier entries. Timestamps are UTC. Then counts the lessons in the log: entries that carry a recommendation."
+   },
+   {
+    "k": "s4",
+    "t": "Return entry",
+    "d": "Echoes the entry body once so the calling skill can paste it into its own summary. Past 50 lessons it adds a fenced reminder to run lessons-learn: a message only, never a question."
+   }
+  ]
+ },
+ {
+  "slug": "bug-tracker-render",
+  "g": "internal",
+  "inv": "agent",
+  "internal": true,
+  "purpose": "Regenerates bugs/bugs-tracker.html wholesale from the shared tracker template and the bug folders on disk, by running scripts/render_bug_tracker.py. Holds no state; open and closed come from folder location.",
+  "steps": [
+   {
+    "k": "s1",
+    "t": "Locate script",
+    "d": "Finds scripts/render_bug_tracker.py, the running plugin's own copy first, else the highest cached version. With none it prints one skip line and never hand-renders the tracker."
+   },
+   {
+    "k": "s2",
+    "t": "Run script",
+    "d": "Runs the script with the system python3; it walks up to the repo root, renders one expandable card per bug and writes only bugs/bugs-tracker.html."
+   },
+   {
+    "k": "s3",
+    "t": "Relay status",
+    "d": "Relays the one status line (open and closed counts, or a skip reason). A skip is a note, never an error for the caller."
+   }
+  ]
+ },
+ {
+  "slug": "set-herdr-label",
+  "g": "internal",
+  "inv": "agent",
+  "internal": true,
+  "purpose": "Labels the herdr agent pane this session runs in so parallel agents are easy to tell apart. Silent everywhere: outside a herdr terminal it does nothing at all. Nothing in the plugin calls it; extras bullets can wire it into chain runs.",
+  "steps": [
+   {
+    "k": "s1",
+    "t": "Gate on herdr",
+    "d": "Reads HERDR_ENV and HERDR_PANE_ID and skips silently unless HERDR_ENV is exactly 1. The target is always this session's own pane, never one discovered by listing agents."
+   },
+   {
+    "k": "s2",
+    "t": "Recognise clear",
+    "d": "An empty or whitespace-only argument means clear the label, which skips normalising."
+   },
+   {
+    "k": "s3",
+    "t": "Normalise label",
+    "d": "Lowercases, collapses disallowed characters to hyphens, strips to a leading letter, truncates to 32 characters and strips trailing separators, matching herdr's name rule. A label that normalises to nothing becomes a clear."
+   },
+   {
+    "k": "s4",
+    "t": "Rename pane",
+    "d": "Runs herdr agent rename on the pane, or with --clear, the only way to unset a name. An invalid name is retried once; any other error is dropped silently, and success prints nothing."
+   }
+  ]
+ },
+ {
+  "slug": "design-language-update",
+  "g": "design",
+  "inv": "both",
+  "purpose": "The only writer of DESIGN.md's managed region and the specimen page design/specimen.html, published as an artifact. Reconciles the project's design language from code with cited evidence, asks only from a closed catalogue, and makes every write through scripts/design_language.py. feature-implement calls it to mark a finished feature's pending decisions active. Runs in any repo.",
+  "steps": [
+   {
+    "k": "s0",
+    "t": "Confirm invocation",
+    "d": "Skipped when the user typed /design-language-update or feature-design or feature-implement called it. Otherwise asks once before reading or writing anything.",
+    "gate": true
+   },
+   {
+    "k": "s1",
+    "t": "Resolve inputs",
+    "d": "Parses the mode (reconcile, fresh, render, record from feature-design, or settle from feature-implement) and refuses any other argument in one line. Locates the script and its template from the same plugin copy, then loads its customisations after the gate; a caller run stays quiet."
+   },
+   {
+    "k": "s2",
+    "t": "Read region",
+    "d": "Runs the script's region command to get the current region and its hash, and reads content outside the markers as the user's own direction. Malformed markers end the run as skipped; they are never repaired."
+   },
+   {
+    "k": "s3",
+    "t": "Harvest evidence",
+    "d": "A bounded, read-only harvest in priority order: token and theme files, global styles, one canonical file per component category, at most eight views, terminal renderers, email templates, accepted mockups. Every entry cites its source and records a resolved literal value; pending decisions are checked against code and the feature's tracker."
+   },
+   {
+    "k": "s4",
+    "t": "Classify project",
+    "d": "Marks each evidence-bearing section evidenced or not and classifies the project greenfield, partial or established; platforms come from evidence."
+   },
+   {
+    "k": "s5",
+    "t": "Reconcile entries",
+    "d": "Merges by ownership: code-sourced entries re-derived, user decisions sticky, outside content outranking code, and a pending decision becoming active once code matches or drift once its feature is implemented. Record mode writes each delta as a pending decision that supersedes earlier ones on the same subject. Settle mode runs the script's settle command instead: the finished feature's pending decisions become active without a code check, because the next reconcile reports any contradiction as drift."
+   },
+   {
+    "k": "s6",
+    "t": "Clarify catalogue",
+    "d": "Asks only from a closed ten-item catalogue: up to two rounds of four when a greenfield item fires, one otherwise, never re-asking a recorded decision. An unanswered item takes its fallback as a skill decision; the round runs even under an instruction to skip questions.",
+    "gate": true
+   },
+   {
+    "k": "s7",
+    "t": "Write region",
+    "d": "Composes the full region into a temporary file outside the project and runs the script's write command, which validates the schema and splices atomically against the hash it read. A changed hash re-reads once; a schema defect is fixed and retried once."
+   },
+   {
+    "k": "s8",
+    "t": "Render specimen",
+    "d": "Runs the script's render command, which rewrites design/specimen.html only when the data changed, then publishes it as an artifact, reusing the recorded URL. A new URL goes back into the region by one more write."
+   },
+   {
+    "k": "s9",
+    "t": "Report result",
+    "d": "Emits the result block (status, mode, paths, classification, specimen URL, decisions, drift, pending). In a caller run it continues straight into the caller's next step; nothing is committed."
+   }
+  ]
+ },
+ {
+  "slug": "bug-submit",
+  "g": "bugs",
+  "inv": "both",
+  "purpose": "Files a triaged bug as a bugs/bug-N-slug/ folder with a markdown report and copied screenshots, then regenerates the bug tracker. Purely local: no issues, commits or pushes.",
+  "steps": [
+   {
+    "k": "s0",
+    "t": "Confirm invocation",
+    "d": "When invoked proactively it posts one plain-chat confirmation and waits; only an unambiguous yes proceeds. It deliberately never uses AskUserQuestion, because images attached there lose their paths.",
+    "gate": true
+   },
+   {
+    "k": "s1",
+    "t": "Parse arguments",
+    "d": "Splits the arguments into description text and image paths, and collects screenshots pasted into the conversation, validating each path."
+   },
+   {
+    "k": "s2",
+    "t": "Locate bugs root",
+    "d": "Anchors bugs/ at the git repo root and stops outside a git work tree, so numbering stays consistent."
+   },
+   {
+    "k": "s3",
+    "t": "Clarify bug",
+    "d": "When the description is thin or a visual bug has no screenshot, asks once in plain chat for a description and pasted images. Runs even under autonomous instructions; an empty answer stops with nothing created.",
+    "gate": true
+   },
+   {
+    "k": "s4",
+    "t": "Allocate number",
+    "d": "Takes the highest bug number across bugs/ and bugs/archive/ plus one, so numbers are never reused, builds a symptom-first slug and creates the folder."
+   },
+   {
+    "k": "s5",
+    "t": "Save images",
+    "d": "Copies screenshots into the bug folder, never symlinking. Attachments that look sensitive need an explicit proceed first.",
+    "gate": true
+   },
+   {
+    "k": "s6",
+    "t": "Triage bug",
+    "d": "A capped investigation, about three searches and at most two files, to form a summary, probable area, rough severity and hypothesis. Nothing is invented."
+   },
+   {
+    "k": "s7",
+    "t": "Write report",
+    "d": "Writes the report from a fixed template: description, expected behaviour, repro steps, screenshots by relative path, and triage."
+   },
+   {
+    "k": "s8",
+    "t": "Render tracker",
+    "d": "Calls bug-tracker-render to regenerate bugs/bugs-tracker.html with the new bug under Open; a skip is noted and the run continues."
+   },
+   {
+    "k": "s9",
+    "t": "Present highlights",
+    "d": "Prints the report and tracker paths, the title, the triage summary and the attachment count."
+   }
+  ]
+ },
+ {
+  "slug": "bug-fix",
+  "g": "bugs",
+  "inv": "both",
+  "commits": true,
+  "purpose": "Diagnoses one open bug with evidence, fixes it test-first, gets the fix confirmed, then archives the bug, regenerates the tracker and makes one commit, keeping its run's record in the plugin's one live progress file outside the project throughout. Never pushes.",
+  "steps": [
+   {
+    "k": "s0",
+    "t": "Select bug",
+    "d": "Read-only: takes the bug number given or the lowest-numbered open bug, reads its report in full, and checks history for a fix already committed, which turns the run into a verification. With no open bugs it stops and points at /bug-submit."
+   },
+   {
+    "k": "s1",
+    "t": "Confirm invocation",
+    "d": "Strict, because this skill changes code and commits. Skipped when the user typed /bug-fix or already approved fixing this bug; otherwise asks Proceed / Pick a different bug / Cancel.",
+    "gate": true
+   },
+   {
+    "k": "s2",
+    "t": "Ground codebase",
+    "d": "Opens its run in progress.json outside the project through scripts/run_progress.py, one file for every run of every skill in every repo and session, whose record names the skill, the bug, the repo and the session; every later call names the run id init printed, each later step records itself as it starts, and tracking never blocks the run; commands expected to run past about two minutes go through its job wrapper. Reads the triaged code paths end to end, the latest feature's docs, the intent document when the report questions whether this is a defect, and recent history. Starts the test baseline in the background."
+   },
+   {
+    "k": "s3",
+    "t": "Clarify report",
+    "d": "Asks about material ambiguity, preferring AskUserQuestion with a recommended option. Runs even under autonomous instructions.",
+    "gate": true
+   },
+   {
+    "k": "s4",
+    "t": "Find root cause",
+    "d": "A hard gate: no production change until the cause is stated with evidence and a file and line, reproduced where possible, without anchoring on the triage. A no-fix disposition (works as intended, duplicate, not worth it) is confirmed with the user and closes without a code change. For a security bug it also establishes, from evidence, whether the vulnerable path was reachable in a deployed environment.",
+    "gate": true
+   },
+   {
+    "k": "s5",
+    "t": "Approve fix",
+    "d": "Explains the root cause, the proposed fix (sketching any replacement component), its trade-offs and limits as established from the code, and how it will be verified; asks Proceed / Adjust approach / Cancel.",
+    "gate": true
+   },
+   {
+    "k": "s6",
+    "t": "Fix test-first",
+    "d": "Writes a regression test, confirms it fails for the right reason, makes the minimal fix at the root cause, then runs the full suite against the baseline. A defect in a test itself is proven by a mutation check instead: break the guarded behaviour, see the repaired test fail, restore it."
+   },
+   {
+    "k": "s7",
+    "t": "Verify resolution",
+    "d": "Accepts passing automated tests as verification; otherwise gives the user exact steps and asks Confirmed fixed / Still broken / Partially fixed.",
+    "gate": true
+   },
+   {
+    "k": "s8",
+    "t": "Loop if unresolved",
+    "d": "A still-failing test or an unconfirmed fix sends the run back to diagnosis with the new evidence, recorded as a loop in the progress file. Repeated non-convergence stops and reports what was ruled out."
+   },
+   {
+    "k": "s9",
+    "t": "Close and commit",
+    "d": "Appends a resolution section with lessons learned to the report, moves the folder into bugs/archive/, calls bug-tracker-render, and makes one commit on the current branch. Never pushes.",
+    "commits": true
+   },
+   {
+    "k": "s10",
+    "t": "Capture lessons",
+    "d": "Calls lessons-capture with the slug bug-fix, closes the progress file, and prints a short summary with the commit."
+   }
+  ]
+ },
+ {
+  "slug": "evals-code-run",
+  "g": "evals",
+  "inv": "both",
+  "purpose": "Scores the branch's unpushed commits on duplication, bloat, inefficiency and security, each as the share of added lines affected (higher is worse), and appends four entries to the code eval log. Read-only towards the repo.",
+  "steps": [
+   {
+    "k": "s0",
+    "t": "Confirm invocation",
+    "d": "Asks once when invoked proactively. Inside a subagent it proceeds only when the brief says the user already agreed.",
+    "gate": true
+   },
+   {
+    "k": "s1",
+    "t": "Resolve changes",
+    "d": "Finds the base (an explicit ref, the upstream, or origin/HEAD) and the unpushed commits; none means stop without writing. Counts added lines, excluding lockfiles and generated files."
+   },
+   {
+    "k": "s2",
+    "t": "Run four evals",
+    "d": "Launches four read-only subagents at once, one per dimension, each with a self-contained brief and a fixed output block. Every finding must cite file and line.",
+    "par": [
+     "duplication",
+     "bloat",
+     "inefficiency",
+     "security"
     ]
-  },
-  {
-    "slug": "evals-e2e-run",
-    "g": "evals",
-    "inv": "both",
-    "purpose": "Scores a just-implemented feature end to end: artefact quality for storm, design and plan, and consistency across each hand-off and against the implementation. Up to eight 0-100 scores (higher is better) appended to the design eval log.",
-    "steps": [
-      {
-        "k": "s0",
-        "t": "Confirm invocation",
-        "d": "Asks once when invoked proactively. Inside a subagent it proceeds only when the brief says the user already agreed.",
-        "gate": true
-      },
-      {
-        "k": "s1",
-        "t": "Resolve feature",
-        "d": "Takes the feature version from the unpushed stage commits, falling back to the highest feature folder found by read-only globbing, never the resolver. Picks the evals whose inputs exist."
-      },
-      {
-        "k": "s2",
-        "t": "Run evals",
-        "d": "Launches one read-only subagent per selected eval, all at once, each with its rubric or consistency method copied verbatim and a fixed output block.",
-        "par": [
-          "storm_quality",
-          "design_quality",
-          "plan_quality",
-          "design_consistency",
-          "plan_consistency",
-          "code_storm_consistency",
-          "code_design_consistency",
-          "code_plan_consistency"
-        ]
-      },
-      {
-        "k": "s3",
-        "t": "Validate results",
-        "d": "Fixes eval-type spellings, recomputes scores, re-runs once any unreliable result, and forces an empty recommendation at 80 or above."
-      },
-      {
-        "k": "s4",
-        "t": "Append log",
-        "d": "Appends one entry per eval that ran, with one shared timestamp, to the design eval log, atomically; a corrupt log is moved aside."
-      },
-      {
-        "k": "s5",
-        "t": "Present scores",
-        "d": "Prints what was evaluated and skipped, the score table, findings and recommendations for scores under 80, and the log-write confirmation."
-      }
+   },
+   {
+    "k": "s3",
+    "t": "Validate results",
+    "d": "Recomputes each score, re-runs once any result whose score and findings disagree, and forces an empty recommendation on a zero score."
+   },
+   {
+    "k": "s4",
+    "t": "Append log",
+    "d": "Appends exactly four entries with one shared timestamp to the code eval log, atomically; a corrupt log is moved aside, never discarded."
+   },
+   {
+    "k": "s5",
+    "t": "Present scores",
+    "d": "Prints what was evaluated, the score table, top findings with recommendations, and the log-write confirmation."
+   }
+  ]
+ },
+ {
+  "slug": "evals-e2e-run",
+  "g": "evals",
+  "inv": "both",
+  "purpose": "Scores a just-implemented feature end to end: artefact quality for storm, design and plan, and consistency across each hand-off and against the implementation. Up to eight 0-100 scores (higher is better) appended to the design eval log.",
+  "steps": [
+   {
+    "k": "s0",
+    "t": "Confirm invocation",
+    "d": "Asks once when invoked proactively. Inside a subagent it proceeds only when the brief says the user already agreed.",
+    "gate": true
+   },
+   {
+    "k": "s1",
+    "t": "Resolve feature",
+    "d": "Takes the feature version from the unpushed stage commits, falling back to the highest feature folder found by read-only globbing, never the resolver. Picks the evals whose inputs exist."
+   },
+   {
+    "k": "s2",
+    "t": "Run evals",
+    "d": "Launches one read-only subagent per selected eval, all at once, each with its rubric or consistency method copied verbatim and a fixed output block.",
+    "par": [
+     "storm_quality",
+     "design_quality",
+     "plan_quality",
+     "design_consistency",
+     "plan_consistency",
+     "code_storm_consistency",
+     "code_design_consistency",
+     "code_plan_consistency"
     ]
-  },
-  {
-    "slug": "diagram-update",
-    "g": "diagrams",
-    "inv": "both",
-    "purpose": "Regenerates this page: re-derives every skill, step, gate and edge from skills/ and hooks/ and renders them through templates/workflow-diagram.html. Refuses outside the dev-skills repo; never commits.",
-    "steps": [
-      {
-        "k": "s0",
-        "t": "Confirm invocation",
-        "d": "Skipped when the user typed /diagram-update; otherwise asks once before overwriting the page.",
-        "gate": true
-      },
-      {
-        "k": "s1",
-        "t": "Gate repo",
-        "d": "Refuses unless the plugin manifest's name is dev, records the version and a UTC stamp, and checks the template exists."
-      },
-      {
-        "k": "s2",
-        "t": "Inventory plugin",
-        "d": "Reads every skill, the hook config and its scripts, and the templates in full from disk, never from summaries."
-      },
-      {
-        "k": "s3",
-        "t": "Extract model",
-        "d": "For each skill: identity, invocation surface, steps (including a core lettered sub-step cycle), gates, loop-backs, parallel fan-outs, delegation, and cross-skill edges anchored to the exact step."
-      },
-      {
-        "k": "s4",
-        "t": "Derive graph",
-        "d": "Clusters skills into groups by their edges, orders the chain left to right, and types every edge as call, chain, handover, loop or data."
-      },
-      {
-        "k": "s5",
-        "t": "Author data",
-        "d": "Writes the eight token values: groups, skills with steps, edges, the overview's node layout and edges, version, timestamp and the link to the C4 page when it exists."
-      },
-      {
-        "k": "s6",
-        "t": "Render template",
-        "d": "Verifies the template's anchored tokens, substitutes them and writes diagram/index.html wholesale. The template is never edited."
-      },
-      {
-        "k": "s7",
-        "t": "Verify output",
-        "d": "Checks no token is left, every skill appears once, step and edge references resolve, and the file makes no network references. Fixes and re-verifies on any failure."
-      },
-      {
-        "k": "s8",
-        "t": "Report",
-        "d": "Prints one line with the skill, step, edge, gate, loop-back and parallel-cluster counts."
-      }
-    ]
-  },
-  {
-    "slug": "diagram-c4-update",
-    "g": "diagrams",
-    "inv": "both",
-    "purpose": "Builds a drill-down C4 architecture page (context, containers, components) for whatever project it runs in. The model JSON is reconciled across runs; the HTML is rendered wholesale from templates/c4-diagram.html.",
-    "steps": [
-      {
-        "k": "s0",
-        "t": "Confirm invocation",
-        "d": "Skipped when the user typed /diagram-c4-update; otherwise asks once before writing the two files.",
-        "gate": true
-      },
-      {
-        "k": "s1",
-        "t": "Resolve mode",
-        "d": "Finds the project root (outside git it uses the current folder), parses reconcile, fresh or render, checks the template's seven tokens and loads any prior model, setting a broken one aside."
-      },
-      {
-        "k": "s2",
-        "t": "Classify repo",
-        "d": "First match wins: plugin or agent-asset, software, documents, or a software fallback; a prior formal model is read first in every class."
-      },
-      {
-        "k": "s3",
-        "t": "Harvest evidence",
-        "d": "Reads the universal files plus the class-specific set, attaching a path, doc or manifest pointer to every candidate. Nothing uncited is modelled."
-      },
-      {
-        "k": "s4",
-        "t": "Derive model",
-        "d": "Applies the C4 abstraction rules: deployability decides container versus component, externals stay at the boundary, technology strings come only from manifests. Self-decided judgements are recorded."
-      },
-      {
-        "k": "s5",
-        "t": "Reconcile model",
-        "d": "Merges with the prior model: elements re-derived, unevidenced ones retired rather than deleted, hand edits and cell positions kept, recorded decisions sticky."
-      },
-      {
-        "k": "s6",
-        "t": "Close judgements",
-        "d": "Exactly one AskUserQuestion round of at most four questions from a closed catalogue: system boundary, service ownership, component granularity, queues. Unanswered questions take their fallback.",
-        "gate": true
-      },
-      {
-        "k": "s7",
-        "t": "Place grid",
-        "d": "Places elements on integer cells by semantic band, collapses unused bands, keeps boundaries contiguous, and keeps each view near twenty elements without inventing coarser boxes."
-      },
-      {
-        "k": "s8",
-        "t": "Write and render",
-        "d": "Writes diagram/c4-model.json, then substitutes the template's seven tokens into diagram/c4.html, linking back to this page when it exists."
-      },
-      {
-        "k": "s9",
-        "t": "Verify output",
-        "d": "Checks references, notation, grid, completeness against units on disk, and the render; any failure goes back to placing."
-      },
-      {
-        "k": "s10",
-        "t": "Report",
-        "d": "Prints the class, element and view counts, what was added, moved or retired, the decisions, and anything not modelled."
-      }
-    ]
-  },
-  {
-    "slug": "lessons-learn",
-    "g": "improve",
-    "inv": "user",
-    "purpose": "User-only, periodic. Consolidates one skill's lessons log, filters the suggestions hard, applies the approved ones to that skill's SKILL.md and archives the log. Never commits.",
-    "steps": [
-      {
-        "k": "s1",
-        "t": "Locate skill",
-        "d": "Finds the target skill's SKILL.md on disk, asking which when several copies exist, and reads it in full."
-      },
-      {
-        "k": "s2",
-        "t": "Read log",
-        "d": "Reads the skill's lessons log and drops the no-recommendation entries; nothing left means stop."
-      },
-      {
-        "k": "s3",
-        "t": "Cluster and filter",
-        "d": "Groups entries into a few distinct improvements and drops any already addressed, one-off, language-specific, complexity-for-little-gain, or unsound. Zero to three survivors is typical."
-      },
-      {
-        "k": "s4",
-        "t": "Propose changes",
-        "d": "Presents each survivor with the concrete edit and asks Apply / Skip / Defer, up to four per question.",
-        "gate": true
-      },
-      {
-        "k": "s5",
-        "t": "Apply edits",
-        "d": "Applies approved edits one at a time; a conflicting edit stops and is put back to the user. Nothing is committed."
-      },
-      {
-        "k": "s6",
-        "t": "Archive log",
-        "d": "Moves the whole active log to a UTC-stamped archive and writes deferred entries back to a fresh log."
-      },
-      {
-        "k": "s7",
-        "t": "Report summary",
-        "d": "Prints the archive path, what was applied, skipped and deferred, and the next step: review the diff and commit."
-      }
-    ]
-  },
-  {
-    "slug": "skill-customize",
-    "g": "improve",
-    "inv": "both",
-    "purpose": "Records a durable house rule for one of this plugin's skills in its extras file, or shows that file verbatim. Session-control's per-stage profiles are recorded this way too. A customisation refines a skill and never overrides its non-negotiables.",
-    "steps": [
-      {
-        "k": "s0",
-        "t": "Confirm invocation",
-        "d": "Skipped when the user typed /skill-customize; otherwise asks once: record it, apply just this once, or no.",
-        "gate": true
-      },
-      {
-        "k": "s1",
-        "t": "Resolve slug",
-        "d": "Validates the slug against the skills/ folder on disk, never a hardcoded roster; a near-miss is asked about, never silently corrected."
-      },
-      {
-        "k": "s2",
-        "t": "Locate file",
-        "d": "Resolves the plugin data directory through the four-rule ladder every reader mirrors, since the variable is not exported to the shell."
-      },
-      {
-        "k": "s3",
-        "t": "Read existing",
-        "d": "Reads the extras file. When the user asked to see it, prints it verbatim in a fenced block and stops."
-      },
-      {
-        "k": "s4",
-        "t": "Capture instruction",
-        "d": "Uses the user's own words when given; otherwise offers three candidates drawn from the skill's decision points. Duplicates change nothing, refinements replace in place, contradictions are asked about once.",
-        "gate": true
-      },
-      {
-        "k": "s5",
-        "t": "Check non-negotiables",
-        "d": "Refuses any instruction that contradicts the target's constraints, relaxes a safety rule or disables a mandatory step, naming the collision."
-      },
-      {
-        "k": "s6",
-        "t": "Write file",
-        "d": "Rewrites the one extras file with a fixed header and one dated bullet per instruction, preserving the rest. Nothing else is written."
-      },
-      {
-        "k": "s7",
-        "t": "Confirm line",
-        "d": "Prints one line with the instruction count and path, and says whether the target skill actually reads its extras yet."
-      }
-    ]
-  },
-  {
-    "slug": "feature-list",
-    "g": "utility",
-    "inv": "both",
-    "purpose": "Read-only reporter: one table of the features under features/ and how far each has gone through storm, design, plan and implement, newest first. Open features by default; all with the argument all.",
-    "steps": [
-      {
-        "k": "s1",
-        "t": "Parse argument",
-        "d": "Accepts nothing or all; anything else stops with a one-line usage error."
-      },
-      {
-        "k": "s2",
-        "t": "Find folders",
-        "d": "Globs features/ read-only for feature folders and their stage files, deliberately never calling the resolver, which would create folders."
-      },
-      {
-        "k": "s3",
-        "t": "Resolve status",
-        "d": "Reads each tracker's progress attributes, cross-checked against the stage files; implement progress also comes from plan-stage commits on the branch."
-      },
-      {
-        "k": "s4",
-        "t": "Date and sort",
-        "d": "Takes the newest Updated chip in each tracker, falling back to git and file times, and sorts newest first."
-      },
-      {
-        "k": "s5",
-        "t": "Render table",
-        "d": "Prints one markdown table with a column per stage, last activity and the next slash command, plus a legend."
-      },
-      {
-        "k": "s6",
-        "t": "Handle empties",
-        "d": "No features, or none open, prints one line instead of a table."
-      }
-    ]
-  },
-  {
-    "slug": "push",
-    "g": "utility",
-    "inv": "user",
-    "commits": true,
-    "purpose": "Commits every change with a message in the repo's style and pushes the current branch.",
-    "steps": [
-      {
-        "k": "s1",
-        "t": "Check status",
-        "d": "Runs git status for staged and unstaged changes."
-      },
-      {
-        "k": "s2",
-        "t": "Stop if clean",
-        "d": "With nothing to commit, says so and stops."
-      },
-      {
-        "k": "s3",
-        "t": "Review changes",
-        "d": "Reads the diff and the last few commit subjects."
-      },
-      {
-        "k": "s4",
-        "t": "Compose message",
-        "d": "Uses the given message or writes a concise one in the repo's style, no attribution."
-      },
-      {
-        "k": "s5",
-        "t": "Update gitignore",
-        "d": "Adds new files that should not be pushed to .gitignore."
-      },
-      {
-        "k": "s6",
-        "t": "Stage all",
-        "d": "Stages everything with git add -A."
-      },
-      {
-        "k": "s7",
-        "t": "Commit",
-        "d": "Creates the commit.",
-        "commits": true
-      },
-      {
-        "k": "s8",
-        "t": "Push remote",
-        "d": "Pushes; on failure explains and suggests next steps."
-      },
-      {
-        "k": "s9",
-        "t": "Confirm clean",
-        "d": "Shows the commit hash; the tree must be clean."
-      }
-    ]
-  },
-  {
-    "slug": "release",
-    "g": "utility",
-    "inv": "user",
-    "commits": true,
-    "purpose": "Cuts a release end to end: version bump, changelog, commit, tag and push, with language-specific version sources for Python, Swift or a generic manifest. With no type given it picks patch or minor itself, confirming a minor first.",
-    "steps": [
-      {
-        "k": "s1",
-        "t": "Detect language",
-        "d": "Python, Swift, or the generic fallback, from markers at the repo root."
-      },
-      {
-        "k": "s2",
-        "t": "Read version",
-        "d": "Reads and validates the current version from the language's source; never invents one."
-      },
-      {
-        "k": "s3",
-        "t": "Choose type",
-        "d": "A type the user typed is used as given. Otherwise it reads everything since the last release tag and picks minor for a new feature or more than about 500 changed user-observable lines, patch for anything else, never major. A minor it picked is confirmed once before any file changes; a dismissed question stops the release.",
-        "gate": true
-      },
-      {
-        "k": "s4",
-        "t": "Compute version",
-        "d": "Applies the semantic-version bump for the chosen type."
-      },
-      {
-        "k": "s5",
-        "t": "Update sources",
-        "d": "Edits every version location the language lists, keeping them in sync."
-      },
-      {
-        "k": "s6",
-        "t": "Update changelog",
-        "d": "Moves Unreleased items into a dated section, or follows the language's policy when there is no changelog."
-      },
-      {
-        "k": "s7",
-        "t": "Pre-commit steps",
-        "d": "Runs any extra step the language defines, such as refreshing a lockfile."
-      },
-      {
-        "k": "s8",
-        "t": "Stage and commit",
-        "d": "Stages only the files the release touched and commits Release vX.Y.Z.",
-        "commits": true
-      },
-      {
-        "k": "s9",
-        "t": "Tag release",
-        "d": "Tags vX.Y.Z, stopping on an existing tag rather than overwriting it."
-      },
-      {
-        "k": "s10",
-        "t": "Push",
-        "d": "Pushes the branch and the tag without asking; /release itself is the authorisation."
-      },
-      {
-        "k": "s11",
-        "t": "Report",
-        "d": "Prints the released version, branch and commit, the release type with its reason, and what was updated."
-      }
-    ]
-  },
-  {
-    "slug": "remote-check",
-    "g": "hooks",
-    "inv": "hook",
-    "purpose": "hooks/remote-check.sh: a remote-readiness warning, not a gate. Fetches and, when the branch is behind its upstream, warns in the terminal and has Claude offer a fast-forward pull on its next reply. Never pulls itself.",
-    "steps": [
-      {
-        "k": "h1",
-        "t": "Session start",
-        "d": "On SessionStart the hook always fetches and resets its two-hour throttle. It is a no-op outside a git repo, with no upstream, or offline."
-      },
-      {
-        "k": "h2",
-        "t": "Prompt submit",
-        "d": "On each prompt it fetches only when the last check is more than two hours old; otherwise it exits silently, so it never nags every prompt. The last-fetch time lives in the repo's git dir and is never committed."
-      },
-      {
-        "k": "h3",
-        "t": "Fetch bounded",
-        "d": "Runs git fetch bounded to fifteen seconds where a timeout command exists, and records the attempt even when it fails so an offline remote is not retried every prompt. It never pulls and never blocks the session."
-      },
-      {
-        "k": "h4",
-        "t": "Warn behind",
-        "d": "When the branch is behind its upstream, prints a terminal warning and adds context telling Claude to ask once, on its next reply, whether to run git pull --ff-only. Up to date or only ahead means silence."
-      }
-    ]
-  }
+   },
+   {
+    "k": "s3",
+    "t": "Validate results",
+    "d": "Fixes eval-type spellings, recomputes scores, re-runs once any unreliable result, and forces an empty recommendation at 80 or above."
+   },
+   {
+    "k": "s4",
+    "t": "Append log",
+    "d": "Appends one entry per eval that ran, with one shared timestamp, to the design eval log, atomically; a corrupt log is moved aside."
+   },
+   {
+    "k": "s5",
+    "t": "Present scores",
+    "d": "Prints what was evaluated and skipped, the score table, findings and recommendations for scores under 80, and the log-write confirmation."
+   }
+  ]
+ },
+ {
+  "slug": "diagram-update",
+  "g": "diagrams",
+  "inv": "both",
+  "purpose": "Regenerates this page: re-derives every skill, step, gate and edge from skills/ and hooks/ and renders them through templates/workflow-diagram.html. Refuses outside the dev-skills repo; never commits.",
+  "steps": [
+   {
+    "k": "s0",
+    "t": "Confirm invocation",
+    "d": "Skipped when the user typed /diagram-update; otherwise asks once before overwriting the page.",
+    "gate": true
+   },
+   {
+    "k": "s1",
+    "t": "Gate repo",
+    "d": "Refuses unless the plugin manifest's name is dev, records the version and a UTC stamp, and checks the template exists."
+   },
+   {
+    "k": "s2",
+    "t": "Inventory plugin",
+    "d": "Reads every skill, the hook config and its scripts, and the templates in full from disk, never from summaries."
+   },
+   {
+    "k": "s3",
+    "t": "Extract model",
+    "d": "For each skill: identity, invocation surface, steps (including a core lettered sub-step cycle), gates, loop-backs, parallel fan-outs, delegation, and cross-skill edges anchored to the exact step."
+   },
+   {
+    "k": "s4",
+    "t": "Derive graph",
+    "d": "Clusters skills into groups by their edges, orders the chain left to right, and types every edge as call, chain, handover, loop or data."
+   },
+   {
+    "k": "s5",
+    "t": "Author data",
+    "d": "Writes the eight token values: groups, skills with steps, edges, the overview's node layout and edges, version, timestamp and the link to the C4 page when it exists."
+   },
+   {
+    "k": "s6",
+    "t": "Render template",
+    "d": "Verifies the template's anchored tokens, substitutes them and writes diagram/index.html wholesale. The template is never edited."
+   },
+   {
+    "k": "s7",
+    "t": "Verify output",
+    "d": "Checks no token is left, every skill appears once, step and edge references resolve, and the file makes no network references. Fixes and re-verifies on any failure."
+   },
+   {
+    "k": "s8",
+    "t": "Report",
+    "d": "Prints one line with the skill, step, edge, gate, loop-back and parallel-cluster counts."
+   }
+  ]
+ },
+ {
+  "slug": "diagram-c4-update",
+  "g": "diagrams",
+  "inv": "both",
+  "purpose": "Builds a drill-down C4 architecture page (context, containers, components) for whatever project it runs in. The model JSON is reconciled across runs; the HTML is rendered wholesale from templates/c4-diagram.html.",
+  "steps": [
+   {
+    "k": "s0",
+    "t": "Confirm invocation",
+    "d": "Skipped when the user typed /diagram-c4-update; otherwise asks once before writing the two files.",
+    "gate": true
+   },
+   {
+    "k": "s1",
+    "t": "Resolve mode",
+    "d": "Finds the project root (outside git it uses the current folder), parses reconcile, fresh or render, checks the template's seven tokens and loads any prior model, setting a broken one aside."
+   },
+   {
+    "k": "s2",
+    "t": "Classify repo",
+    "d": "First match wins: plugin or agent-asset, software, documents, or a software fallback; a prior formal model is read first in every class."
+   },
+   {
+    "k": "s3",
+    "t": "Harvest evidence",
+    "d": "Reads the universal files plus the class-specific set, attaching a path, doc or manifest pointer to every candidate. Nothing uncited is modelled."
+   },
+   {
+    "k": "s4",
+    "t": "Derive model",
+    "d": "Applies the C4 abstraction rules: deployability decides container versus component, externals stay at the boundary, technology strings come only from manifests. Self-decided judgements are recorded."
+   },
+   {
+    "k": "s5",
+    "t": "Reconcile model",
+    "d": "Merges with the prior model: elements re-derived, unevidenced ones retired rather than deleted, hand edits and cell positions kept, recorded decisions sticky."
+   },
+   {
+    "k": "s6",
+    "t": "Close judgements",
+    "d": "Exactly one AskUserQuestion round of at most four questions from a closed catalogue: system boundary, service ownership, component granularity, queues. Unanswered questions take their fallback.",
+    "gate": true
+   },
+   {
+    "k": "s7",
+    "t": "Place grid",
+    "d": "Places elements on integer cells by semantic band, collapses unused bands, keeps boundaries contiguous, and keeps each view near twenty elements without inventing coarser boxes."
+   },
+   {
+    "k": "s8",
+    "t": "Write and render",
+    "d": "Writes diagram/c4-model.json, then substitutes the template's seven tokens into diagram/c4.html, linking back to this page when it exists."
+   },
+   {
+    "k": "s9",
+    "t": "Verify output",
+    "d": "Checks references, notation, grid, completeness against units on disk, and the render; any failure goes back to placing."
+   },
+   {
+    "k": "s10",
+    "t": "Report",
+    "d": "Prints the class, element and view counts, what was added, moved or retired, the decisions, and anything not modelled."
+   }
+  ]
+ },
+ {
+  "slug": "lessons-learn",
+  "g": "improve",
+  "inv": "user",
+  "purpose": "User-only, periodic. Consolidates one skill's lessons log, filters the suggestions hard, applies the approved ones to that skill's SKILL.md and archives the log. Never commits.",
+  "steps": [
+   {
+    "k": "s1",
+    "t": "Locate skill",
+    "d": "Finds the target skill's SKILL.md on disk, asking which when several copies exist, and reads it in full."
+   },
+   {
+    "k": "s2",
+    "t": "Read log",
+    "d": "Reads the skill's lessons log and drops the no-recommendation entries; nothing left means stop."
+   },
+   {
+    "k": "s3",
+    "t": "Cluster and filter",
+    "d": "Groups entries into a few distinct improvements and drops any already addressed, one-off, language-specific, complexity-for-little-gain, or unsound. Zero to three survivors is typical."
+   },
+   {
+    "k": "s4",
+    "t": "Propose changes",
+    "d": "Presents each survivor with the concrete edit and asks Apply / Skip / Defer, up to four per question.",
+    "gate": true
+   },
+   {
+    "k": "s5",
+    "t": "Apply edits",
+    "d": "Applies approved edits one at a time; a conflicting edit stops and is put back to the user. Nothing is committed."
+   },
+   {
+    "k": "s6",
+    "t": "Archive log",
+    "d": "Moves the whole active log to a UTC-stamped archive and writes deferred entries back to a fresh log."
+   },
+   {
+    "k": "s7",
+    "t": "Report summary",
+    "d": "Prints the archive path, what was applied, skipped and deferred, and the next step: review the diff and commit."
+   }
+  ]
+ },
+ {
+  "slug": "skill-customize",
+  "g": "improve",
+  "inv": "both",
+  "purpose": "Records a durable house rule for one of this plugin's skills in its extras file, or shows that file verbatim. Session-control's per-stage profiles are recorded this way too. A customisation refines a skill and never overrides its non-negotiables.",
+  "steps": [
+   {
+    "k": "s0",
+    "t": "Confirm invocation",
+    "d": "Skipped when the user typed /skill-customize; otherwise asks once: record it, apply just this once, or no.",
+    "gate": true
+   },
+   {
+    "k": "s1",
+    "t": "Resolve slug",
+    "d": "Validates the slug against the skills/ folder on disk, never a hardcoded roster; a near-miss is asked about, never silently corrected."
+   },
+   {
+    "k": "s2",
+    "t": "Locate file",
+    "d": "Resolves the plugin data directory through the four-rule ladder every reader mirrors, since the variable is not exported to the shell."
+   },
+   {
+    "k": "s3",
+    "t": "Read existing",
+    "d": "Reads the extras file. When the user asked to see it, prints it verbatim in a fenced block and stops."
+   },
+   {
+    "k": "s4",
+    "t": "Capture instruction",
+    "d": "Uses the user's own words when given; otherwise offers three candidates drawn from the skill's decision points. Duplicates change nothing, refinements replace in place, contradictions are asked about once.",
+    "gate": true
+   },
+   {
+    "k": "s5",
+    "t": "Check non-negotiables",
+    "d": "Refuses any instruction that contradicts the target's constraints, relaxes a safety rule or disables a mandatory step, naming the collision."
+   },
+   {
+    "k": "s6",
+    "t": "Write file",
+    "d": "Rewrites the one extras file with a fixed header and one dated bullet per instruction, preserving the rest. Nothing else is written."
+   },
+   {
+    "k": "s7",
+    "t": "Confirm line",
+    "d": "Prints one line with the instruction count and path, and says whether the target skill actually reads its extras yet."
+   }
+  ]
+ },
+ {
+  "slug": "feature-list",
+  "g": "utility",
+  "inv": "both",
+  "purpose": "Read-only reporter: one table of the features under features/ and how far each has gone through storm, design, plan and implement, newest first. Open features by default; all with the argument all.",
+  "steps": [
+   {
+    "k": "s1",
+    "t": "Parse argument",
+    "d": "Accepts nothing or all; anything else stops with a one-line usage error."
+   },
+   {
+    "k": "s2",
+    "t": "Find folders",
+    "d": "Globs features/ read-only for feature folders and their stage files, deliberately never calling the resolver, which would create folders."
+   },
+   {
+    "k": "s3",
+    "t": "Resolve status",
+    "d": "Reads each tracker's progress attributes, cross-checked against the stage files; implement progress also comes from plan-stage commits on the branch."
+   },
+   {
+    "k": "s4",
+    "t": "Date and sort",
+    "d": "Takes the newest Updated chip in each tracker, falling back to git and file times, and sorts newest first."
+   },
+   {
+    "k": "s5",
+    "t": "Render table",
+    "d": "Prints one markdown table with a column per stage, last activity and the next slash command, plus a legend."
+   },
+   {
+    "k": "s6",
+    "t": "Handle empties",
+    "d": "No features, or none open, prints one line instead of a table."
+   }
+  ]
+ },
+ {
+  "slug": "push",
+  "g": "utility",
+  "inv": "user",
+  "commits": true,
+  "purpose": "Commits every change with a message in the repo's style and pushes the current branch.",
+  "steps": [
+   {
+    "k": "s1",
+    "t": "Check status",
+    "d": "Runs git status for staged and unstaged changes."
+   },
+   {
+    "k": "s2",
+    "t": "Stop if clean",
+    "d": "With nothing to commit, says so and stops."
+   },
+   {
+    "k": "s3",
+    "t": "Review changes",
+    "d": "Reads the diff and the last few commit subjects."
+   },
+   {
+    "k": "s4",
+    "t": "Compose message",
+    "d": "Uses the given message or writes a concise one in the repo's style, no attribution."
+   },
+   {
+    "k": "s5",
+    "t": "Update gitignore",
+    "d": "Adds new files that should not be pushed to .gitignore."
+   },
+   {
+    "k": "s6",
+    "t": "Stage all",
+    "d": "Stages everything with git add -A."
+   },
+   {
+    "k": "s7",
+    "t": "Commit",
+    "d": "Creates the commit.",
+    "commits": true
+   },
+   {
+    "k": "s8",
+    "t": "Push remote",
+    "d": "Pushes; on failure explains and suggests next steps."
+   },
+   {
+    "k": "s9",
+    "t": "Confirm clean",
+    "d": "Shows the commit hash; the tree must be clean."
+   }
+  ]
+ },
+ {
+  "slug": "release",
+  "g": "utility",
+  "inv": "user",
+  "commits": true,
+  "purpose": "Cuts a release end to end: version bump, changelog, commit, tag and push, with language-specific version sources for Python, Swift or a generic manifest. With no type given it picks patch or minor itself, confirming a minor first.",
+  "steps": [
+   {
+    "k": "s1",
+    "t": "Detect language",
+    "d": "Python, Swift, or the generic fallback, from markers at the repo root."
+   },
+   {
+    "k": "s2",
+    "t": "Read version",
+    "d": "Reads and validates the current version from the language's source; never invents one."
+   },
+   {
+    "k": "s3",
+    "t": "Choose type",
+    "d": "A type the user typed is used as given. Otherwise it reads everything since the last release tag and picks minor for a new feature or more than about 500 changed user-observable lines, patch for anything else, never major. A minor it picked is confirmed once before any file changes; a dismissed question stops the release.",
+    "gate": true
+   },
+   {
+    "k": "s4",
+    "t": "Compute version",
+    "d": "Applies the semantic-version bump for the chosen type."
+   },
+   {
+    "k": "s5",
+    "t": "Update sources",
+    "d": "Edits every version location the language lists, keeping them in sync."
+   },
+   {
+    "k": "s6",
+    "t": "Update changelog",
+    "d": "Moves Unreleased items into a dated section, or follows the language's policy when there is no changelog."
+   },
+   {
+    "k": "s7",
+    "t": "Pre-commit steps",
+    "d": "Runs any extra step the language defines, such as refreshing a lockfile."
+   },
+   {
+    "k": "s8",
+    "t": "Stage and commit",
+    "d": "Stages only the files the release touched and commits Release vX.Y.Z.",
+    "commits": true
+   },
+   {
+    "k": "s9",
+    "t": "Tag release",
+    "d": "Tags vX.Y.Z, stopping on an existing tag rather than overwriting it."
+   },
+   {
+    "k": "s10",
+    "t": "Push",
+    "d": "Pushes the branch and the tag without asking; /release itself is the authorisation."
+   },
+   {
+    "k": "s11",
+    "t": "Report",
+    "d": "Prints the released version, branch and commit, the release type with its reason, and what was updated."
+   }
+  ]
+ },
+ {
+  "slug": "remote-check",
+  "g": "hooks",
+  "inv": "hook",
+  "purpose": "hooks/remote-check.sh: a remote-readiness warning, not a gate. Fetches and, when the branch is behind its upstream, warns in the terminal and has Claude offer a fast-forward pull on its next reply. Never pulls itself.",
+  "steps": [
+   {
+    "k": "h1",
+    "t": "Session start",
+    "d": "On SessionStart the hook always fetches and resets its two-hour throttle. It is a no-op outside a git repo, with no upstream, or offline."
+   },
+   {
+    "k": "h2",
+    "t": "Prompt submit",
+    "d": "On each prompt it fetches only when the last check is more than two hours old; otherwise it exits silently, so it never nags every prompt. The last-fetch time lives in the repo's git dir and is never committed."
+   },
+   {
+    "k": "h3",
+    "t": "Fetch bounded",
+    "d": "Runs git fetch bounded to fifteen seconds where a timeout command exists, and records the attempt even when it fails so an offline remote is not retried every prompt. It never pulls and never blocks the session."
+   },
+   {
+    "k": "h4",
+    "t": "Warn behind",
+    "d": "When the branch is behind its upstream, prints a terminal warning and adds context telling Claude to ask once, on its next reply, whether to run git pull --ff-only. Up to date or only ahead means silence."
+   }
+  ]
+ }
 ];
 
 /* Edges: f/t are "slug.stepKey" or a bare "slug" (anchors to the card header). */
 const EDGES = [
-  {
-    "f": "feature-dispatch.s4",
-    "t": "feature-storm.s0",
-    "ty": "chain",
-    "l": "vague → storm"
-  },
-  {
-    "f": "feature-dispatch.s4",
-    "t": "feature-design.s0",
-    "ty": "chain",
-    "l": "clear → design"
-  },
-  {
-    "f": "feature-storm.s1",
-    "t": "session-control.s2",
-    "ty": "call",
-    "l": "ensure feature-storm"
-  },
-  {
-    "f": "feature-storm.s1",
-    "t": "usage-report.s2",
-    "ty": "call",
-    "l": "start window"
-  },
-  {
-    "f": "feature-storm.s2",
-    "t": "feature-resolve.s1",
-    "ty": "call",
-    "l": "stage=storm"
-  },
-  {
-    "f": "feature-storm.s3b",
-    "t": "feature-storm.s3a",
-    "ty": "loop",
-    "l": "new ground → generate"
-  },
-  {
-    "f": "feature-storm.s4",
-    "t": "feature-storm.s3b",
-    "ty": "loop",
-    "l": "Revise"
-  },
-  {
-    "f": "feature-storm.s7",
-    "t": "lessons-capture.s1",
-    "ty": "call",
-    "l": "slug feature-storm"
-  },
-  {
-    "f": "feature-storm.s9",
-    "t": "usage-report.s2",
-    "ty": "call",
-    "l": "quiet report; cycle where chain stops"
-  },
-  {
-    "f": "feature-storm.s9",
-    "t": "session-control.s3",
-    "ty": "call",
-    "l": "handover, hold=none"
-  },
-  {
-    "f": "feature-storm.s9",
-    "t": "feature-design.s0",
-    "ty": "chain",
-    "l": "Offer design"
-  },
-  {
-    "f": "feature-storm.s5",
-    "t": "feature-design.s3",
-    "ty": "data",
-    "l": "storm doc; open questions seed Step 4"
-  },
-  {
-    "f": "feature-design.s1",
-    "t": "session-control.s2",
-    "ty": "call",
-    "l": "ensure feature-design"
-  },
-  {
-    "f": "feature-design.s1",
-    "t": "usage-report.s2",
-    "ty": "call",
-    "l": "start window"
-  },
-  {
-    "f": "feature-design.s2",
-    "t": "feature-resolve.s1",
-    "ty": "call",
-    "l": "stage=design"
-  },
-  {
-    "f": "feature-design.s5r",
-    "t": "design-language-update.s1",
-    "ty": "call",
-    "l": "reconcile, caller=feature-design"
-  },
-  {
-    "f": "design-language-update.s9",
-    "t": "feature-design.s5a",
-    "ty": "data",
-    "l": "result → continue at 5a"
-  },
-  {
-    "f": "feature-design.s5b",
-    "t": "feature-mockup.s0",
-    "ty": "call",
-    "l": "mock up the surface"
-  },
-  {
-    "f": "feature-mockup.s7",
-    "t": "feature-design.s5c",
-    "ty": "data",
-    "l": "decisions + language deltas"
-  },
-  {
-    "f": "feature-design.s5c",
-    "t": "design-language-update.s5",
-    "ty": "call",
-    "l": "record deltas (mode=record)"
-  },
-  {
-    "f": "design-language-update.s9",
-    "t": "feature-design.s6a",
-    "ty": "data",
-    "l": "record result → Step 6"
-  },
-  {
-    "f": "feature-design.s5c",
-    "t": "feature-design.s4",
-    "ty": "loop",
-    "l": "open UI questions / new behaviour"
-  },
-  {
-    "f": "feature-design.s9",
-    "t": "lessons-capture.s1",
-    "ty": "call",
-    "l": "slug feature-design"
-  },
-  {
-    "f": "feature-design.s11",
-    "t": "usage-report.s2",
-    "ty": "call",
-    "l": "quiet report; cycle where chain stops"
-  },
-  {
-    "f": "feature-design.s11",
-    "t": "session-control.s3",
-    "ty": "call",
-    "l": "handover, hold from briefs"
-  },
-  {
-    "f": "feature-design.s11",
-    "t": "feature-plan.s0",
-    "ty": "chain",
-    "l": "Offer plan"
-  },
-  {
-    "f": "feature-design.s6a",
-    "t": "feature-plan.s3",
-    "ty": "data",
-    "l": "design doc; open questions must be empty"
-  },
-  {
-    "f": "feature-plan.s1",
-    "t": "session-control.s2",
-    "ty": "call",
-    "l": "ensure feature-plan"
-  },
-  {
-    "f": "feature-plan.s1",
-    "t": "usage-report.s2",
-    "ty": "call",
-    "l": "start window"
-  },
-  {
-    "f": "feature-plan.s1",
-    "t": "feature-resolve.s1",
-    "ty": "call",
-    "l": "stage=plan"
-  },
-  {
-    "f": "feature-plan.s2",
-    "t": "feature-design.s0",
-    "ty": "hand",
-    "l": "BLOCKED: design gap"
-  },
-  {
-    "f": "feature-plan.s2",
-    "t": "usage-report.s2",
-    "ty": "call",
-    "l": "halted on BLOCKED, cycle"
-  },
-  {
-    "f": "feature-plan.s2",
-    "t": "lessons-capture.s1",
-    "ty": "call",
-    "l": "fallback capture"
-  },
-  {
-    "f": "feature-plan.s9",
-    "t": "lessons-capture.s1",
-    "ty": "call",
-    "l": "slug feature-plan"
-  },
-  {
-    "f": "design-language-update.s7",
-    "t": "feature-plan.s3",
-    "ty": "data",
-    "l": "DESIGN.md"
-  },
-  {
-    "f": "feature-plan.s11",
-    "t": "usage-report.s2",
-    "ty": "call",
-    "l": "quiet report; cycle where chain stops"
-  },
-  {
-    "f": "feature-plan.s11",
-    "t": "session-control.s3",
-    "ty": "call",
-    "l": "handover, hold=deviations"
-  },
-  {
-    "f": "feature-plan.s11",
-    "t": "feature-implement.s0",
-    "ty": "chain",
-    "l": "Offer implement"
-  },
-  {
-    "f": "feature-plan.s5",
-    "t": "feature-implement.s2",
-    "ty": "data",
-    "l": "plan + execution schedule"
-  },
-  {
-    "f": "feature-implement.s1",
-    "t": "session-control.s2",
-    "ty": "call",
-    "l": "ensure feature-implement"
-  },
-  {
-    "f": "feature-implement.s1",
-    "t": "usage-report.s2",
-    "ty": "call",
-    "l": "start window"
-  },
-  {
-    "f": "feature-implement.s1",
-    "t": "feature-resolve.s1",
-    "ty": "call",
-    "l": "stage=implement"
-  },
-  {
-    "f": "feature-implement.s2",
-    "t": "feature-design.s0",
-    "ty": "hand",
-    "l": "deviations → design refresh"
-  },
-  {
-    "f": "feature-implement.s3",
-    "t": "bug-submit.s0",
-    "ty": "hand",
-    "l": "red baseline → file a bug"
-  },
-  {
-    "f": "feature-implement.s3",
-    "t": "usage-report.s2",
-    "ty": "call",
-    "l": "halted: red baseline, cycle"
-  },
-  {
-    "f": "design-language-update.s7",
-    "t": "feature-implement.s2",
-    "ty": "data",
-    "l": "DESIGN.md cited by design"
-  },
-  {
-    "f": "design-language-update.s7",
-    "t": "feature-implement.s3",
-    "ty": "data",
-    "l": "committed with chain docs"
-  },
-  {
-    "f": "design-language-update.s7",
-    "t": "feature-implement.5a",
-    "ty": "data",
-    "l": "UI stages re-read"
-  },
-  {
-    "f": "design-language-update.s7",
-    "t": "feature-implement.5g",
-    "ty": "data",
-    "l": "conformance lens"
-  },
-  {
-    "f": "feature-implement.s5p",
-    "t": "feature-implement.5a",
-    "ty": "loop",
-    "l": "conflict → re-run serially"
-  },
-  {
-    "f": "feature-implement.5i",
-    "t": "feature-implement.5a",
-    "ty": "loop",
-    "l": "next stage"
-  },
-  {
-    "f": "feature-implement.5f",
-    "t": "feature-implement.5b",
-    "ty": "loop",
-    "l": "gap → more tests"
-  },
-  {
-    "f": "feature-implement.5g",
-    "t": "feature-implement.5c",
-    "ty": "loop",
-    "l": "behaviour fix → re-test"
-  },
-  {
-    "f": "feature-implement.s7",
-    "t": "feature-implement.5a",
-    "ty": "loop",
-    "l": "coverage gap → extra stage"
-  },
-  {
-    "f": "feature-implement.s6",
-    "t": "usage-report.s2",
-    "ty": "call",
-    "l": "halted: stop condition, cycle"
-  },
-  {
-    "f": "feature-implement.s6",
-    "t": "feature-design.s0",
-    "ty": "hand",
-    "l": "design-level flaw"
-  },
-  {
-    "f": "feature-implement.s9",
-    "t": "lessons-capture.s1",
-    "ty": "call",
-    "l": "slug feature-implement"
-  },
-  {
-    "f": "feature-implement.s11",
-    "t": "evals-code-run.s0",
-    "ty": "chain",
-    "l": "offer evals"
-  },
-  {
-    "f": "feature-implement.s11",
-    "t": "evals-e2e-run.s0",
-    "ty": "chain",
-    "l": "offer evals"
-  },
-  {
-    "f": "feature-implement.s11",
-    "t": "usage-report.s2",
-    "ty": "call",
-    "l": "report last, cycle, evals_included"
-  },
-  {
-    "f": "remote-check.h4",
-    "t": "feature-implement.s3",
-    "ty": "data",
-    "l": "branch behind → offer pull"
-  },
-  {
-    "f": "session-control.s4",
-    "t": "feature-storm.s0",
-    "ty": "hand",
-    "l": "relaunch, cleared context"
-  },
-  {
-    "f": "session-control.s4",
-    "t": "feature-design.s0",
-    "ty": "hand",
-    "l": "relaunch or queued handover"
-  },
-  {
-    "f": "session-control.s4",
-    "t": "feature-plan.s0",
-    "ty": "hand",
-    "l": "relaunch or queued handover"
-  },
-  {
-    "f": "session-control.s4",
-    "t": "feature-implement.s0",
-    "ty": "hand",
-    "l": "relaunch or queued handover"
-  },
-  {
-    "f": "design-language-update.s7",
-    "t": "feature-mockup.s2",
-    "ty": "data",
-    "l": "reads DESIGN.md"
-  },
-  {
-    "f": "feature-mockup.s5b",
-    "t": "feature-mockup.s5a",
-    "ty": "loop",
-    "l": "nothing actionable → wait"
-  },
-  {
-    "f": "feature-mockup.s5d",
-    "t": "feature-mockup.s4b",
-    "ty": "loop",
-    "l": "revision → re-render"
-  },
-  {
-    "f": "feature-mockup.s5d",
-    "t": "feature-mockup.s4a",
-    "ty": "loop",
-    "l": "new direction → new set"
-  },
-  {
-    "f": "design-language-update.s7",
-    "t": "design-language-update.s2",
-    "ty": "loop",
-    "l": "hash changed → re-read once"
-  },
-  {
-    "f": "design-language-update.s8",
-    "t": "design-language-update.s7",
-    "ty": "loop",
-    "l": "new URL → one more write"
-  },
-  {
-    "f": "feature-mockup.s6",
-    "t": "design-language-update.s3",
-    "ty": "data",
-    "l": "accepted mockups as evidence"
-  },
-  {
-    "f": "feature-implement.s8",
-    "t": "design-language-update.s1",
-    "ty": "call",
-    "l": "settle pending vN (mode=settle)"
-  },
-  {
-    "f": "design-language-update.s9",
-    "t": "feature-implement.s8",
-    "ty": "data",
-    "l": "settle result → commit"
-  },
-  {
-    "f": "feature-implement.s8",
-    "t": "design-language-update.s3",
-    "ty": "data",
-    "l": "implement complete → drift check"
-  },
-  {
-    "f": "bug-submit.s8",
-    "t": "bug-tracker-render.s1",
-    "ty": "call",
-    "l": "regenerate tracker"
-  },
-  {
-    "f": "bug-fix.s0",
-    "t": "bug-submit.s0",
-    "ty": "hand",
-    "l": "no open bugs"
-  },
-  {
-    "f": "bug-fix.s1",
-    "t": "bug-fix.s0",
-    "ty": "loop",
-    "l": "pick a different bug"
-  },
-  {
-    "f": "bug-fix.s4",
-    "t": "bug-fix.s9",
-    "ty": "hand",
-    "l": "no-fix disposition"
-  },
-  {
-    "f": "bug-fix.s8",
-    "t": "bug-fix.s4",
-    "ty": "loop",
-    "l": "unresolved → re-diagnose"
-  },
-  {
-    "f": "bug-fix.s9",
-    "t": "bug-tracker-render.s1",
-    "ty": "call",
-    "l": "regenerate tracker"
-  },
-  {
-    "f": "bug-fix.s10",
-    "t": "lessons-capture.s1",
-    "ty": "call",
-    "l": "slug bug-fix"
-  },
-  {
-    "f": "evals-code-run.s3",
-    "t": "evals-code-run.s2",
-    "ty": "loop",
-    "l": "unreliable → re-run once"
-  },
-  {
-    "f": "evals-e2e-run.s3",
-    "t": "evals-e2e-run.s2",
-    "ty": "loop",
-    "l": "unreliable → re-run once"
-  },
-  {
-    "f": "diagram-update.s5",
-    "t": "diagram-c4-update.s8",
-    "ty": "data",
-    "l": "cross-linked pages"
-  },
-  {
-    "f": "diagram-update.s7",
-    "t": "diagram-update.s5",
-    "ty": "loop",
-    "l": "failure → fix, re-render"
-  },
-  {
-    "f": "diagram-c4-update.s9",
-    "t": "diagram-c4-update.s7",
-    "ty": "loop",
-    "l": "failure → re-place"
-  },
-  {
-    "f": "lessons-capture.s3",
-    "t": "lessons-learn.s2",
-    "ty": "data",
-    "l": "lessons log"
-  },
-  {
-    "f": "skill-customize.s6",
-    "t": "feature-storm.s1",
-    "ty": "data",
-    "l": "extras file"
-  },
-  {
-    "f": "skill-customize.s6",
-    "t": "feature-design.s1",
-    "ty": "data",
-    "l": "extras file"
-  },
-  {
-    "f": "skill-customize.s6",
-    "t": "feature-plan.s1",
-    "ty": "data",
-    "l": "extras file"
-  },
-  {
-    "f": "skill-customize.s6",
-    "t": "feature-implement.s1",
-    "ty": "data",
-    "l": "extras file"
-  },
-  {
-    "f": "skill-customize.s6",
-    "t": "feature-mockup.s0",
-    "ty": "data",
-    "l": "extras file"
-  },
-  {
-    "f": "skill-customize.s6",
-    "t": "design-language-update.s1",
-    "ty": "data",
-    "l": "extras file"
-  },
-  {
-    "f": "skill-customize.s6",
-    "t": "session-control.s0",
-    "ty": "data",
-    "l": "session-control.extras"
-  },
-  {
-    "f": "lessons-capture.s4",
-    "t": "lessons-learn.s1",
-    "ty": "data",
-    "l": "past 50 lessons → reminder"
-  }
+ {
+  "f": "feature-dispatch.s4",
+  "t": "feature-storm.s0",
+  "ty": "chain",
+  "l": "vague → storm"
+ },
+ {
+  "f": "feature-dispatch.s4",
+  "t": "feature-design.s0",
+  "ty": "chain",
+  "l": "clear → design"
+ },
+ {
+  "f": "feature-storm.s1",
+  "t": "session-control.s2",
+  "ty": "call",
+  "l": "ensure feature-storm"
+ },
+ {
+  "f": "feature-storm.s1",
+  "t": "usage-report.s2",
+  "ty": "call",
+  "l": "start window"
+ },
+ {
+  "f": "feature-storm.s2",
+  "t": "feature-resolve.s1",
+  "ty": "call",
+  "l": "stage=storm"
+ },
+ {
+  "f": "feature-storm.s3b",
+  "t": "feature-storm.s3a",
+  "ty": "loop",
+  "l": "new ground → generate"
+ },
+ {
+  "f": "feature-storm.s4",
+  "t": "feature-storm.s3b",
+  "ty": "loop",
+  "l": "Revise"
+ },
+ {
+  "f": "feature-storm.s7",
+  "t": "lessons-capture.s1",
+  "ty": "call",
+  "l": "slug feature-storm"
+ },
+ {
+  "f": "feature-storm.s9",
+  "t": "usage-report.s2",
+  "ty": "call",
+  "l": "quiet report; cycle where chain stops"
+ },
+ {
+  "f": "feature-storm.s9",
+  "t": "session-control.s3",
+  "ty": "call",
+  "l": "handover, hold=none"
+ },
+ {
+  "f": "feature-storm.s9",
+  "t": "feature-design.s0",
+  "ty": "chain",
+  "l": "Offer design"
+ },
+ {
+  "f": "feature-storm.s5",
+  "t": "feature-design.s3",
+  "ty": "data",
+  "l": "storm doc; open questions seed Step 4"
+ },
+ {
+  "f": "feature-design.s1",
+  "t": "session-control.s2",
+  "ty": "call",
+  "l": "ensure feature-design"
+ },
+ {
+  "f": "feature-design.s1",
+  "t": "usage-report.s2",
+  "ty": "call",
+  "l": "start window"
+ },
+ {
+  "f": "feature-design.s2",
+  "t": "feature-resolve.s1",
+  "ty": "call",
+  "l": "stage=design"
+ },
+ {
+  "f": "feature-design.s5r",
+  "t": "design-language-update.s1",
+  "ty": "call",
+  "l": "reconcile, caller=feature-design"
+ },
+ {
+  "f": "design-language-update.s9",
+  "t": "feature-design.s5a",
+  "ty": "data",
+  "l": "result → continue at 5a"
+ },
+ {
+  "f": "feature-design.s5b",
+  "t": "feature-mockup.s0",
+  "ty": "call",
+  "l": "mock up the surface"
+ },
+ {
+  "f": "feature-mockup.s7",
+  "t": "feature-design.s5c",
+  "ty": "data",
+  "l": "decisions + language deltas"
+ },
+ {
+  "f": "feature-design.s5c",
+  "t": "design-language-update.s5",
+  "ty": "call",
+  "l": "record deltas (mode=record)"
+ },
+ {
+  "f": "design-language-update.s9",
+  "t": "feature-design.s6a",
+  "ty": "data",
+  "l": "record result → Step 6"
+ },
+ {
+  "f": "feature-design.s5c",
+  "t": "feature-design.s4",
+  "ty": "loop",
+  "l": "open UI questions / new behaviour"
+ },
+ {
+  "f": "feature-design.s9",
+  "t": "lessons-capture.s1",
+  "ty": "call",
+  "l": "slug feature-design"
+ },
+ {
+  "f": "feature-design.s11",
+  "t": "usage-report.s2",
+  "ty": "call",
+  "l": "quiet report; cycle where chain stops"
+ },
+ {
+  "f": "feature-design.s11",
+  "t": "session-control.s3",
+  "ty": "call",
+  "l": "handover, hold from briefs"
+ },
+ {
+  "f": "feature-design.s11",
+  "t": "feature-plan.s0",
+  "ty": "chain",
+  "l": "Offer plan"
+ },
+ {
+  "f": "feature-design.s6a",
+  "t": "feature-plan.s3",
+  "ty": "data",
+  "l": "design doc; open questions must be empty"
+ },
+ {
+  "f": "feature-plan.s1",
+  "t": "session-control.s2",
+  "ty": "call",
+  "l": "ensure feature-plan"
+ },
+ {
+  "f": "feature-plan.s1",
+  "t": "usage-report.s2",
+  "ty": "call",
+  "l": "start window"
+ },
+ {
+  "f": "feature-plan.s1",
+  "t": "feature-resolve.s1",
+  "ty": "call",
+  "l": "stage=plan"
+ },
+ {
+  "f": "feature-plan.s2",
+  "t": "feature-design.s0",
+  "ty": "hand",
+  "l": "BLOCKED: design gap"
+ },
+ {
+  "f": "feature-plan.s2",
+  "t": "usage-report.s2",
+  "ty": "call",
+  "l": "halted on BLOCKED, cycle"
+ },
+ {
+  "f": "feature-plan.s2",
+  "t": "lessons-capture.s1",
+  "ty": "call",
+  "l": "fallback capture"
+ },
+ {
+  "f": "feature-plan.s9",
+  "t": "lessons-capture.s1",
+  "ty": "call",
+  "l": "slug feature-plan"
+ },
+ {
+  "f": "design-language-update.s7",
+  "t": "feature-plan.s3",
+  "ty": "data",
+  "l": "DESIGN.md"
+ },
+ {
+  "f": "feature-plan.s11",
+  "t": "usage-report.s2",
+  "ty": "call",
+  "l": "quiet report; cycle where chain stops"
+ },
+ {
+  "f": "feature-plan.s11",
+  "t": "session-control.s3",
+  "ty": "call",
+  "l": "handover, hold=deviations"
+ },
+ {
+  "f": "feature-plan.s11",
+  "t": "feature-implement.s0",
+  "ty": "chain",
+  "l": "Offer implement"
+ },
+ {
+  "f": "feature-plan.s5",
+  "t": "feature-implement.s2",
+  "ty": "data",
+  "l": "plan + execution schedule"
+ },
+ {
+  "f": "feature-implement.s1",
+  "t": "session-control.s2",
+  "ty": "call",
+  "l": "ensure feature-implement"
+ },
+ {
+  "f": "feature-implement.s1",
+  "t": "usage-report.s2",
+  "ty": "call",
+  "l": "start window"
+ },
+ {
+  "f": "feature-implement.s1",
+  "t": "feature-resolve.s1",
+  "ty": "call",
+  "l": "stage=implement"
+ },
+ {
+  "f": "feature-implement.s2",
+  "t": "feature-design.s0",
+  "ty": "hand",
+  "l": "deviations → design refresh"
+ },
+ {
+  "f": "feature-implement.s3",
+  "t": "bug-submit.s0",
+  "ty": "hand",
+  "l": "red baseline → file a bug"
+ },
+ {
+  "f": "feature-implement.s3",
+  "t": "usage-report.s2",
+  "ty": "call",
+  "l": "halted: red baseline, cycle"
+ },
+ {
+  "f": "design-language-update.s7",
+  "t": "feature-implement.s2",
+  "ty": "data",
+  "l": "DESIGN.md cited by design"
+ },
+ {
+  "f": "design-language-update.s7",
+  "t": "feature-implement.s3",
+  "ty": "data",
+  "l": "committed with chain docs"
+ },
+ {
+  "f": "design-language-update.s7",
+  "t": "feature-implement.5a",
+  "ty": "data",
+  "l": "UI stages re-read"
+ },
+ {
+  "f": "design-language-update.s7",
+  "t": "feature-implement.5g",
+  "ty": "data",
+  "l": "conformance lens"
+ },
+ {
+  "f": "feature-implement.s5p",
+  "t": "feature-implement.5a",
+  "ty": "loop",
+  "l": "conflict → re-run serially"
+ },
+ {
+  "f": "feature-implement.5i",
+  "t": "feature-implement.5a",
+  "ty": "loop",
+  "l": "next stage"
+ },
+ {
+  "f": "feature-implement.5f",
+  "t": "feature-implement.5b",
+  "ty": "loop",
+  "l": "gap → more tests"
+ },
+ {
+  "f": "feature-implement.5g",
+  "t": "feature-implement.5c",
+  "ty": "loop",
+  "l": "behaviour fix → re-test"
+ },
+ {
+  "f": "feature-implement.s7",
+  "t": "feature-implement.5a",
+  "ty": "loop",
+  "l": "coverage gap → extra stage"
+ },
+ {
+  "f": "feature-implement.s6",
+  "t": "usage-report.s2",
+  "ty": "call",
+  "l": "halted: stop condition, cycle"
+ },
+ {
+  "f": "feature-implement.s6",
+  "t": "feature-design.s0",
+  "ty": "hand",
+  "l": "design-level flaw"
+ },
+ {
+  "f": "feature-implement.s9",
+  "t": "lessons-capture.s1",
+  "ty": "call",
+  "l": "slug feature-implement"
+ },
+ {
+  "f": "feature-implement.s11",
+  "t": "evals-code-run.s0",
+  "ty": "chain",
+  "l": "offer evals"
+ },
+ {
+  "f": "feature-implement.s11",
+  "t": "evals-e2e-run.s0",
+  "ty": "chain",
+  "l": "offer evals"
+ },
+ {
+  "f": "feature-implement.s11",
+  "t": "usage-report.s2",
+  "ty": "call",
+  "l": "report last, cycle, evals_included"
+ },
+ {
+  "f": "remote-check.h4",
+  "t": "feature-implement.s3",
+  "ty": "data",
+  "l": "branch behind → offer pull"
+ },
+ {
+  "f": "session-control.s4",
+  "t": "feature-storm.s0",
+  "ty": "hand",
+  "l": "relaunch, cleared context"
+ },
+ {
+  "f": "session-control.s4",
+  "t": "feature-design.s0",
+  "ty": "hand",
+  "l": "relaunch or queued handover"
+ },
+ {
+  "f": "session-control.s4",
+  "t": "feature-plan.s0",
+  "ty": "hand",
+  "l": "relaunch or queued handover"
+ },
+ {
+  "f": "session-control.s4",
+  "t": "feature-implement.s0",
+  "ty": "hand",
+  "l": "relaunch or queued handover"
+ },
+ {
+  "f": "design-language-update.s7",
+  "t": "feature-mockup.s2",
+  "ty": "data",
+  "l": "reads DESIGN.md"
+ },
+ {
+  "f": "feature-mockup.s5b",
+  "t": "feature-mockup.s5a",
+  "ty": "loop",
+  "l": "nothing actionable → wait"
+ },
+ {
+  "f": "feature-mockup.s5d",
+  "t": "feature-mockup.s4b",
+  "ty": "loop",
+  "l": "revision → re-render"
+ },
+ {
+  "f": "feature-mockup.s5d",
+  "t": "feature-mockup.s4a",
+  "ty": "loop",
+  "l": "new direction → new set"
+ },
+ {
+  "f": "design-language-update.s7",
+  "t": "design-language-update.s2",
+  "ty": "loop",
+  "l": "hash changed → re-read once"
+ },
+ {
+  "f": "design-language-update.s8",
+  "t": "design-language-update.s7",
+  "ty": "loop",
+  "l": "new URL → one more write"
+ },
+ {
+  "f": "feature-mockup.s6",
+  "t": "design-language-update.s3",
+  "ty": "data",
+  "l": "accepted mockups as evidence"
+ },
+ {
+  "f": "feature-implement.s8",
+  "t": "design-language-update.s1",
+  "ty": "call",
+  "l": "settle pending vN (mode=settle)"
+ },
+ {
+  "f": "design-language-update.s9",
+  "t": "feature-implement.s8",
+  "ty": "data",
+  "l": "settle result → commit"
+ },
+ {
+  "f": "feature-implement.s8",
+  "t": "design-language-update.s3",
+  "ty": "data",
+  "l": "implement complete → drift check"
+ },
+ {
+  "f": "bug-submit.s8",
+  "t": "bug-tracker-render.s1",
+  "ty": "call",
+  "l": "regenerate tracker"
+ },
+ {
+  "f": "bug-fix.s0",
+  "t": "bug-submit.s0",
+  "ty": "hand",
+  "l": "no open bugs"
+ },
+ {
+  "f": "bug-fix.s1",
+  "t": "bug-fix.s0",
+  "ty": "loop",
+  "l": "pick a different bug"
+ },
+ {
+  "f": "bug-fix.s4",
+  "t": "bug-fix.s9",
+  "ty": "hand",
+  "l": "no-fix disposition"
+ },
+ {
+  "f": "bug-fix.s8",
+  "t": "bug-fix.s4",
+  "ty": "loop",
+  "l": "unresolved → re-diagnose"
+ },
+ {
+  "f": "bug-fix.s9",
+  "t": "bug-tracker-render.s1",
+  "ty": "call",
+  "l": "regenerate tracker"
+ },
+ {
+  "f": "bug-fix.s10",
+  "t": "lessons-capture.s1",
+  "ty": "call",
+  "l": "slug bug-fix"
+ },
+ {
+  "f": "evals-code-run.s3",
+  "t": "evals-code-run.s2",
+  "ty": "loop",
+  "l": "unreliable → re-run once"
+ },
+ {
+  "f": "evals-e2e-run.s3",
+  "t": "evals-e2e-run.s2",
+  "ty": "loop",
+  "l": "unreliable → re-run once"
+ },
+ {
+  "f": "diagram-update.s5",
+  "t": "diagram-c4-update.s8",
+  "ty": "data",
+  "l": "cross-linked pages"
+ },
+ {
+  "f": "diagram-update.s7",
+  "t": "diagram-update.s5",
+  "ty": "loop",
+  "l": "failure → fix, re-render"
+ },
+ {
+  "f": "diagram-c4-update.s9",
+  "t": "diagram-c4-update.s7",
+  "ty": "loop",
+  "l": "failure → re-place"
+ },
+ {
+  "f": "lessons-capture.s3",
+  "t": "lessons-learn.s2",
+  "ty": "data",
+  "l": "lessons log"
+ },
+ {
+  "f": "skill-customize.s6",
+  "t": "feature-storm.s1",
+  "ty": "data",
+  "l": "extras file"
+ },
+ {
+  "f": "skill-customize.s6",
+  "t": "feature-design.s1",
+  "ty": "data",
+  "l": "extras file"
+ },
+ {
+  "f": "skill-customize.s6",
+  "t": "feature-plan.s1",
+  "ty": "data",
+  "l": "extras file"
+ },
+ {
+  "f": "skill-customize.s6",
+  "t": "feature-implement.s1",
+  "ty": "data",
+  "l": "extras file"
+ },
+ {
+  "f": "skill-customize.s6",
+  "t": "feature-mockup.s0",
+  "ty": "data",
+  "l": "extras file"
+ },
+ {
+  "f": "skill-customize.s6",
+  "t": "design-language-update.s1",
+  "ty": "data",
+  "l": "extras file"
+ },
+ {
+  "f": "skill-customize.s6",
+  "t": "session-control.s0",
+  "ty": "data",
+  "l": "session-control.extras"
+ },
+ {
+  "f": "lessons-capture.s4",
+  "t": "lessons-learn.s1",
+  "ty": "data",
+  "l": "past 50 lessons → reminder"
+ }
 ];
 
 /* ======================= Render ======================= */
@@ -2764,385 +2764,385 @@ document.addEventListener("keydown", e => { if (e.key === "Escape") closePopup()
 /* ======================= Overview flow (skills only) ======================= */
 
 const OV_NODES = [
-  {
-    "slug": "feature-dispatch",
-    "x": 1,
-    "y": 50
-  },
-  {
-    "slug": "feature-storm",
-    "x": 17.5,
-    "y": 50
-  },
-  {
-    "slug": "feature-design",
-    "x": 34,
-    "y": 50
-  },
-  {
-    "slug": "feature-plan",
-    "x": 51,
-    "y": 50
-  },
-  {
-    "slug": "feature-implement",
-    "x": 67.5,
-    "y": 50
-  },
-  {
-    "slug": "remote-check",
-    "x": 89,
-    "y": 50
-  },
-  {
-    "slug": "feature-resolve",
-    "x": 1,
-    "y": 160
-  },
-  {
-    "slug": "feature-mockup",
-    "x": 15,
-    "y": 160
-  },
-  {
-    "slug": "design-language-update",
-    "x": 29,
-    "y": 160
-  },
-  {
-    "slug": "session-control",
-    "x": 48,
-    "y": 160
-  },
-  {
-    "slug": "usage-report",
-    "x": 63,
-    "y": 160
-  },
-  {
-    "slug": "lessons-capture",
-    "x": 77,
-    "y": 160
-  },
-  {
-    "slug": "bug-submit",
-    "x": 1,
-    "y": 270
-  },
-  {
-    "slug": "bug-fix",
-    "x": 13,
-    "y": 270
-  },
-  {
-    "slug": "skill-customize",
-    "x": 27,
-    "y": 270
-  },
-  {
-    "slug": "lessons-learn",
-    "x": 43,
-    "y": 270
-  },
-  {
-    "slug": "evals-code-run",
-    "x": 60,
-    "y": 270
-  },
-  {
-    "slug": "evals-e2e-run",
-    "x": 77,
-    "y": 270
-  },
-  {
-    "slug": "bug-tracker-render",
-    "x": 5,
-    "y": 380
-  },
-  {
-    "slug": "feature-list",
-    "x": 22,
-    "y": 380
-  },
-  {
-    "slug": "diagram-update",
-    "x": 35,
-    "y": 380
-  },
-  {
-    "slug": "diagram-c4-update",
-    "x": 49,
-    "y": 380
-  },
-  {
-    "slug": "set-herdr-label",
-    "x": 64,
-    "y": 380
-  },
-  {
-    "slug": "push",
-    "x": 79,
-    "y": 380
-  },
-  {
-    "slug": "release",
-    "x": 89,
-    "y": 380
-  }
+ {
+  "slug": "feature-dispatch",
+  "x": 1,
+  "y": 50
+ },
+ {
+  "slug": "feature-storm",
+  "x": 17.5,
+  "y": 50
+ },
+ {
+  "slug": "feature-design",
+  "x": 34,
+  "y": 50
+ },
+ {
+  "slug": "feature-plan",
+  "x": 51,
+  "y": 50
+ },
+ {
+  "slug": "feature-implement",
+  "x": 67.5,
+  "y": 50
+ },
+ {
+  "slug": "remote-check",
+  "x": 89,
+  "y": 50
+ },
+ {
+  "slug": "feature-resolve",
+  "x": 1,
+  "y": 160
+ },
+ {
+  "slug": "feature-mockup",
+  "x": 15,
+  "y": 160
+ },
+ {
+  "slug": "design-language-update",
+  "x": 29,
+  "y": 160
+ },
+ {
+  "slug": "session-control",
+  "x": 48,
+  "y": 160
+ },
+ {
+  "slug": "usage-report",
+  "x": 63,
+  "y": 160
+ },
+ {
+  "slug": "lessons-capture",
+  "x": 77,
+  "y": 160
+ },
+ {
+  "slug": "bug-submit",
+  "x": 1,
+  "y": 270
+ },
+ {
+  "slug": "bug-fix",
+  "x": 13,
+  "y": 270
+ },
+ {
+  "slug": "skill-customize",
+  "x": 27,
+  "y": 270
+ },
+ {
+  "slug": "lessons-learn",
+  "x": 43,
+  "y": 270
+ },
+ {
+  "slug": "evals-code-run",
+  "x": 60,
+  "y": 270
+ },
+ {
+  "slug": "evals-e2e-run",
+  "x": 77,
+  "y": 270
+ },
+ {
+  "slug": "bug-tracker-render",
+  "x": 5,
+  "y": 380
+ },
+ {
+  "slug": "feature-list",
+  "x": 22,
+  "y": 380
+ },
+ {
+  "slug": "diagram-update",
+  "x": 35,
+  "y": 380
+ },
+ {
+  "slug": "diagram-c4-update",
+  "x": 49,
+  "y": 380
+ },
+ {
+  "slug": "set-herdr-label",
+  "x": 64,
+  "y": 380
+ },
+ {
+  "slug": "push",
+  "x": 79,
+  "y": 380
+ },
+ {
+  "slug": "release",
+  "x": 89,
+  "y": 380
+ }
 ];
 
 /* bend: arc offset in px for same-row edges (negative = arc above) */
 const OV_EDGES = [
-  {
-    "f": "feature-dispatch",
-    "t": "feature-storm",
-    "ty": "chain",
-    "l": "vague"
-  },
-  {
-    "f": "feature-dispatch",
-    "t": "feature-design",
-    "ty": "chain",
-    "l": "clear",
-    "bend": -40
-  },
-  {
-    "f": "feature-storm",
-    "t": "feature-design",
-    "ty": "chain",
-    "l": "offer design"
-  },
-  {
-    "f": "feature-design",
-    "t": "feature-plan",
-    "ty": "chain",
-    "l": "offer plan"
-  },
-  {
-    "f": "feature-plan",
-    "t": "feature-implement",
-    "ty": "chain",
-    "l": "offer implement"
-  },
-  {
-    "f": "feature-implement",
-    "t": "evals-code-run",
-    "ty": "chain",
-    "l": "offer evals"
-  },
-  {
-    "f": "feature-implement",
-    "t": "evals-e2e-run",
-    "ty": "chain",
-    "l": ""
-  },
-  {
-    "f": "feature-storm",
-    "t": "feature-resolve",
-    "ty": "call",
-    "l": ""
-  },
-  {
-    "f": "feature-design",
-    "t": "feature-resolve",
-    "ty": "call",
-    "l": ""
-  },
-  {
-    "f": "feature-plan",
-    "t": "feature-resolve",
-    "ty": "call",
-    "l": ""
-  },
-  {
-    "f": "feature-implement",
-    "t": "feature-resolve",
-    "ty": "call",
-    "l": ""
-  },
-  {
-    "f": "feature-design",
-    "t": "feature-mockup",
-    "ty": "call",
-    "l": ""
-  },
-  {
-    "f": "feature-design",
-    "t": "design-language-update",
-    "ty": "call",
-    "l": "reconcile + record"
-  },
-  {
-    "f": "feature-implement",
-    "t": "design-language-update",
-    "ty": "call",
-    "l": "settle"
-  },
-  {
-    "f": "feature-storm",
-    "t": "session-control",
-    "ty": "call",
-    "l": ""
-  },
-  {
-    "f": "feature-design",
-    "t": "session-control",
-    "ty": "call",
-    "l": ""
-  },
-  {
-    "f": "feature-plan",
-    "t": "session-control",
-    "ty": "call",
-    "l": ""
-  },
-  {
-    "f": "feature-implement",
-    "t": "session-control",
-    "ty": "call",
-    "l": ""
-  },
-  {
-    "f": "feature-storm",
-    "t": "usage-report",
-    "ty": "call",
-    "l": ""
-  },
-  {
-    "f": "feature-design",
-    "t": "usage-report",
-    "ty": "call",
-    "l": ""
-  },
-  {
-    "f": "feature-plan",
-    "t": "usage-report",
-    "ty": "call",
-    "l": ""
-  },
-  {
-    "f": "feature-implement",
-    "t": "usage-report",
-    "ty": "call",
-    "l": ""
-  },
-  {
-    "f": "feature-storm",
-    "t": "lessons-capture",
-    "ty": "call",
-    "l": ""
-  },
-  {
-    "f": "feature-design",
-    "t": "lessons-capture",
-    "ty": "call",
-    "l": ""
-  },
-  {
-    "f": "feature-plan",
-    "t": "lessons-capture",
-    "ty": "call",
-    "l": ""
-  },
-  {
-    "f": "feature-implement",
-    "t": "lessons-capture",
-    "ty": "call",
-    "l": ""
-  },
-  {
-    "f": "bug-fix",
-    "t": "lessons-capture",
-    "ty": "call",
-    "l": ""
-  },
-  {
-    "f": "bug-submit",
-    "t": "bug-tracker-render",
-    "ty": "call",
-    "l": ""
-  },
-  {
-    "f": "bug-fix",
-    "t": "bug-tracker-render",
-    "ty": "call",
-    "l": ""
-  },
-  {
-    "f": "bug-fix",
-    "t": "bug-submit",
-    "ty": "hand",
-    "l": "no open bugs",
-    "bend": -34
-  },
-  {
-    "f": "feature-implement",
-    "t": "bug-submit",
-    "ty": "hand",
-    "l": "red baseline"
-  },
-  {
-    "f": "feature-plan",
-    "t": "feature-design",
-    "ty": "hand",
-    "l": "BLOCKED",
-    "bend": 52
-  },
-  {
-    "f": "design-language-update",
-    "t": "feature-mockup",
-    "ty": "data",
-    "l": "DESIGN.md"
-  },
-  {
-    "f": "design-language-update",
-    "t": "feature-plan",
-    "ty": "data",
-    "l": ""
-  },
-  {
-    "f": "design-language-update",
-    "t": "feature-implement",
-    "ty": "data",
-    "l": ""
-  },
-  {
-    "f": "lessons-capture",
-    "t": "lessons-learn",
-    "ty": "data",
-    "l": "lessons log"
-  },
-  {
-    "f": "remote-check",
-    "t": "feature-implement",
-    "ty": "data",
-    "l": "branch behind"
-  },
-  {
-    "f": "diagram-update",
-    "t": "diagram-c4-update",
-    "ty": "data",
-    "l": "cross-linked pages",
-    "bend": -28
-  },
-  {
-    "f": "skill-customize",
-    "t": "feature-mockup",
-    "ty": "data",
-    "l": "extras files"
-  },
-  {
-    "f": "skill-customize",
-    "t": "design-language-update",
-    "ty": "data",
-    "l": ""
-  },
-  {
-    "f": "skill-customize",
-    "t": "session-control",
-    "ty": "data",
-    "l": ""
-  }
+ {
+  "f": "feature-dispatch",
+  "t": "feature-storm",
+  "ty": "chain",
+  "l": "vague"
+ },
+ {
+  "f": "feature-dispatch",
+  "t": "feature-design",
+  "ty": "chain",
+  "l": "clear",
+  "bend": -40
+ },
+ {
+  "f": "feature-storm",
+  "t": "feature-design",
+  "ty": "chain",
+  "l": "offer design"
+ },
+ {
+  "f": "feature-design",
+  "t": "feature-plan",
+  "ty": "chain",
+  "l": "offer plan"
+ },
+ {
+  "f": "feature-plan",
+  "t": "feature-implement",
+  "ty": "chain",
+  "l": "offer implement"
+ },
+ {
+  "f": "feature-implement",
+  "t": "evals-code-run",
+  "ty": "chain",
+  "l": "offer evals"
+ },
+ {
+  "f": "feature-implement",
+  "t": "evals-e2e-run",
+  "ty": "chain",
+  "l": ""
+ },
+ {
+  "f": "feature-storm",
+  "t": "feature-resolve",
+  "ty": "call",
+  "l": ""
+ },
+ {
+  "f": "feature-design",
+  "t": "feature-resolve",
+  "ty": "call",
+  "l": ""
+ },
+ {
+  "f": "feature-plan",
+  "t": "feature-resolve",
+  "ty": "call",
+  "l": ""
+ },
+ {
+  "f": "feature-implement",
+  "t": "feature-resolve",
+  "ty": "call",
+  "l": ""
+ },
+ {
+  "f": "feature-design",
+  "t": "feature-mockup",
+  "ty": "call",
+  "l": ""
+ },
+ {
+  "f": "feature-design",
+  "t": "design-language-update",
+  "ty": "call",
+  "l": "reconcile + record"
+ },
+ {
+  "f": "feature-implement",
+  "t": "design-language-update",
+  "ty": "call",
+  "l": "settle"
+ },
+ {
+  "f": "feature-storm",
+  "t": "session-control",
+  "ty": "call",
+  "l": ""
+ },
+ {
+  "f": "feature-design",
+  "t": "session-control",
+  "ty": "call",
+  "l": ""
+ },
+ {
+  "f": "feature-plan",
+  "t": "session-control",
+  "ty": "call",
+  "l": ""
+ },
+ {
+  "f": "feature-implement",
+  "t": "session-control",
+  "ty": "call",
+  "l": ""
+ },
+ {
+  "f": "feature-storm",
+  "t": "usage-report",
+  "ty": "call",
+  "l": ""
+ },
+ {
+  "f": "feature-design",
+  "t": "usage-report",
+  "ty": "call",
+  "l": ""
+ },
+ {
+  "f": "feature-plan",
+  "t": "usage-report",
+  "ty": "call",
+  "l": ""
+ },
+ {
+  "f": "feature-implement",
+  "t": "usage-report",
+  "ty": "call",
+  "l": ""
+ },
+ {
+  "f": "feature-storm",
+  "t": "lessons-capture",
+  "ty": "call",
+  "l": ""
+ },
+ {
+  "f": "feature-design",
+  "t": "lessons-capture",
+  "ty": "call",
+  "l": ""
+ },
+ {
+  "f": "feature-plan",
+  "t": "lessons-capture",
+  "ty": "call",
+  "l": ""
+ },
+ {
+  "f": "feature-implement",
+  "t": "lessons-capture",
+  "ty": "call",
+  "l": ""
+ },
+ {
+  "f": "bug-fix",
+  "t": "lessons-capture",
+  "ty": "call",
+  "l": ""
+ },
+ {
+  "f": "bug-submit",
+  "t": "bug-tracker-render",
+  "ty": "call",
+  "l": ""
+ },
+ {
+  "f": "bug-fix",
+  "t": "bug-tracker-render",
+  "ty": "call",
+  "l": ""
+ },
+ {
+  "f": "bug-fix",
+  "t": "bug-submit",
+  "ty": "hand",
+  "l": "no open bugs",
+  "bend": -34
+ },
+ {
+  "f": "feature-implement",
+  "t": "bug-submit",
+  "ty": "hand",
+  "l": "red baseline"
+ },
+ {
+  "f": "feature-plan",
+  "t": "feature-design",
+  "ty": "hand",
+  "l": "BLOCKED",
+  "bend": 52
+ },
+ {
+  "f": "design-language-update",
+  "t": "feature-mockup",
+  "ty": "data",
+  "l": "DESIGN.md"
+ },
+ {
+  "f": "design-language-update",
+  "t": "feature-plan",
+  "ty": "data",
+  "l": ""
+ },
+ {
+  "f": "design-language-update",
+  "t": "feature-implement",
+  "ty": "data",
+  "l": ""
+ },
+ {
+  "f": "lessons-capture",
+  "t": "lessons-learn",
+  "ty": "data",
+  "l": "lessons log"
+ },
+ {
+  "f": "remote-check",
+  "t": "feature-implement",
+  "ty": "data",
+  "l": "branch behind"
+ },
+ {
+  "f": "diagram-update",
+  "t": "diagram-c4-update",
+  "ty": "data",
+  "l": "cross-linked pages",
+  "bend": -28
+ },
+ {
+  "f": "skill-customize",
+  "t": "feature-mockup",
+  "ty": "data",
+  "l": "extras files"
+ },
+ {
+  "f": "skill-customize",
+  "t": "design-language-update",
+  "ty": "data",
+  "l": ""
+ },
+ {
+  "f": "skill-customize",
+  "t": "session-control",
+  "ty": "data",
+  "l": ""
+ }
 ];
 
 const ovbox = document.getElementById("ovbox");

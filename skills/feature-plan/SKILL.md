@@ -100,6 +100,20 @@ Parse the resolver's output block. Record `mode`, `version`, `description`, `fea
 
 If the resolver stops with an error, pass the message to the user verbatim and stop. Do not retry with invented arguments.
 
+**Open the progress file.** The run keeps a live progress file outside the project, for the user to watch from wherever they like — a status line, another pane, a dashboard. The plugin's `scripts/run_progress.py` owns it. Locate it the way `usage-report` locates its script: `<base>/../../scripts/run_progress.py` from this skill's announced base directory first, else `find ~ -path "*dev-skills*/scripts/run_progress.py" 2>/dev/null`, preferring a `plugins/cache/` match at the highest version over a working clone. `PROGRESS` below means `python3 "<that path>"` — the system interpreter, never a project environment. Then run:
+
+```
+PROGRESS init --skill feature-plan --subject <feature_folder's name> --artefact <stage_file> --tracker <tracker_file> --at 2
+```
+
+It prints `run-progress: <run id> <path>`: record the id as `<progress_run>`. The path is `<config-dir>/dev-skills/progress/progress.json`, never in the repo — one file for every run of every skill, in every repo and session, where this run's record names its skill, its subject (feature or bug), its repo and its session. The script holds this skill's step list and an expected duration for each step — the median of that step's earlier runs once there are some, an estimate until then — so time left allows for steps of very different lengths. Steps before Step 2 count as done, untimed.
+
+- **Enter each step.** Each later step opens by recording itself with `PROGRESS enter --run <progress_run> --step <id>`, which closes the step before it. A step the run jumps over is recorded as skipped; entering an earlier step records a loop back.
+- **Never blocks the run.** No script, no `python3`, or a line starting `run-progress: skipped — ` from `init` → say so in one line, set `<progress_run>` to `none` and skip every later `PROGRESS` call. A later call's skip line is carried past — never retried or investigated.
+- **Quiet.** Don't relay a call's output line; the file is the channel.
+- **Through the script only.** Never edit the JSON by hand.
+- **Steps 3–10 are the subagent's.** Step 2's brief hands it `PROGRESS` and `<progress_run>`, and the procedure it runs enters each of those steps; Step 11 is yours.
+
 **`feature-resolve` runs inline in this turn — do not end your turn when its result block appears.** The `Skill` tool loads it into your own context rather than delegating to a subagent, so the block is a checkpoint in the middle of *your* run, not a hand-off that returns control anywhere. Once you've recorded the fields above, continue straight into Step 2 in the same turn and launch the planning subagent. Stopping here strands the user with a seeded folder, an empty tracker, and no plan. (The Step 2 subagent is the one real delegation in this skill; the resolver is not.)
 
 ## Step 2 — Launch the planning subagent *(main agent)*
@@ -117,12 +131,13 @@ The subagent starts with a fresh context and cannot see this conversation, so it
 - **No toolchain claims** — do not state the project's language, package manager, or test runner in the briefing; the subagent derives the runner(s) from the repo's manifests, README, CI config and any previous plan under `features/` (its Step 4). A stale or guessed claim is a misdirection the subagent must spend a grounding pass refuting before it can cite any command.
 - **Interaction rule** — it has no user channel: it must never call `AskUserQuestion` or wait for input. Planning-level ambiguity is handled by Step 6's decide-and-record protocol; anything it cannot decide is a halt (below).
 - **Halt protocol** — on any blocker (design §8 non-empty, a design-level decision it must not make, a missing prerequisite, a contradiction with the resolution block), it stops where it is and returns a final message starting with `BLOCKED:` plus a one-line reason, followed by the details the user needs (the specific open questions, the decision required, what was and wasn't written). It never flips the tracker's progress bar on a halted run.
+- **Progress** — `PROGRESS` (as `python3 "<absolute script path>"`) and `<progress_run>`, or `none`. The procedure's `PROGRESS enter` lines record each step as it starts; it never runs `init` or `finish`, and a skip line from a call is carried past.
 - **Git constraint** — it writes files only; it never stages, commits, pushes, branches, or otherwise touches git state.
 - **Return contract** — on success, its final message is **exactly** the Step 10 summary block, nothing before or after.
 
 When the subagent returns, verify before relaying:
 
-1. If the message starts with `BLOCKED:`, invoke `usage-report` via the `Skill` tool with `report feature-plan, tracker_file=<tracker_file>, feature_version=<version>, outcome=halted, cycle=true` (a halted run still cost tokens, and the chain stops here, so it prints the cycle report), then relay the message to the user verbatim and stop — Step 11 does not run, so this is the only place the report fires on a halted run. (For a design-level blocker, the recommendation to the user is a new design version via `/feature-design`.)
+1. If the message starts with `BLOCKED:`, run `PROGRESS finish --run <progress_run> --outcome halted --note "BLOCKED"`, then invoke `usage-report` via the `Skill` tool with `report feature-plan, tracker_file=<tracker_file>, feature_version=<version>, outcome=halted, cycle=true` (a halted run still cost tokens, and the chain stops here, so it prints the cycle report), then relay the message to the user verbatim and stop — Step 11 does not run, so this is the only place the report fires on a halted run. (For a design-level blocker, the recommendation to the user is a new design version via `/feature-design`.)
 2. Otherwise run `test -f <stage_file>` — the plan file must exist. If it doesn't, or the final message isn't the Step 10 block, report the discrepancy to the user instead of relaying a success.
 3. If the summary's *Skill-improvement recommendations* line says lessons-capture was unavailable in the subagent, invoke `lessons-capture` via the `Skill` tool (argument `feature-plan`) from the main agent now, and substitute the returned entry into the summary before relaying.
 
@@ -131,6 +146,8 @@ Then continue to Step 11.
 **Fallback:** if the `Agent` tool is unavailable in this session, or the user **rejects** the subagent launch, say so in one line and execute Steps 3–10 yourself, in order, under the identical contract — including Step 6's no-clarifying-questions policy, which is a property of the plan stage, not of subagent execution. A rejected launch is a mode override, not an error: never re-attempt the launch.
 
 ## Step 3 — Read the design end-to-end *(subagent)*
+
+Record the step: `PROGRESS enter --run <progress_run> --step 3`.
 
 `Read` the design file at `prereq_file` (from the resolution block in your briefing). Build an internal map of:
 
@@ -148,6 +165,8 @@ If the design cites an external document as a mandatory dependency or prerequisi
 When the design's §5 cites `DESIGN.md` (its *Design language* sub-section), `Read` it too: it is the project's recorded design language, and every stage that builds or changes UI is planned against it.
 
 ## Step 4 — Ground the plan in the codebase *(subagent)*
+
+Record the step: `PROGRESS enter --run <progress_run> --step 4`.
 
 Use `Read`, `Grep`, and `Glob` to verify the design's assumptions about the existing codebase: do the files/functions/utilities cited in §4 and §5 actually exist? What is already in place vs. what needs to be built? Bound the exploration to what the plan touches.
 
@@ -201,6 +220,8 @@ On a large design, write the grounding evidence to a scratchpad notes file as yo
 The goal is (a) to produce concrete, executable steps in Step 5, and (b) to surface conflicts between the design and current reality that you will raise in Step 7.
 
 ## Step 5 — Draft the staged implementation plan *(subagent)*
+
+Record the step: `PROGRESS enter --run <progress_run> --step 5`.
 
 The plan is a sequence of **stages**. A stage is a unit of work that ends with a working, tested, mergeable increment — small enough that a reviewer can hold it in their head, large enough to be meaningful. Order stages so that each one builds on the last and leaves the system in a working state.
 
@@ -328,6 +349,8 @@ Compute `<YYYY-MM-DD>` from `date -u +%Y-%m-%d`. Use `v<N>` (integer) in the hea
 
 ## Step 6 — Resolve planning-level decisions autonomously *(subagent)*
 
+Record the step: `PROGRESS enter --run <progress_run> --step 6`.
+
 **You have no channel to the user.** This step replaces the clarifying questions an interactive planner would ask: the plan stage deliberately asks nothing — never call `AskUserQuestion`, never stall waiting for input.
 
 If, while drafting Step 5, you hit a planning-level decision that is **not** resolved by the design and that would meaningfully change the staging or the implementation steps, decide it yourself:
@@ -347,6 +370,8 @@ Examples of planning-level decisions you decide and record:
 Do **not** decide design-level questions. If a gap would change the design itself — scope, requirements, approach, interfaces — halt per the `BLOCKED:` protocol in your briefing and name the decision required; only `/feature-design` can close it. Never silently expand scope in the plan.
 
 ## Step 7 — Review the plan and update *(subagent)*
+
+Record the step: `PROGRESS enter --run <progress_run> --step 7`.
 
 Re-read the draft critically and fix what you find via `Edit` directly in the plan file. Run all of these checks:
 
@@ -374,6 +399,8 @@ After edits, do a final pass to confirm:
 If any of these still fail, loop on Step 7 until they pass.
 
 ## Step 8 — Update the tracker *(subagent)*
+
+Record the step: `PROGRESS enter --run <progress_run> --step 8`.
 
 The tracker at `tracker_file` already exists from earlier stages. If it's somehow missing (resolver `notes` flagged `tracker_seed: skipped`), defensively copy the plugin template:
 
@@ -425,11 +452,15 @@ Do **not** touch other skills' tokens beyond the empty-placeholder fallback abov
 
 ## Step 9 — Capture lessons *(subagent)*
 
+Record the step: `PROGRESS enter --run <progress_run> --step 9`.
+
 Invoke the `lessons-capture` skill in this plugin via the `Skill` tool with the single argument `feature-plan`. It runs the reflection protocol, appends a dated entry to `~/.claude/dev-skills/lessons/feature-plan.md`, and returns the entry body for you to paste under the *Skill-improvement recommendations* heading in Step 10. When it also returns a log-size reminder block, paste that block unchanged directly below the entry.
 
 Do not run the reflection inline — `lessons-capture` is the single source of the protocol for all skills in this plugin. If the `Skill` tool is unavailable in your context, do not inline the protocol either: put the single line `lessons-capture unavailable in subagent — run it from the main agent.` under the *Skill-improvement recommendations* heading in Step 10, and the main agent will invoke it before relaying.
 
 ## Step 10 — Compose the staged summary *(subagent — this is your final message)*
+
+Record the step: `PROGRESS enter --run <progress_run> --step 10`.
 
 Your final message back to the main agent must be exactly this block — no preamble, no trailing commentary. The main agent relays it to the user verbatim (Step 11); it is the only part of your run the user reads.
 
@@ -471,6 +502,8 @@ Keep the block under ~35 lines — if the plan has more than 8 stages, group the
 
 First, output the subagent's Step 10 summary block to the user **verbatim** — do not compress, rewrite, or annotate it beyond fixing an obvious formatting break. This is the user's only view of the plan run.
 
+**Close the progress file.** Run `PROGRESS finish --run <progress_run> --outcome completed`, which closes Step 10. It sits before the usage report because a hand-over never returns to this step.
+
 **Report the run usage.** Invoke `usage-report` via the `Skill` tool with the argument `report feature-plan, tracker_file=<tracker_file>, feature_version=<version>`, taking both values from this skill's `feature-resolve` block. It prints nothing: it appends one line to the usage log, fills this stage's tracker panel and rewrites the tracker's Usage tab. Do this *before* the hand-over and offer below: on the chain-in branch this skill hands over through the `Skill` tool and never returns to the step, so a report placed afterwards would silently never run. It runs inline — **do not end your turn**, carry straight on.
 
 **Hand over, or offer.** If this run carries `solo`, skip the rest of this step: invoke `usage-report` via the `Skill` tool with `cycle feature_version=<version>, tracker_file=<tracker_file>` and emit the next-step line below. If `session-control.extras` did not exist in Step 1, go straight to the offer below. Otherwise invoke `session-control` via the `Skill` tool with `handover from=feature-plan, to=feature-implement, version=<version>, hold=<hold>`, taking `<hold>` from the rule below. It runs inline. On `next: end-turn` the next stage is queued in a cleared conversation: end your turn now. On `next: inline`, invoke the `feature-implement` skill via the `Skill` tool with the argument `v<version> from=feature-plan`, without asking again. On `next: stop`, invoke `usage-report` via the `Skill` tool with `cycle feature_version=<version>, tracker_file=<tracker_file>` and emit the next-step line below. On `next: offer`, carry on with the offer below.
@@ -506,6 +539,7 @@ Do not skip this step or substitute the AskUserQuestion with prose. The offer is
 - **Integer versions only.** `v<N>` everywhere — no `v<N>.<M>`. The plan version matches the feature version; there is no separate plan minor-versioning.
 - **The design's open questions must be empty.** If design §8 has any open question, the run halts (`BLOCKED:`). The plan cannot resolve design ambiguity — only `/feature-design` can.
 - **Report the run usage before you stop.** However this run ends — normal completion, a `BLOCKED:` halt, a refusal, or an error surfaced to the user — invoke `usage-report` with `report feature-plan, outcome=halted, cycle=true` — plus `tracker_file=<tracker_file>, feature_version=<version>` once Step 1's resolver has run — before you stop (Step 11's normal path passes `outcome=completed` instead). Step 2 covers the `BLOCKED:` relay; this covers every other exit. The window is the main agent's alone — the planning subagent never opens or closes it. The one exception is a Step 1 relaunch (`next: end-turn` from **Check the session**): it ends the turn before the usage window opens, so there is no window to close.
+- **Progress is tracked outside the project, through the script only, and never blocks.** The progress file is `<config-dir>/dev-skills/progress/progress.json`, shared by every run and never in the repo. It changes only through `scripts/run_progress.py` — never by hand, by the main agent or the planning subagent — and this run writes only its own record, by `--run <progress_run>`. A tracking failure never fails, blocks or retries anything. However the run ends once Step 1 opened its run, `PROGRESS finish` closes it — `--outcome halted` on every early exit, alongside the halted usage report.
 - **A queued relaunch or handover is the one place this skill ends its turn on a success path** besides any wait a helper sanctions; it never ends the turn on a `session-control` result other than `next: end-turn`.
 - **TDD is non-optional for behavior-changing, host-testable stages.** Stages in a sanctioned non-red-first category (Step 5) carry their category label and one-line justification; everything else follows write → fail → code → pass.
 - **The planning core never prompts the user.** Steps 3–10 run without `AskUserQuestion` — in the subagent it is impossible, and the policy holds even in the direct-execution fallback. Only Steps 0, 1, and 11 may prompt, and only from the main agent.

@@ -135,6 +135,19 @@ Parse the resolver's output block. Record these fields verbatim — every later 
 
 If the resolver stops with an error, pass the message to the user verbatim and stop. Do not retry with invented arguments. **One carve-out:** if you arrived here via Step 1's rule 4 (no requirements text, no context, probing for a storm awaiting design) and the error is the resolver's "description required" exit, nothing was created and this is the expected negative result — do not surface it as a failure. Fall back to Step 1 rule 5, ask the user what they want designed, and then re-enter Step 2 normally with the description that produces.
 
+**Open the progress file.** The run keeps a live progress file outside the project, for the user to watch from wherever they like — a status line, another pane, a dashboard. The plugin's `scripts/run_progress.py` owns it. Locate it the way `usage-report` locates its script: `<base>/../../scripts/run_progress.py` from this skill's announced base directory first, else `find ~ -path "*dev-skills*/scripts/run_progress.py" 2>/dev/null`, preferring a `plugins/cache/` match at the highest version over a working clone. `PROGRESS` below means `python3 "<that path>"` — the system interpreter, never a project environment. Then run:
+
+```
+PROGRESS init --skill feature-design --subject <feature_folder's name> --artefact <stage_file> --tracker <tracker_file> --at 3
+```
+
+It prints `run-progress: <run id> <path>`: record the id as `<progress_run>`. The path is `<config-dir>/dev-skills/progress/progress.json`, never in the repo — one file for every run of every skill, in every repo and session, where this run's record names its skill, its subject (feature or bug), its repo and its session. The script holds this skill's step list and an expected duration for each step — the median of that step's earlier runs once there are some, an estimate until then — so time left allows for steps of very different lengths. Steps before Step 3 count as done, untimed.
+
+- **Enter each step.** Each later step opens by recording itself with `PROGRESS enter --run <progress_run> --step <id>`, which closes the step before it. A step the run jumps over is recorded as skipped; entering an earlier step records a loop back.
+- **Never blocks the run.** No script, no `python3`, or a line starting `run-progress: skipped — ` from `init` → say so in one line, set `<progress_run>` to `none` and skip every later `PROGRESS` call. A later call's skip line is carried past — never retried or investigated.
+- **Quiet.** Don't relay a call's output line; the file is the channel.
+- **Through the script only.** Never edit the JSON by hand.
+
 **`feature-resolve` runs inline in this turn — do not end your turn when its result block appears.** The `Skill` tool loads it into your own context rather than delegating to a subagent, so the block is a checkpoint in the middle of *your* run, not a hand-off that returns control anywhere. Once you've recorded the fields above, continue straight into Step 3 in the same turn. Stopping here strands the user with a seeded folder, an empty tracker, and no design.
 
 ## Step 3 — Ground the design in the codebase
@@ -165,6 +178,8 @@ If the working directory is unfamiliar, a single top-level listing plus reading 
 If the feature integrates with a third-party platform (cloud provider, API, framework, library), also ground in that platform's official documentation. **Prefer docs-MCP servers first**, with `context7` as the default for library and framework documentation; use vendor-specific MCP servers (e.g. Microsoft Learn) for those vendors' surfaces. Fall back to `WebFetch` against the platform's official documentation URL **only when no MCP server covers the topic**. Invent nothing about the external surface. Ground the *menu* and the *behaviour*, not only the API shape. When the platform offers more than one mechanism for the capability — or the feature binds to one named provider among obvious alternatives — lay them all out with their limits and costs before the first Step 4 round, so the user decides once over the full set. And where the design will rest on an external or other-project mechanism, exercise it end to end with one throwaway probe in each target environment the requirements name — the request and the reply, its entitlement on this account, what it leaves behind — asking first when a probe would cost money or create anything, and open the interview with what it showed.
 
 ## Step 4 — Clarify until all material decisions are closed
+
+Record the step: `PROGRESS enter --run <progress_run> --step 4`.
 
 **This step is mandatory even in auto / non-interactive mode.** If the user or the harness has told you to "work without stopping", "skip clarifying questions", or otherwise run autonomously, that instruction does **not** apply here — closing material ambiguity before the design is written is the entire purpose of this skill. Ask the questions anyway; a design produced from guesses is worse than a brief pause.
 
@@ -227,6 +242,8 @@ Three rules keep the rounds efficient and honest:
 Do not pad with questions for their own sake — a question whose answer cannot change the design is noise, and the ask-or-decide rule above keeps mechanical detail off the user's plate. But when the two failure modes are weighed against each other, **under-clarification is the far more expensive one and the one this skill exists to prevent**: a padded round costs the user thirty seconds, while a design written over a guess costs a plan and an implementation built on it. Never stop early to avoid friction, to seem efficient, or because the user has answered several rounds already — the user asked for a design they can build from, and rounds are the price of one. The final design must have **no points that require further decisions**.
 
 ## Step 5 — Mock up the user-visible surface
+
+Record the step: `PROGRESS enter --run <progress_run> --step 5`.
 
 Run this after the clarification loop has closed and **before** the design document is written — a UI decision settled in prose is a decision nobody actually took, and re-deciding it after §5 is drafted means rewriting the design.
 
@@ -305,6 +322,8 @@ Parse the returned result block and record `status`, `kind`, `mockup_dir`, `chos
 One wait is built in: while the user answers on the published pages, `feature-mockup` may pause the run by ending the turn on its `feature-mockup waiting` marker. That is not this step ending. The next turn — opened by the user's send from a page or by their chat reply — resumes the mockup where the marker left it, and its result block is followed by the record call and Step 6 in that turn.
 
 ## Step 6 — Write the design document
+
+Record the step: `PROGRESS enter --run <progress_run> --step 6`.
 
 ### 6a. The design document
 
@@ -427,6 +446,8 @@ Three rules make a brief usable on the other side:
 
 ## Step 7 — Self-review and fix
 
+Record the step: `PROGRESS enter --run <progress_run> --step 7`.
+
 Re-read the draft critically through these lenses, and fix what you find via `Edit` directly in the design file. Do not produce a separate review document.
 
 - **Functional correctness** — does every numbered requirement in §3 map to concrete design content in §5? Any requirement without a corresponding design element is a gap to fix.
@@ -457,6 +478,8 @@ After the edits, do a final read-through to confirm:
 If any of these still fail, loop on Step 7 until they pass. Do not proceed to Step 8 with an unresolved design.
 
 ## Step 8 — Update the tracker
+
+Record the step: `PROGRESS enter --run <progress_run> --step 8`.
 
 The tracker file at `tracker_file` already exists (seeded by `feature-resolve` in Step 2; its stepper has only two states — `pending` and `complete` — and the design step stays `pending` until this step flips it). If the file is somehow missing (resolver `notes` flagged `tracker_seed: skipped`), defensively copy the plugin template:
 
@@ -512,11 +535,15 @@ Do **not** touch other skills' tokens (storm content, plan, implementation) beyo
 
 ## Step 9 — Capture lessons
 
+Record the step: `PROGRESS enter --run <progress_run> --step 9`.
+
 Invoke the `lessons-capture` skill in this plugin via the `Skill` tool with the single argument `feature-design`. It runs the reflection protocol, appends a dated entry to `~/.claude/dev-skills/lessons/feature-design.md`, and returns the entry body (a single recommendation in three lines, or the "No skill-improvement recommendations from this run." line) for you to paste under the *Skill-improvement recommendations* heading in Step 10. When it also returns a log-size reminder block, paste that block unchanged directly below the entry.
 
 Do not run the reflection inline — `lessons-capture` is the single source of the protocol for all skills in this plugin.
 
 ## Step 10 — Present highlights
+
+Record the step: `PROGRESS enter --run <progress_run> --step 10`.
 
 In chat, output a short, scannable summary so the user does not need to open the file to get the gist:
 
@@ -552,6 +579,8 @@ Keep the chat output under ~30 lines. The file is the artifact; the chat is the 
 
 ## Step 11 — Offer to chain into /feature-plan
 
+**Close the progress file.** Run `PROGRESS finish --run <progress_run> --outcome completed`, which closes Step 10. It sits before the usage report because a hand-over never returns to this step.
+
 **Report the run usage.** Invoke `usage-report` via the `Skill` tool with the argument `report feature-design, tracker_file=<tracker_file>, feature_version=<version>`, taking both values from this skill's `feature-resolve` block. It prints nothing: it appends one line to the usage log, fills this stage's tracker panel and rewrites the tracker's Usage tab. Do this *before* the hand-over and offer below: on the chain-in branch this skill hands over through the `Skill` tool and never returns to the step, so a report placed afterwards would silently never run. It runs inline — **do not end your turn**, carry straight on.
 
 **Hand over, or offer.** If this run carries `solo`, skip the rest of this step: invoke `usage-report` via the `Skill` tool with `cycle feature_version=<version>, tracker_file=<tracker_file>` and emit the next-step line below. If `session-control.extras` did not exist in Step 1, go straight to the offer below. Otherwise invoke `session-control` via the `Skill` tool with `handover from=feature-design, to=feature-plan, version=<version>, hold=<hold>`, taking `<hold>` from the rule below. It runs inline. On `next: end-turn` the next stage is queued in a cleared conversation: end your turn now. On `next: inline`, invoke the `feature-plan` skill via the `Skill` tool with the argument `v<version> from=feature-design`, without asking again. On `next: stop`, invoke `usage-report` via the `Skill` tool with `cycle feature_version=<version>, tracker_file=<tracker_file>` and emit the next-step line below. On `next: offer`, carry on with the offer below.
@@ -583,6 +612,7 @@ Do not skip this step or substitute the AskUserQuestion with prose. The offer is
 - **No open decisions.** §8 must be empty or "None — all decisions closed." before Step 8 begins.
 - **Clarify to exhaustion, not to a quota.** Step 4 is an interview that runs until the readiness test passes — a dry-drafted §5 with no guesses, no hedge language, an empty §8, every storm §7 item closed, the two-engineer test met, and a round that surfaced nothing new. Question count, elapsed rounds, and the user having already answered a few are not exit conditions. The one uncertainty allowed past it is appearance, which Step 5 closes with a rendered mockup.
 - **Report the run usage before you stop.** However this run ends — normal completion, a halt, a refusal, a stop condition, or an error surfaced to the user — invoke `usage-report` with `report feature-design, outcome=halted, cycle=true` — plus `tracker_file=<tracker_file>, feature_version=<version>` once Step 2's resolver has run — before you stop (Step 11's normal path passes `outcome=completed` instead). This covers every exit Step 11 does not. A halted run still cost tokens, and one that never reports vanishes from the log and skews every average drawn from it. The one exception is a Step 1 relaunch (`next: end-turn` from **Check the session**): it ends the turn before the usage window opens, so there is no window to close.
+- **Progress is tracked outside the project, through the script only, and never blocks.** The progress file is `<config-dir>/dev-skills/progress/progress.json`, shared by every run and never in the repo. It changes only through `scripts/run_progress.py` — never by hand — and this run writes only its own record, by `--run <progress_run>`. A tracking failure never fails, blocks or retries anything. However the run ends once Step 2 opened its run, `PROGRESS finish` closes it — `--outcome halted` on every early exit, alongside the halted usage report.
 - **A queued relaunch or handover is the one place this skill ends its turn on a success path** besides any wait a helper sanctions; it never ends the turn on a `session-control` result other than `next: end-turn`.
 - **Self-review is mandatory.** Step 7 must run even if the draft looks clean — security and efficiency gaps are usually invisible on the first pass.
 - **UI decisions come from the user, via the mockup.** When the feature has a user-visible surface, Step 5 runs and the design records the direction the user accepted — never a surface you invented and never one the user has not seen. `feature-mockup` owns the mockup files under `<feature_folder>/mockups/` and their published artifacts; this skill only reads them and cites them, by URL and relative path both.

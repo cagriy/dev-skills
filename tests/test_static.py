@@ -2666,82 +2666,209 @@ class TestReleaseTypeContract:
         )
 
 
-class TestImplementProgressContract:
-    """feature-implement keeps a live progress file through
-    scripts/implement_progress.py. The skill names the calls and when they
-    fire; the script owns the file. Nothing else forces the two to agree on
-    subcommand, flag and status names, or forces every exit to close the file.
+class TestRunProgressContract:
+    """feature-storm, feature-design, feature-plan, feature-implement and
+    bug-fix all write one live progress file through scripts/run_progress.py,
+    each run under the id `init` gave it. Each skill names the calls and when
+    they fire; the script owns the file and, for the four step skills, the
+    step list. Nothing else forces the two to agree on subcommands, flags,
+    status words, step ids and the run handle, or forces every exit to close
+    the run.
     """
 
-    SCRIPT = REPO / "scripts" / "implement_progress.py"
-    CALL_RE = r"PROGRESS (init|stage|update|finish|job)\b([^`\n]*)"
-    FINISH_HALTED = "PROGRESS finish --file <progress_file> --outcome halted"
-
-    def text(self):
-        return skill_text("feature-implement")
+    SCRIPT = REPO / "scripts" / "run_progress.py"
+    CALL_RE = r"PROGRESS (init|stage|enter|update|finish|job)\b([^`\n]*)"
+    FINISH_HALTED = "PROGRESS finish --run <progress_run> --outcome halted"
+    FINISH_COMPLETED = "PROGRESS finish --run <progress_run> --outcome completed"
+    INIT_PRINTS = "It prints `run-progress: <run id> <path>`"
+    LOCATE = (
+        "`<base>/../../scripts/run_progress.py` from this skill's announced base directory "
+        'first, else `find ~ -path "*dev-skills*/scripts/run_progress.py" 2>/dev/null`'
+    )
+    STEP_SKILLS = ("feature-storm", "feature-design", "feature-plan", "bug-fix")
+    SKILLS = (*STEP_SKILLS, "feature-implement")
+    CHAIN_STEP_SKILLS = ("feature-storm", "feature-design", "feature-plan")
 
     def module(self):
-        from scripts import implement_progress
+        from scripts import run_progress
 
-        return implement_progress
+        return run_progress
 
-    def calls(self):
-        return re.findall(self.CALL_RE, self.text())
+    def calls(self, slug):
+        return re.findall(self.CALL_RE, skill_text(slug))
 
-    def test_the_skill_runs_the_script(self):
+    @staticmethod
+    def step_section(text, step_id):
+        start = re.search(rf"^#{{2,3}} Step {re.escape(step_id)} —", text, re.MULTILINE)
+        assert start, f"no `## Step {step_id}` heading"
+        nxt = re.search(r"^#{2,3} Step \S+ —", text[start.end():], re.MULTILINE)
+        return start.start(), start.end() + nxt.start() if nxt else len(text)
+
+    def init_at(self, slug):
+        text = skill_text(slug)
+        inits = [rest for command, rest in self.calls(slug) if command == "init"]
+        assert len(inits) == 1, f"{slug}: expected one `PROGRESS init`, found {len(inits)}"
+        assert f"--skill {slug}" in inits[0], f"{slug}: init does not name its own skill"
+        at = re.search(r"--at (\S+)", inits[0])
+        return text, inits[0], at.group(1) if at else None
+
+    # --- every skill ------------------------------------------------------
+
+    def test_each_skill_locates_and_runs_the_script(self):
         assert self.SCRIPT.exists()
-        assert "scripts/implement_progress.py" in self.text()
+        for slug in self.SKILLS:
+            text = skill_text(slug)
+            assert "scripts/run_progress.py" in text, slug
+            assert self.LOCATE in text, f"{slug}: the script is located some other way"
+            assert "<config-dir>/dev-skills/progress/progress.json" in text, slug
 
-    def test_every_subcommand_is_used_and_none_is_invented(self):
-        used = {command for command, _ in self.calls()}
-        assert used == {"init", "stage", "update", "finish", "job"}, used
+    def test_each_skill_records_its_run_id_and_names_it_on_every_call(self):
+        for slug in self.SKILLS:
+            text = skill_text(slug)
+            assert self.INIT_PRINTS in text, f"{slug}: init's output is described some other way"
+            assert "`<progress_run>`" in text, slug
+            for command, rest in self.calls(slug):
+                # A bare `PROGRESS finish` or `PROGRESS stage …` in prose names a
+                # call made elsewhere; only a call with arguments is checked.
+                if command != "init" and rest.strip() and not rest.strip().startswith("…"):
+                    assert rest.startswith(" --run <progress_run>"), (
+                        f"{slug}: `PROGRESS {command}{rest}` does not name its run first"
+                    )
 
-    def test_every_flag_the_skill_passes_exists_in_the_script(self):
+    def test_every_flag_a_skill_passes_exists_in_the_script(self):
         source = self.SCRIPT.read_text()
         known = set(re.findall(r'"(--[a-z][a-z-]*)"', source))
         known |= {f"--{name.replace('_', '-')}" for name in self.module().COUNTS}
-        for command, rest in self.calls():
-            rest = re.sub(r"\$\([^)]*\)", "", rest)  # a `$(git …)` value is not a flag
-            for flag in re.findall(r"(?<![\w-])--[a-z][a-z-]*", rest):
-                assert flag in known, f"`PROGRESS {command}` passes {flag}, which the script lacks"
+        for slug in self.SKILLS:
+            for command, rest in self.calls(slug):
+                rest = re.sub(r"\$\([^)]*\)", "", rest)  # a `$(git …)` value is not a flag
+                for flag in re.findall(r"(?<![\w-])--[a-z][a-z-]*", rest):
+                    assert flag in known, (
+                        f"{slug}: `PROGRESS {command}` passes {flag}, which the script lacks"
+                    )
 
     def test_status_phase_and_outcome_words_match_the_script(self):
-        ip = self.module()
-        text = self.text()
-        for word in re.findall(r"--status ([a-z]+)", text):
-            assert word in ip.STAGE_STATUSES, word
-        for word in re.findall(r"--phase ([a-z]+)", text):
-            assert word in ip.PHASES, word
-        for word in re.findall(r"--outcome ([a-z]+)", text):
-            assert word in ip.OUTCOMES, word
+        rp = self.module()
+        for slug in self.SKILLS:
+            text = skill_text(slug)
+            for word in re.findall(r"--status ([a-z]+)", text):
+                assert word in rp.STAGE_STATUSES, (slug, word)
+            for word in re.findall(r"--phase ([a-z]+)", text):
+                assert word in rp.PHASES, (slug, word)
+            for word in re.findall(r"--outcome ([a-z]+)", text):
+                assert word in rp.OUTCOMES, (slug, word)
 
-    def test_the_file_opens_in_step_2_outside_the_project(self):
-        text = self.text()
+    def test_the_constraint_keeps_tracking_out_of_the_way(self):
+        for slug in self.SKILLS:
+            bullet = re.search(r"^- \*\*Progress is tracked.*$", skill_text(slug), re.MULTILINE)
+            assert bullet, f"{slug}: no progress constraint"
+            for part in ("scripts/run_progress.py", "never by hand", "PROGRESS finish"):
+                assert part in bullet.group(0), (slug, part)
+
+    # --- the step skills --------------------------------------------------
+
+    def test_step_skills_enter_steps_and_never_record_stages(self):
+        for slug in self.STEP_SKILLS:
+            used = {command for command, _ in self.calls(slug)}
+            assert {"init", "enter", "finish"} <= used <= {"init", "enter", "finish", "job"}, (
+                slug, used)
+
+    def test_every_planned_step_is_one_of_the_skills_headings(self):
+        plans = self.module().STEP_PLANS
+        assert set(plans) == set(self.STEP_SKILLS)
+        for slug in self.STEP_SKILLS:
+            text = skill_text(slug)
+            for step_id, _, _ in plans[slug]:
+                assert re.search(rf"^#{{2,3}} Step {step_id} —", text, re.MULTILINE), (
+                    f"{slug}: the script plans Step {step_id}, which the skill does not have"
+                )
+
+    def test_init_opens_the_file_no_later_than_its_first_tracked_step(self):
+        ids_of = {slug: [s[0] for s in steps] for slug, steps in self.module().STEP_PLANS.items()}
+        for slug in self.STEP_SKILLS:
+            text, init, at = self.init_at(slug)
+            assert at in ids_of[slug], f"{slug}: `--at {at}` is not a planned step"
+            where = text.index("PROGRESS init")
+            opened_in = [i for i in ids_of[slug] if self.step_section(text, i)[0] <= where]
+            assert opened_in and ids_of[slug].index(opened_in[-1]) <= ids_of[slug].index(at), (
+                f"{slug}: init runs after Step {at} has begun"
+            )
+
+    def test_every_later_step_is_entered_in_its_own_section(self):
+        plans = self.module().STEP_PLANS
+        for slug in self.STEP_SKILLS:
+            text, _, at = self.init_at(slug)
+            ids = [s[0] for s in plans[slug]]
+            for step_id in ids[ids.index(at) + 1:]:
+                start, end = self.step_section(text, step_id)
+                call = f"PROGRESS enter --run <progress_run> --step {step_id}"
+                assert call in text[start:end], f"{slug}: Step {step_id} is never entered"
+            for entered in re.findall(r"PROGRESS enter --run <progress_run> --step (\d{1,2}[a-z]?)`",
+                                      text):
+                assert entered in ids, f"{slug}: enters Step {entered}, which is not planned"
+
+    def test_chain_step_skills_close_the_file_before_the_usage_report(self):
+        for slug in self.CHAIN_STEP_SKILLS:
+            text = skill_text(slug)
+            last = max(int(n) for n in re.findall(r"^## Step (\d+) —", text, re.MULTILINE))
+            start, end = step_span(text, last)
+            finish = text.find(self.FINISH_COMPLETED, start, end)
+            report = re.search(r"^\*\*Report the run usage\.\*\*", text[start:end], re.MULTILINE)
+            assert finish != -1, f"{slug}: the final step never closes the progress file"
+            assert finish < start + report.start(), (
+                f"{slug}: close the progress file before the usage report and the hand-over"
+            )
+
+    def test_bug_fix_closes_the_file_in_its_final_step(self):
+        text = skill_text("bug-fix")
+        start, end = step_span(text, 10)
+        assert self.FINISH_COMPLETED in text[start:end]
+
+    def test_plan_closes_halted_on_blocked_and_briefs_its_subagent(self):
+        text = skill_text("feature-plan")
+        start, end = step_span(text, 2)
+        step2 = text[start:end]
+        blocked = step2[step2.index("If the message starts with `BLOCKED:`"):]
+        assert self.FINISH_HALTED in blocked.split("\n", 1)[0], (
+            "feature-plan: a BLOCKED: halt leaves the progress file running"
+        )
+        assert re.search(r"^- \*\*Progress\*\* — ", step2, re.MULTILINE), (
+            "feature-plan: the brief has no Progress bullet, so Steps 3–10 go unrecorded"
+        )
+
+    # --- feature-implement ------------------------------------------------
+
+    def test_implement_records_stages_and_never_enters_steps(self):
+        used = {command for command, _ in self.calls("feature-implement")}
+        assert used == {"init", "stage", "update", "finish", "job"}, used
+
+    def test_implement_opens_the_file_in_step_2(self):
+        text, _, at = self.init_at("feature-implement")
+        assert at is None
         start, end = step_span(text, 2)
         assert "PROGRESS init" in text[start:end]
-        assert "<config-dir>/dev-skills/progress/" in text[start:end]
 
-    def test_early_exits_close_the_file_halted(self):
-        text = self.text()
+    def test_implement_early_exits_close_the_file_halted(self):
+        text = skill_text("feature-implement")
         for anchor in ("Tests already failing", "## Step 6 —"):
             where = text.index(anchor)
             assert self.FINISH_HALTED in text[where : where + 4000], (
                 f"feature-implement: the early exit at {anchor!r} leaves the progress file running"
             )
 
-    def test_the_final_step_closes_the_file_before_the_usage_report(self):
-        text = self.text()
+    def test_implement_final_step_closes_the_file_before_the_usage_report(self):
+        text = skill_text("feature-implement")
         last = max(int(n) for n in re.findall(r"^## Step (\d+) —", text, re.MULTILINE))
         start, end = step_span(text, last)
-        finish = text.find("PROGRESS finish --file <progress_file> --outcome", start, end)
+        finish = text.find("PROGRESS finish --run <progress_run> --outcome", start, end)
         report = re.search(r"^\*\*Report the run usage\.\*\*", text[start:end], re.MULTILINE)
         assert finish != -1, "the final step never closes the progress file"
         assert finish < start + report.start(), (
             "close the progress file before the usage report, so the cycle report stays last"
         )
 
-    def test_subagents_record_their_own_stages(self):
-        text = self.text()
+    def test_implement_subagents_record_their_own_stages(self):
+        text = skill_text("feature-implement")
         contract = text[text.index("#### Subagent contract"):text.index("#### Parallel addendum")]
         assert re.search(r"^- \*\*Progress\*\* — ", contract, re.MULTILINE), (
             "the subagent contract has no Progress bullet, so delegated stages go unrecorded"
@@ -2750,13 +2877,11 @@ class TestImplementProgressContract:
         assert invariant and "Progress" in invariant.group(1)
         addendum = text[text.index("#### Parallel addendum"):text.index("### 5a.")]
         workspace = re.search(r"^- \*\*Workspace\*\* — .*$", addendum, re.MULTILINE).group(0)
-        assert "<progress_file>" in workspace, (
+        assert "<progress_run>" in workspace, (
             "a parallel subagent may not touch paths outside its worktree unless named"
         )
 
-    def test_the_constraint_keeps_tracking_out_of_the_way(self):
-        bullet = re.search(r"^- \*\*Progress is tracked.*$", self.text(), re.MULTILINE)
-        assert bullet, "feature-implement: no progress constraint"
-        for part in ("scripts/implement_progress.py", "never by hand", "exit status",
-                     "PROGRESS finish"):
-            assert part in bullet.group(0), part
+    def test_implement_jobs_keep_the_commands_exit_status(self):
+        bullet = re.search(r"^- \*\*Progress is tracked.*$", skill_text("feature-implement"),
+                           re.MULTILINE)
+        assert "exit status" in bullet.group(0)

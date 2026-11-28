@@ -125,6 +125,19 @@ Parse the resolver's output block. Record these fields verbatim — every later 
 
 If the resolver stops with an error (e.g. plan/implement prereq missing — shouldn't happen for storm, but other error paths exist), pass the message to the user verbatim and stop. Do not retry with invented arguments.
 
+**Open the progress file.** The run keeps a live progress file outside the project, for the user to watch from wherever they like — a status line, another pane, a dashboard. The plugin's `scripts/run_progress.py` owns it. Locate it the way `usage-report` locates its script: `<base>/../../scripts/run_progress.py` from this skill's announced base directory first, else `find ~ -path "*dev-skills*/scripts/run_progress.py" 2>/dev/null`, preferring a `plugins/cache/` match at the highest version over a working clone. `PROGRESS` below means `python3 "<that path>"` — the system interpreter, never a project environment. Then run:
+
+```
+PROGRESS init --skill feature-storm --subject <feature_folder's name> --artefact <stage_file> --tracker <tracker_file> --at 3a
+```
+
+It prints `run-progress: <run id> <path>`: record the id as `<progress_run>`. The path is `<config-dir>/dev-skills/progress/progress.json`, never in the repo — one file for every run of every skill, in every repo and session, where this run's record names its skill, its subject (feature or bug), its repo and its session. The script holds this skill's step list and an expected duration for each step — the median of that step's earlier runs once there are some, an estimate until then — so time left allows for steps of very different lengths. Steps before Step 3a count as done, untimed.
+
+- **Enter each step.** Each later step opens by recording itself with `PROGRESS enter --run <progress_run> --step <id>`, which closes the step before it. A step the run jumps over is recorded as skipped; entering an earlier step records a loop back.
+- **Never blocks the run.** No script, no `python3`, or a line starting `run-progress: skipped — ` from `init` → say so in one line, set `<progress_run>` to `none` and skip every later `PROGRESS` call. A later call's skip line is carried past — never retried or investigated.
+- **Quiet.** Don't relay a call's output line; the file is the channel.
+- **Through the script only.** Never edit the JSON by hand.
+
 **`feature-resolve` runs inline in this turn — do not end your turn when its result block appears.** The `Skill` tool loads it into your own context rather than delegating to a subagent, so the block is a checkpoint in the middle of *your* run, not a hand-off that returns control anywhere. Once you've recorded the fields above, continue straight into Step 3 in the same turn. Stopping here strands the user with a seeded folder, an empty tracker, and no brainstorm.
 
 ## Step 3 — Brainstorm and discuss specifics
@@ -179,6 +192,8 @@ Rules for generated ideas (both waves):
 
 ### Step 3b — Converge (clarify)
 
+Record the step: `PROGRESS enter --run <progress_run> --step 3b`.
+
 Iteratively use `AskUserQuestion` (1–4 questions per call) to converge on the product picture. **Always present options with a recommendation** rather than open-ended prompts — the user can still pick "Other" to redirect. **Verify any fact you put in an option.** Where an option description — or the reason your recommended option is the recommended one — rests on a claim about this codebase or an external service, confirm it with a quick search or read before the round goes out. A claim a later grep disproves costs you a reversal of your own recommendation mid-storm, which is more expensive than the ten seconds of checking and harder for the user to trust afterwards. Two more option-construction rules: when a question's options enumerate parts of the system to include or exclude, first verify the parts are **mutually independent code paths**, and collapse or annotate any option subsumed by another — a partly-redundant menu produces a selection that has to be re-read against the code afterwards. And when an option offers a **deferrable capability**, its description states what the user still gets by deferring (the do-nothing baseline), not only what adopting it costs or adds — defer decisions stall without the baseline in view. **Make every option weighable from its own text — a generated idea's included.** When options turn on a concept your grounding introduced rather than the brief, on project or platform terms that are near-synonyms, or on two things that share a name, say in plain words what each is inside the question or the option description — an explainer in chat before the dialog can add depth but never carries anything needed to answer — and call each by its full, unambiguous name. The same holds for consequences: an option that replaces or changes something existing states what that thing does today, and one that commits the user to a recurring manual step names the step. A round rejected with "what is this?" costs a full round-trip and forces the one-question pacing below. **Pace the bundle size to the user's footing:** for technically-uncertain or feasibility-gated features, open with the single highest-leverage question (or a short feasibility note) and expand to 3–4 question rounds only once the user is answering decisions rather than clarifying what's possible. And react to what a round returns: when any question comes back unanswered or the round is rejected for clarification, the next round carries **at most one question** until a full round comes back answered — re-sending four-question bundles at a user who is digging into one thing burns whole round-trips that return nothing. **Sequence by dependency:** ask the foundational decisions whose answers constrain later questions first (e.g. where a component runs relative to its clients before how they communicate or authenticate), so a late-surfacing upstream fact doesn't invalidate answers already given. Cover at minimum:
 
 - **Goals** — concrete outcomes the feature should achieve.
@@ -207,6 +222,8 @@ Anything else must be closed before the gate. If the same item is still unsettle
 
 ## Step 4 — Summarise and gate on approval
 
+Record the step: `PROGRESS enter --run <progress_run> --step 4`.
+
 You may only arrive here with the scope check at the end of Step 3 passed — every capability discussed is either in this version or explicitly deferred. If drafting the summary surfaces an item you cannot place on that boundary, go back to Step 3 and close it; do not present it as a hedge.
 
 Before drafting, re-read the project's own stated principles — its instruction or conventions file, an architecture charter, a stated product motto — and fold any that bear on this feature into the constraints bullet proactively. A project-wide principle the user takes as given is the likeliest thing to come back as a revise at this gate, and it is far cheaper to include than to be asked for.
@@ -225,10 +242,12 @@ Present the summary in chat as a clearly labeled block (e.g. under the heading *
 Branching:
 
 - **Approve** → Step 5.
-- **Revise** (or "Other" with feedback) → loop back to Step 3 with the user's feedback in mind. Do not skip Step 4 on the next pass — re-present a fresh ≤10-bullet summary after the next round and ask again. After three revise loops with no convergence, ask the user whether to stop or commit imperfectly to whatever the current draft is; never silently push on.
-- **Stop** → exit the skill cleanly. Do not write `feature-storm-v<N>-<desc>.md`. Do not flip the progress bar to `complete` — the tracker's storm step stays at `pending`, accurately reflecting that no storm artefact was produced. Tell the user the brainstorm was abandoned and, in the same line, that the folder Step 2 created (`feature_folder`, holding only the seeded tracker) is still on disk — this skill never deletes it.
+- **Revise** (or "Other" with feedback) → record the loop with `PROGRESS enter --run <progress_run> --step 3b`, then go back to Step 3 with the user's feedback in mind. Do not skip Step 4 on the next pass — re-present a fresh ≤10-bullet summary after the next round and ask again. After three revise loops with no convergence, ask the user whether to stop or commit imperfectly to whatever the current draft is; never silently push on.
+- **Stop** → close the progress file with `PROGRESS finish --run <progress_run> --outcome halted --note "abandoned at approval"` and exit the skill cleanly. Do not write `feature-storm-v<N>-<desc>.md`. Do not flip the progress bar to `complete` — the tracker's storm step stays at `pending`, accurately reflecting that no storm artefact was produced. Tell the user the brainstorm was abandoned and, in the same line, that the folder Step 2 created (`feature_folder`, holding only the seeded tracker) is still on disk — this skill never deletes it.
 
 ## Step 5 — Write the brainstorm document
+
+Record the step: `PROGRESS enter --run <progress_run> --step 5`.
 
 Write the file at the `stage_file` path returned by Step 2. Use this 7-section structure exactly — every section is required; if a section has no real content for this feature, write a one-line "Not applicable — <reason>" rather than omitting it.
 
@@ -277,6 +296,8 @@ Section content rules:
 After writing, record the file's absolute path — Step 8 references it.
 
 ## Step 6 — Update the tracker
+
+Record the step: `PROGRESS enter --run <progress_run> --step 6`.
 
 `Read` the tracker file at `tracker_file`. The file should exist from Step 2; if it does not (e.g. `feature-resolve` noted `tracker_seed: skipped`), defensively copy the plugin template into place:
 
@@ -332,11 +353,15 @@ Do **not** touch other skills' tokens (`{{BRAINSTORMING_*}}` aside, the design /
 
 ## Step 7 — Capture lessons
 
+Record the step: `PROGRESS enter --run <progress_run> --step 7`.
+
 Invoke the `lessons-capture` skill in this plugin via the `Skill` tool with the single argument `feature-storm`. It runs the reflection protocol, appends a dated entry to `~/.claude/dev-skills/lessons/feature-storm.md`, and returns the entry body (a single recommendation in three lines, or the "No skill-improvement recommendations from this run." line) for you to paste under the *Skill-improvement recommendations* heading in Step 8's chat summary. When it also returns a log-size reminder block, paste that block unchanged directly below the entry.
 
 Do not run the reflection inline — `lessons-capture` is the single source of the protocol for all skills in this plugin.
 
 ## Step 8 — Present highlights
+
+Record the step: `PROGRESS enter --run <progress_run> --step 8`.
 
 In chat, output a short, scannable summary so the user doesn't need to open the files to get the gist. Use this shape:
 
@@ -362,6 +387,8 @@ Tracker: <tracker_file path>
 Keep the chat output under ~30 lines. The files are the artifact; the chat is the pointer.
 
 ## Step 9 — Offer to chain into /feature-design
+
+**Close the progress file.** Run `PROGRESS finish --run <progress_run> --outcome completed`, which closes Step 8. It sits before the usage report because a hand-over never returns to this step.
 
 **Report the run usage.** Invoke `usage-report` via the `Skill` tool with the argument `report feature-storm, tracker_file=<tracker_file>, feature_version=<version>`, taking both values from this skill's `feature-resolve` block. It prints nothing: it appends one line to the usage log, fills this stage's tracker panel and rewrites the tracker's Usage tab. Do this *before* the hand-over and offer below: on the chain-in branch this skill hands over through the `Skill` tool and never returns to the step, so a report placed afterwards would silently never run. It runs inline — **do not end your turn**, carry straight on.
 
@@ -396,6 +423,7 @@ Do not skip this step or substitute the AskUserQuestion with prose. The offer is
 - **Generate, don't just interview — twice.** Step 3a is not optional politeness. Wave 1 must put grounded ideas on the table the user did not bring (adjacent capabilities, alternative approaches, smaller cuts, unconsidered users); Wave 2 must then offer 4–5 deliberately bold ones, in a round of their own, repeating nothing from Wave 1. Ideas are offered, never assumed in; adopted ones shape §2/§3, rejected approaches land in §5 and rejected capabilities in §3's out-of-scope list.
 - **Scope must be 100% settled before Step 4.** Every capability discussed is either in this version or explicitly deferred by name. The only uncertainty allowed past the gate is design-level (recorded in §7). An unsettled item is a question for another round, never a hedge in the summary — and if it survives three rounds, force an in/out decision rather than carrying it forward.
 - **Report the run usage before you stop.** However this run ends — normal completion, a halt, a refusal, a stop condition, or an error surfaced to the user — invoke `usage-report` with `report feature-storm, outcome=halted, cycle=true` — plus `tracker_file=<tracker_file>, feature_version=<version>` once Step 2's resolver has run — before you stop (Step 9's normal path passes `outcome=completed` instead). This covers every exit Step 9 does not. A halted run still cost tokens, and one that never reports vanishes from the log and skews every average drawn from it. The one exception is a Step 1 relaunch (`next: end-turn` from **Check the session**): it ends the turn before the usage window opens, so there is no window to close.
+- **Progress is tracked outside the project, through the script only, and never blocks.** The progress file is `<config-dir>/dev-skills/progress/progress.json`, shared by every run and never in the repo. It changes only through `scripts/run_progress.py` — never by hand — and this run writes only its own record, by `--run <progress_run>`. A tracking failure never fails, blocks or retries anything. However the run ends once Step 2 opened its run, `PROGRESS finish` closes it — `--outcome halted` on every early exit, alongside the halted usage report.
 - **A queued relaunch or handover is the one place this skill ends its turn on a success path** besides any wait a helper sanctions; it never ends the turn on a `session-control` result other than `next: end-turn`.
 - **Description is authoritative from `feature-resolve`.** When continuing into an existing folder, the folder's description wins — even if the user's `$ARGUMENTS` suggested a different title. Surface the resolver's `notes` to the user if it flagged a description conflict.
 - **No minor versions.** This plugin uses integer feature versions only. Pass `version=<N>` to the resolver, never `<N>.<M>`.

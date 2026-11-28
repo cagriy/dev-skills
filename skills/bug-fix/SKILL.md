@@ -57,6 +57,20 @@ If the user picks Cancel (or anything non-affirmative), stop with no changes. If
 
 ## Step 2 — Ground yourself in the codebase
 
+**Open the progress file.** The run keeps a live progress file outside the project, for the user to watch from wherever they like — a status line, another pane, a dashboard. The plugin's `scripts/run_progress.py` owns it. Locate it the way `usage-report` locates its script: `<base>/../../scripts/run_progress.py` from this skill's announced base directory first, else `find ~ -path "*dev-skills*/scripts/run_progress.py" 2>/dev/null`, preferring a `plugins/cache/` match at the highest version over a working clone. `PROGRESS` below means `python3 "<that path>"` — the system interpreter, never a project environment. Then run:
+
+```
+PROGRESS init --skill bug-fix --subject bug-<bug_number>-<slug> --repo-root <repo_root> --artefact <report_file> --at 2
+```
+
+It prints `run-progress: <run id> <path>`: record the id as `<progress_run>`. The path is `<config-dir>/dev-skills/progress/progress.json`, never in the repo — one file for every run of every skill, in every repo and session, where this run's record names its skill, its subject (feature or bug), its repo and its session. The script holds this skill's step list and an expected duration for each step — the median of that step's earlier runs once there are some, an estimate until then — so time left allows for steps of very different lengths. Steps before Step 2 count as done, untimed.
+
+- **Enter each step.** Each later step opens by recording itself with `PROGRESS enter --run <progress_run> --step <id>`, which closes the step before it. A step the run jumps over is recorded as skipped; entering an earlier step records a loop back.
+- **Never blocks the run.** No script, no `python3`, or a line starting `run-progress: skipped — ` from `init` → say so in one line, set `<progress_run>` to `none` and skip every later `PROGRESS` call. A later call's skip line is carried past — never retried or investigated.
+- **Quiet.** Don't relay a call's output line; the file is the channel.
+- **Through the script only.** Never edit the JSON by hand.
+- **Long-running commands.** A command you expect to run longer than about two minutes — a slow suite, a deploy or an environment bring-up to check the fix — runs through `PROGRESS job --run <progress_run> --label "<stable label>" [--step <id>] [--expect <seconds>] -- <command> <args…>`. It streams the command's output, exits with the command's own status and keeps the job's percent and time left current while it runs; it records the label, never the command line or its output.
+
 Build an accurate mental model before forming any theory. Read, don't skim:
 
 - The code paths the bug's triage points at — and read them **end to end**, following the actual control flow, not just the named function. (Per the debugging discipline: understand the path fully before hypothesising.)
@@ -71,6 +85,8 @@ Establish a **baseline**: run `TEST` (and `LINT` if quick) and record what alrea
 
 ## Step 3 — Review the bug and clarify with the user
 
+Record the step: `PROGRESS enter --run <progress_run> --step 3`.
+
 **This step is mandatory even in auto / non-interactive mode.** If the harness told you to "work without stopping" or "skip clarifying questions", that does not apply here — fixing the wrong thing wastes far more time than one round of questions.
 
 Decide whether the report leaves material ambiguity: unclear expected behaviour, fuzzy repro steps, multiple plausible interpretations of "broken", missing environment/version, or a symptom that could map to more than one feature.
@@ -81,6 +97,8 @@ Decide whether the report leaves material ambiguity: unclear expected behaviour,
 Fold the answers into your understanding of the bug before diagnosing.
 
 ## Step 4 — Diagnose the root cause (fact-driven — no guessing)
+
+Record the step: `PROGRESS enter --run <progress_run> --step 4`.
 
 This is the gate the whole skill turns on. **Find the root cause, supported by evidence, before you change a single line of production code.**
 
@@ -97,6 +115,8 @@ Only proceed to Step 5 when you can state the root cause concretely — citing `
 
 ## Step 5 — Explain the fix and get approval
 
+Record the step: `PROGRESS enter --run <progress_run> --step 5`.
+
 Tell the user, at whatever length the fix needs to be judged:
 
 - **Root cause** — one or two sentences, with the evidence.
@@ -107,6 +127,8 @@ Tell the user, at whatever length the fix needs to be judged:
 Then ask for approval via `AskUserQuestion`: **Proceed** (recommended) / **Adjust approach** / **Cancel**. If they want adjustments, incorporate them and re-confirm. If they cancel, stop with no code changes. Keep the fix scoped to the root cause — do not bundle refactors, cleanups, or unrelated improvements (raise those separately if they matter).
 
 ## Step 6 — Implement the fix, test-first (TDD)
+
+Record the step: `PROGRESS enter --run <progress_run> --step 6`.
 
 Follow the standard TDD cycle without exception:
 
@@ -123,17 +145,21 @@ If the bug genuinely has no automatable layer (pure visual/UI, external-only beh
 
 ## Step 7 — Verify the resolution
 
+Record the step: `PROGRESS enter --run <progress_run> --step 7`.
+
 - If automated tests fully exercise the fixed behaviour and they pass, the resolution is verified — note which tests cover it.
 - For UI / frontend changes, where you can, run the app (start the dev server, exercise the feature, watch for regressions) before declaring success.
 - If you **cannot** verify automatically (UI rendering you can't drive, an external system, a visual judgement), ask the user to test. Give precise steps to reproduce and what "fixed" looks like, then confirm via `AskUserQuestion`: **Confirmed fixed** / **Still broken** / **Partially fixed**. Wait for their answer — do not assume success.
 
 ## Step 8 — If unresolved, loop back to diagnosis
 
-If the regression test still fails after your change, or the user reports the bug remains (or only partially resolved), **return to Step 4** — re-diagnose with the new evidence in hand (what the failed attempt ruled out is itself a fact). Do not pile speculative patch on speculative patch.
+If the regression test still fails after your change, or the user reports the bug remains (or only partially resolved), record the loop with `PROGRESS enter --run <progress_run> --step 4` and **return to Step 4** — re-diagnose with the new evidence in hand (what the failed attempt ruled out is itself a fact). Do not pile speculative patch on speculative patch.
 
 Bound the loop: if repeated honest attempts don't converge, stop and tell the user plainly what you've tried, what each attempt ruled out, and what you need from them. Thrashing helps no one.
 
 ## Step 9 — Close the bug and commit
+
+Record the step: `PROGRESS enter --run <progress_run> --step 9`.
 
 Only reach this step once the resolution is **confirmed** (Step 7).
 
@@ -174,7 +200,11 @@ Keep the first commit line under 72 characters. Do **not** stage unrelated modif
 
 ## Step 10 — Capture lessons
 
+Record the step: `PROGRESS enter --run <progress_run> --step 10`.
+
 Invoke the `lessons-capture` skill in this plugin via the `Skill` tool with the single argument `bug-fix`. It runs the reflection protocol, appends a dated entry to `~/.claude/dev-skills/lessons/bug-fix.md`, and returns the entry body for the highlights below. When it also returns a log-size reminder block, paste that block unchanged directly below the entry. Do not run the reflection inline — `lessons-capture` is the single source of that protocol.
+
+Close the progress file: `PROGRESS finish --run <progress_run> --outcome completed`.
 
 Then output a short, scannable summary in chat (under ~20 lines):
 
@@ -202,5 +232,6 @@ For a security bug Step 4 found exposed, replace the parenthesis on the Commit l
 - **No regressions.** Honour the Step 2 baseline — anything passing before must still pass. Don't silently "fix" pre-existing unrelated failures inside this run.
 - **The tracker is rendered, not hand-written.** Closing a bug means moving its folder to `bugs/archive/` and invoking `bug-tracker-render` — never hand-edit `bugs/bugs-tracker.html`.
 - **No open bug ⇒ clean stop.** If there's nothing to fix, report it and hand over to `/bug-submit`. Don't invent work.
+- **Progress is tracked outside the project, through the script only, and never blocks.** The progress file is `<config-dir>/dev-skills/progress/progress.json`, shared by every run and never in the repo. It changes only through `scripts/run_progress.py` — never by hand — and this run writes only its own record, by `--run <progress_run>`. A tracking failure never fails, blocks or retries anything. However the run ends once Step 2 opened its run, `PROGRESS finish` closes it — `--outcome halted` on every exit short of Step 10: a cancel, a root cause that could not be established, a loop that would not converge.
 - **Language-agnostic.** Detect and reuse the project's own tooling; don't assume a specific stack.
 - **Lessons capture runs every time.** Step 10 always invokes `lessons-capture`; whether it yields a recommendation or "none this run" is that skill's call.
